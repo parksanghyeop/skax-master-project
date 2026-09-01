@@ -1,0 +1,120 @@
+{
+  "dataset": "local-defects-v1",
+  "model": "gpt-5",
+  "prompt_hash": "4f3a5818756b",
+  "gates": "full(5종)",
+  "ran_at": "2026-09-02T02:04:08",
+  "summary": {
+    "cases": 6,
+    "accepted": 6,
+    "detected": 5,
+    "detection_rate": 0.833,
+    "escalation_rate": 0.0,
+    "avg_writer_attempts": 1.0,
+    "total_elapsed_s": 1168.6
+  },
+  "rows": [
+    {
+      "case": "clamp-wrongop",
+      "target": "MathUtil#clamp",
+      "bug": "Math.min(value, max)를 Math.max(value, max)로 — 상한을 넘겨도 안 잘림",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 104.5,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true,
+        "coverage": true,
+        "mutation": true
+      },
+      "detected": true
+    },
+    {
+      "case": "fib-base",
+      "target": "MathUtil#fibonacci",
+      "bug": "n < 2에서 n 대신 1 반환 — 0번째 값이 틀린다",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 101.9,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true,
+        "coverage": true,
+        "mutation": true
+      },
+      "detected": true
+    },
+    {
+      "case": "palindrome-empty",
+      "target": "TextUtil#isPalindrome",
+      "bug": "빈 문자열에서 true 반환 (사양: null·빈 문자열은 false)",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 114.9,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true,
+        "coverage": true,
+        "mutation": true
+      },
+      "detected": true
+    },
+    {
+      "case": "rounding-negative",
+      "target": "MathUtil#divideRounded",
+      "bug": "음수 분기(q - 1) 제거 — 음수 결과의 반올림 방향이 틀린다",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 146.3,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true,
+        "coverage": true,
+        "mutation": true
+      },
+      "detected": true
+    },
+    {
+      "case": "truncate-boundary",
+      "target": "TextUtil#truncate",
+      "bug": "trimmed.length() <= max 를 < max 로 — 경계값(길이==max)에서 오동작",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 148.4,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true,
+        "coverage": true,
+        "mutation": true
+      },
+      "detected": false
+    },
+    {
+      "case": "truncate-null",
+      "target": "TextUtil#truncate",
+      "bug": "null 체크 삭제 — text가 null이면 NullPointerException",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 142.7,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true,
+        "coverage": true,
+        "mutation": true
+      },
+      "detected": true
+    }
+  ]
+}
