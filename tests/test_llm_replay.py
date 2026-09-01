@@ -8,7 +8,7 @@
 import pytest
 
 from llm.client import ChatMessage, ChatResponse
-from llm.gateway import GatewayClient, GatewayConfigError, build_payload
+from llm.gateway import GatewayClient, GatewayConfigError, build_payload, build_url
 from llm.replay import CassetteError, RecordingClient, ReplayClient
 
 
@@ -71,13 +71,20 @@ class TestReplayFailsClosed:
 
 
 class TestGateway:
-    def test_요청_본문은_openai_호환_형식이다(self):
-        payload = build_payload(ASK, model="glm")
-        assert payload == {"model": "glm", "messages": [{"role": "user", "content": "3+4는?"}]}
+    def test_요청_본문에는_메시지만_들어간다(self):
+        # 모델 선택은 본문이 아니라 URL(deployment)이 담당한다 (ADR-0011)
+        assert build_payload(ASK) == {"messages": [{"role": "user", "content": "3+4는?"}]}
+
+    def test_요청_경로는_azure_openai_호환이다(self):
+        url = build_url("http://gw.test/", "gpt-4.1", "2024-12-01-preview")
+        assert url == (
+            "http://gw.test/openai/deployments/gpt-4.1/chat/completions"
+            "?api-version=2024-12-01-preview"
+        )
 
     def test_환경변수_없이_생성하면_거부한다(self, monkeypatch):
         monkeypatch.delenv("CTA_GATEWAY_URL", raising=False)
-        monkeypatch.delenv("CTA_GATEWAY_TOKEN", raising=False)
+        monkeypatch.delenv("CTA_GATEWAY_API_KEY", raising=False)
         with pytest.raises(GatewayConfigError):
             GatewayClient()
 

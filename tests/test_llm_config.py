@@ -1,15 +1,12 @@
-"""llm/config·anthropic_client의 단위 테스트 — 네트워크·실제 키 없이 돈다.
+"""llm/config의 단위 테스트 — 네트워크·실제 키 없이 돈다.
 
-검증: .env 파싱, 환경변수 우선순위, provider 선택, Claude 메시지 형식 변환.
+검증: .env 파싱, 환경변수 우선순위, 게이트웨이 클라이언트·deployment 선택.
 """
 
-import pytest
+import os
 
-from llm.anthropic_client import split_messages
-from llm.client import ChatMessage
 from llm.config import (
-    ENV_PROVIDER,
-    LlmConfigError,
+    DEFAULT_MODEL,
     load_dotenv_into_env,
     make_llm_client,
     read_dotenv,
@@ -30,56 +27,21 @@ class TestDotenv:
         env.write_text("CTA_TEST_KEY=파일값", encoding="utf-8")
         monkeypatch.setenv("CTA_TEST_KEY", "환경값")
         load_dotenv_into_env(env)
-        import os
-
         assert os.environ["CTA_TEST_KEY"] == "환경값"
 
 
 class TestMakeLlmClient:
-    def test_기본은_claude_provider다(self, monkeypatch):
-        monkeypatch.delenv(ENV_PROVIDER, raising=False)
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
-        client, model = make_llm_client()
-        assert type(client).__name__ == "ClaudeClient"
-        assert model == "claude-opus-5"
-
-    def test_gateway_provider를_고를_수_있다(self, monkeypatch):
-        monkeypatch.setenv(ENV_PROVIDER, "gateway")
+    def test_게이트웨이_클라이언트와_기본_deployment를_만든다(self, monkeypatch):
         monkeypatch.setenv("CTA_GATEWAY_URL", "http://gw.test")
-        monkeypatch.setenv("CTA_GATEWAY_TOKEN", "t")
+        monkeypatch.setenv("CTA_GATEWAY_API_KEY", "atl-test-not-real")
+        monkeypatch.delenv("CTA_LLM_MODEL", raising=False)
         client, model = make_llm_client()
         assert type(client).__name__ == "GatewayClient"
-        assert model == "qwen"
+        assert model == DEFAULT_MODEL
 
-    def test_모델은_설정으로_바꿀_수_있다(self, monkeypatch):
-        monkeypatch.setenv(ENV_PROVIDER, "claude")
-        monkeypatch.setenv("CTA_LLM_MODEL", "claude-haiku-4-5")
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    def test_deployment는_설정으로_바꿀_수_있다(self, monkeypatch):
+        monkeypatch.setenv("CTA_GATEWAY_URL", "http://gw.test")
+        monkeypatch.setenv("CTA_GATEWAY_API_KEY", "atl-test-not-real")
+        monkeypatch.setenv("CTA_LLM_MODEL", "gpt-5-mini")
         _, model = make_llm_client()
-        assert model == "claude-haiku-4-5"
-
-    def test_모르는_provider는_안내와_함께_거부한다(self, monkeypatch):
-        monkeypatch.setenv(ENV_PROVIDER, "gpt")
-        with pytest.raises(LlmConfigError, match="claude"):
-            make_llm_client()
-
-
-class TestSplitMessages:
-    def test_system은_파라미터로_나머지는_messages로_간다(self):
-        system_text, api_messages = split_messages(
-            [
-                ChatMessage(role="system", content="역할 지시"),
-                ChatMessage(role="user", content="질문"),
-                ChatMessage(role="assistant", content="답"),
-            ]
-        )
-        assert system_text == "역할 지시"
-        assert api_messages == [
-            {"role": "user", "content": "질문"},
-            {"role": "assistant", "content": "답"},
-        ]
-
-    def test_system이_없으면_빈_문자열이다(self):
-        system_text, api_messages = split_messages([ChatMessage(role="user", content="q")])
-        assert system_text == ""
-        assert len(api_messages) == 1
+        assert model == "gpt-5-mini"

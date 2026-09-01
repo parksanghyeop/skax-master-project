@@ -1,8 +1,8 @@
-"""사내 LLM 게이트웨이 HTTP 클라이언트.
+"""사내 LLM 게이트웨이 HTTP 클라이언트 — Azure OpenAI 호환 형식 (ADR-0011).
 
-OpenAI 호환 chat completions 형식을 가정한다(사내 게이트웨이 스펙 미확정 —
-poc-findings 1주차 확인 목록. 확정되면 이 파일만 고치면 된다).
-층: llm. 서버 주소·API 토큰은 환경변수로만 받는다(v4 6.6 — 코드·설정 파일 기록 금지).
+경로가 `/openai/deployments/{deployment}/chat/completions`이고 deployment 이름이
+곧 모델 선택이다 — LlmClient.chat의 model 인자를 deployment 이름으로 쓴다.
+층: llm. 서버 주소·API 키는 환경변수/.env로만 받는다(v4 6.6 — 리포 기록 금지).
 """
 
 import json
@@ -12,11 +12,15 @@ from urllib.error import URLError
 
 from llm.client import ChatMessage, ChatResponse
 
-# 환경변수 이름. 값이 아니라 이름만 코드에 둔다(v4 6.6).
+# 환경변수 이름. 값(주소·키)은 코드에 절대 넣지 않는다(v4 6.6).
 ENV_BASE_URL = "CTA_GATEWAY_URL"
-ENV_API_TOKEN = "CTA_GATEWAY_TOKEN"
+ENV_API_KEY = "CTA_GATEWAY_API_KEY"
+ENV_API_VERSION = "CTA_GATEWAY_API_VERSION"  # 생략 시 기본값 사용
 
-# 게이트웨이 무응답으로 파이프라인이 잠기지 않게 하는 상한. 임시값(스펙 확정 시 조정).
+# API 버전은 스펙 문자열이라 비밀이 아니다 — 게이트웨이 안내 기준(2026-09 확인).
+DEFAULT_API_VERSION = "2024-12-01-preview"
+
+# 게이트웨이 무응답으로 파이프라인이 잠기지 않게 하는 상한. 임시값(운영값은 측정 후 조정).
 REQUEST_TIMEOUT_SECONDS = 120
 
 
@@ -28,15 +32,20 @@ class GatewayCallError(RuntimeError):
     """게이트웨이 호출 실패(네트워크·비정상 응답). 원인 요약을 메시지에 담는다."""
 
 
-def build_payload(messages: list[ChatMessage], model: str) -> dict:
-    """chat completions 요청 본문을 만든다 (OpenAI 호환 형식).
+def build_url(base_url: str, deployment: str, api_version: str) -> str:
+    """chat completions 요청 URL을 만든다 (Azure OpenAI 호환 경로).
 
-    순수 함수로 분리한 이유: 네트워크 없이 요청 형식을 단위 테스트하기 위해서.
+    순수 함수로 분리한 이유: 네트워크 없이 경로 규칙을 단위 테스트하기 위해서.
     """
-    return {
-        "model": model,
-        "messages": [{"role": m.role, "content": m.content} for m in messages],
-    }
+    return (
+        f"{base_url.rstrip('/')}/openai/deployments/{deployment}"
+        f"/chat/completions?api-version={api_version}"
+    )
+
+
+def build_payload(messages: list[ChatMessage]) -> dict:
+    """요청 본문을 만든다. 모델 선택은 본문이 아니라 URL(deployment)이 담당한다."""
+    return {"messages": [{"role": m.role, "content": m.content} for m in messages]}
 
 
 class GatewayClient:
@@ -48,23 +57,25 @@ class GatewayClient:
 
     def __init__(self) -> None:
         base_url = os.environ.get(ENV_BASE_URL)
-        token = os.environ.get(ENV_API_TOKEN)
-        if not base_url or not token:
+        api_key = os.environ.get(ENV_API_KEY)
+        if not base_url or not api_key:
             raise GatewayConfigError(
-                f"환경변수 {ENV_BASE_URL}·{ENV_API_TOKEN}가 필요하다 — "
-                "시크릿은 환경변수로만(v4 6.6)"
+                f"환경변수 {ENV_BASE_URL}·{ENV_API_KEY}가 필요하다 — "
+                ".env(gitignore) 또는 환경변수로만 설정한다(v4 6.6, ADR-0011)"
             )
-        self._endpoint = base_url.rstrip("/") + "/chat/completions"
-        self._token = token
+        self._base_url = base_url
+        self._api_key = api_key
+        self._api_version = os.environ.get(ENV_API_VERSION) or DEFAULT_API_VERSION
 
     def chat(self, messages: list[ChatMessage], model: str) -> ChatResponse:
-        body = json.dumps(build_payload(messages, model)).encode("utf-8")
+        body = json.dumps(build_payload(messages)).encode("utf-8")
         request = urllib.request.Request(
-            self._endpoint,
+            build_url(self._base_url, model, self._api_version),
             data=body,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self._token}",
+                # 게이트웨이는 api-key 헤더와 Bearer 둘 다 받는다 — 단순한 쪽을 쓴다
+                "api-key": self._api_key,
             },
             method="POST",
         )
@@ -72,10 +83,10 @@ class GatewayClient:
             with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except URLError as e:
-            # 토큰이 오류 문구에 섞여 나가지 않도록 원인만 요약한다(시크릿 가림, v4 6.6)
-            raise GatewayCallError(f"게이트웨이 호출 실패: {e.reason}") from e
+            # 키가 오류 문구에 섞여 나가지 않도록 원인만 요약한다(시크릿 가림, v4 6.6)
+            raise GatewayCallError(f"게이트웨이 호출 실패 (deployment={model}): {e.reason}") from e
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
             raise GatewayCallError(f"응답 형식 이상: 최상위 키 {sorted(data)[:10]}") from e
-        return ChatResponse(content=content)
+        return ChatResponse(content=content or "")

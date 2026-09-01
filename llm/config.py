@@ -1,8 +1,9 @@
-"""LLM 백엔드 선택 설정 — 개발(Claude API) ↔ 운영(사내 게이트웨이) 전환 지점 (ADR-0010).
+"""LLM 클라이언트 생성의 유일한 입구 — 사내 게이트웨이 직결 (ADR-0011).
 
 설정 우선순위: 환경변수 > `.env` 파일(리포 루트). `.env`는 gitignore 대상이라
-시크릿이 원격 레포에 올라가는 경로가 없다(v4 6.6). 커밋되는 것은 키 이름만 적은
-`.env.example`뿐이다. 층: llm — 클라이언트 생성은 반드시 make_llm_client를 경유한다.
+서버 주소·API 키가 원격 레포에 올라가는 경로가 없다(v4 6.6). 커밋되는 것은
+키 이름만 적은 `.env.example`뿐이다. 백엔드 스펙이 바뀌면 이 모듈만 고친다.
+층: llm.
 """
 
 import os
@@ -11,18 +12,11 @@ from pathlib import Path
 from llm.client import LlmClient
 
 # 설정 키 이름. 값은 코드에 절대 넣지 않는다.
-ENV_PROVIDER = "CTA_LLM_PROVIDER"  # "claude"(개발 기본) | "gateway"(운영)
-ENV_MODEL = "CTA_LLM_MODEL"  # 미설정 시 provider별 기본값
+ENV_MODEL = "CTA_LLM_MODEL"  # 게이트웨이 deployment 이름. 미설정 시 기본값
 
-PROVIDER_CLAUDE = "claude"
-PROVIDER_GATEWAY = "gateway"
-
-DEFAULT_MODELS = {
-    # claude-api 스킬 기준 권장 기본 모델 (2026-09 확인)
-    PROVIDER_CLAUDE: "claude-opus-5",
-    # 게이트웨이 모델 이름은 사내 스펙 확정 후 갱신 — poc-findings 확인 목록 참조
-    PROVIDER_GATEWAY: "qwen",
-}
+# 기본 deployment. 게이트웨이 제공 목록(gpt-4.1/4.1-mini/4o/4o-mini/5/5-mini/5.4/5.6-luna)
+# 중 보수적 선택 — 모델 비교 실험은 2단계 평가 하네스에서 한다.
+DEFAULT_MODEL = "gpt-4.1"
 
 _DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
@@ -52,33 +46,20 @@ def read_dotenv(path: str | Path) -> dict[str, str]:
 def load_dotenv_into_env(path: str | Path = _DOTENV_PATH) -> None:
     """.env 내용을 환경변수로 주입한다. 이미 설정된 환경변수가 항상 이긴다.
 
-    왜 필요한가: anthropic SDK·GatewayClient는 os.environ만 읽는다 —
-    .env를 여기서 주입해야 "파일 하나로 전 백엔드 설정"이 성립한다.
+    왜 필요한가: GatewayClient는 os.environ만 읽는다 — .env를 여기서 주입해야
+    "파일 하나로 전체 설정"이 성립한다.
     """
     for key, value in read_dotenv(path).items():
         os.environ.setdefault(key, value)
 
 
 def make_llm_client() -> tuple[LlmClient, str]:
-    """설정에 따라 (클라이언트, 기본 모델 이름)을 만든다.
+    """(게이트웨이 클라이언트, deployment 이름)을 만든다.
 
-    실패 시 동작: 모르는 provider → LlmConfigError.
-      자격 증명 부재는 각 클라이언트가 첫 사용 시점에 자체 예외로 알린다.
+    실패 시 동작: 주소·키 미설정은 GatewayClient가 GatewayConfigError로 알린다.
     """
     load_dotenv_into_env()
-    provider = os.environ.get(ENV_PROVIDER, PROVIDER_CLAUDE).strip().lower()
-    model = os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODELS.get(provider, "")
+    from llm.gateway import GatewayClient
 
-    if provider == PROVIDER_CLAUDE:
-        # 지연 import: 게이트웨이만 쓰는 환경에서 anthropic SDK를 요구하지 않기 위해
-        from llm.anthropic_client import ClaudeClient
-
-        return ClaudeClient(), model
-    if provider == PROVIDER_GATEWAY:
-        from llm.gateway import GatewayClient
-
-        return GatewayClient(), model
-    raise LlmConfigError(
-        f"{ENV_PROVIDER}={provider!r}는 모르는 값이다 — "
-        f"{PROVIDER_CLAUDE!r} 또는 {PROVIDER_GATEWAY!r} 중 하나를 쓰라 (.env 또는 환경변수)"
-    )
+    model = os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
+    return GatewayClient(), model

@@ -88,8 +88,10 @@
 
 ## 설계 수정 필요 — v4 문서·ADR과 다르게 가야 하는 지점 + 이유 (→ ADR 후보)
 
-- **ADR-0010 작성 완료**: 개발 LLM 백엔드를 Claude API로, 운영을 사내 게이트웨이로
-  이원화. `llm/config.py` 팩토리로 전환, 시크릿은 환경변수/.env로만 (2026-09-01, 사용자 결정)
+- **ADR-0011**: 사내 게이트웨이(Azure OpenAI 호환) 직결 — ADR-0010(Claude 이원화)은
+  스펙 확정으로 당일 폐기. 시크릿·주소는 환경변수/.env로만 (2026-09-01, 사용자 결정)
+- v4 5절 전제(Kimi/Qwen/GLM) ≠ 실제 게이트웨이(GPT 계열 deployment) — 모델 비교
+  실험 설계를 2단계에서 갱신해야 함 (→ ADR 후보)
 
 - `TOOL_OUTPUT_MAX_CHARS = 4000`은 임시값 — v4 원문에 상한이 정의돼 있는지 확인 필요
 
@@ -104,14 +106,19 @@
 - M3 골든 케이스(캐시 준비된 상태): 서브그래프 전체(컴파일 검사 + 오프라인 실행 포함)
   35.4초. LLM 토큰 0 (카세트 재생) — 실호출 측정은 게이트웨이 접속 후
 
-## 1주차 확인 의무 3건 — 개발 환경(Claude 백엔드, ADR-0010) 기준 확인 완료 (2026-09-01)
+## 1주차 확인 의무 3건 — 게이트웨이 스펙 확정으로 해소 (2026-09-01, ADR-0011)
 
-| # | 확인할 것 | 개발 환경 결과 | 사내 환경 |
-|---|---|---|---|
-| 1 | 임베딩 API 제공 여부 | ❌ **미제공** — Anthropic API에는 임베딩 엔드포인트가 없다(공식 문서·claude-api 스킬 확인, 외부 임베딩 서비스 권장 구조). → v4 4.1 ④ 보조 검색(커밋 메시지·판단 메모)은 **보류**, 코드 그래프 주 검색만으로 2단계 진행 | ⏳ 게이트웨이 확인 후 재평가 |
-| 2 | Neo4j 별도 구동 가능 여부 | ✅ **가능** — `neo4j:5` 컨테이너 단독 기동 후 `cypher-shell RETURN 1` 응답 확인(실측). v4 6.5의 "샌드박스 밖 별도 컨테이너" 구조 성립 | ⏳ 사내망 정책 확인 필요 |
-| 3 | tool calling 지원 여부 | ✅ **지원** — Claude Messages API는 tools/tool_use를 정식 지원(공식 문서 확인). 단 PoC 파이프라인은 이미 텍스트(코드 블록) 파싱 방식이라 모델 무관 동작 — tool calling 전환은 2단계에서 도구 6종을 모델에 직접 노출할 때 결정 | ⏳ Kimi/Qwen/GLM 모델별 확인, 미지원 시 현행 파싱 방식 유지 |
+사내 게이트웨이 스펙이 확정됐다: Azure OpenAI 호환
+(`/openai/deployments/{deployment}/chat/completions`, api-version 2024-12-01-preview,
+`api-key` 헤더). v4가 전제한 Kimi/Qwen/GLM이 아니라 GPT 계열 deployment를 제공한다.
 
-- 리서치 출처: claude-api 스킬(2026-06 캐시) + platform.claude.com 공식 문서 체계.
-  실호출 스모크 테스트는 `.env`에 `ANTHROPIC_API_KEY` 설정 후
-  `scripts/record_golden.py --live`로 수행 예정(키는 사용자 보유)
+| # | 확인할 것 | 결과 |
+|---|---|---|
+| 1 | 게이트웨이 임베딩 API 제공 여부 | ✅ **제공** — text-embedding-3-large/small, ada-002 deployment 존재(사용자 제공 스펙). v4 4.1 ④ 보조 검색(커밋 메시지·판단 메모 임베딩)을 2단계에서 진행 가능 |
+| 2 | Neo4j 별도 구동 가능 여부 | ✅ 개발 환경에서 **가능** — `neo4j:5` 컨테이너 단독 기동 + `cypher-shell RETURN 1` 응답 실측. 사내망 정책(별도 컨테이너 허용 여부)만 추가 확인 |
+| 3 | tool calling 지원 여부 | ✅ **스펙상 지원** — Azure OpenAI chat completions는 tools/function calling을 정식 지원. gpt-4.1/4o/5 계열 deployment별 실지원은 키 확보 후 실호출 1회로 확정. PoC 파이프라인은 텍스트(코드 블록) 파싱 방식이라 어느 쪽이든 동작 — 도구 직접 노출 전환은 2단계 결정 |
+
+- 남은 실측: `.env`에 `CTA_GATEWAY_API_KEY`(atl-...) 설정 후
+  `scripts/record_golden.py --live`로 실호출 스모크 + 골든 카세트 재녹음
+- 설계 영향: v4 5절의 "Kimi/Qwen/GLM 비교 실험" 전제는 GPT 계열 deployment 비교로
+  바뀐다(gpt-4.1 vs gpt-5 계열 등) — 2단계 평가 하네스에 반영

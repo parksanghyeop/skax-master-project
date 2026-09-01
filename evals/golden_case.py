@@ -48,9 +48,9 @@ STYLE_NOTES = (
     "테스트 메서드 이름은 대상_상황_기대 형식(예: add_twoPositives_returnsSum). "
     "static import로 Assertions를 쓴다."
 )
-# 대본 녹음 시 기본 모델 이름. 재생 시에는 카세트에 기록된 모델을 그대로 쓴다
-# (cassette_model 참조) — provider 전환 후 재녹음해도 코드 수정이 없게 하기 위해서.
-SCRIPTED_MODEL = "qwen"
+# 대본 녹음 시 기본 모델(deployment) 이름. 재생 시에는 카세트에 기록된 모델을 그대로
+# 쓴다(cassette_model 참조) — 모델 변경 후 재녹음해도 코드 수정이 없게 하기 위해서.
+SCRIPTED_MODEL = "gpt-4.1"
 
 # 대본 응답: 게이트웨이 미접속 환경이라 골든 카세트는 이 대본을 녹음한 것이다.
 # 사내망에서 실모델로 재녹음하면 이 상수는 참고용으로만 남는다(poc-findings 기록).

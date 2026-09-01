@@ -53,9 +53,8 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `ChatResponse` | `content: str` | tool calling 확정(1주차 확인 3번) 시 필드 확장 |
 | `RecordingClient` | `(inner, cassette_path)` | 호출마다 카세트(JSON) 갱신. 시크릿은 기록에 미포함 |
 | `ReplayClient` | `(cassette_path)` | 순서대로 재생 + 요청 대조. 카세트 없음·소진·불일치 → `CassetteError`. **실호출 폴백 없음** |
-| `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_TOKEN` 필수 | OpenAI 호환 chat completions 가정(스펙 미확정). 없으면 `GatewayConfigError` |
-| `ClaudeClient` | 인증: `ANTHROPIC_API_KEY` 환경변수/.env (SDK 자동 해석) | 개발 백엔드(ADR-0010). 안전 거절은 `ClaudeRefusalError` |
-| `make_llm_client` | `() -> (LlmClient, 기본 모델)` | 설정 `CTA_LLM_PROVIDER`(claude/gateway)·`CTA_LLM_MODEL`. 우선순위: 환경변수 > `.env`. 모르는 provider → `LlmConfigError` |
+| `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_API_KEY` 필수, `CTA_GATEWAY_API_VERSION` 선택 | Azure OpenAI 호환(ADR-0011): `/openai/deployments/{model}/chat/completions?api-version=...`, 인증 `api-key` 헤더. 없으면 `GatewayConfigError` |
+| `make_llm_client` | `() -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` |
 
 카세트 형식: `[{"request": {"model", "messages"}, "response": {"content"}}]` JSON 배열.
 
