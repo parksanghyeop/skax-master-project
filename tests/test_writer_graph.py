@@ -5,8 +5,8 @@
 """
 
 from adapters.fake import (
+    FakeCodeGraph,
     FakeQualityChecker,
-    FakeSimilarTestFinder,
     FakeSourceInspector,
     FakeTestWriter,
     ScriptedGenerator,
@@ -28,7 +28,7 @@ FAIL = RunResult(passed=False, summary="[ERROR] expected 3 but was 4")
 def make_ports(run_script: list[RunResult], gate: ScriptedUserGate | None = None) -> WriterPorts:
     return WriterPorts(
         inspector=FakeSourceInspector({"Calc#divide": "int divide(int a, int b)"}),
-        finder=FakeSimilarTestFinder("본보기: divide_byZero_throws"),
+        graph=FakeCodeGraph({"similar_tests": "본보기: divide_byZero_throws"}),
         writer=FakeTestWriter(),
         runner=ScriptedTestRunner(run_script),
         checker=FakeQualityChecker("통과: 새 테스트, assert 2개"),

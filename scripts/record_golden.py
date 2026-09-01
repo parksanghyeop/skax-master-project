@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 리포 루트
 
 from adapters.java.inspector import JavaSourceInspector  # noqa: E402
 from adapters.java.maven import detect_maven_project  # noqa: E402
-from adapters.java.similar import JavaSimilarTestFinder  # noqa: E402
+from adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph  # noqa: E402
 from core.writer_graph import build_writer_graph, gather_context  # noqa: E402
 from evals import golden_case as gc  # noqa: E402
 from llm.generation import PromptedGenerator  # noqa: E402
@@ -30,7 +30,7 @@ def record_scripted() -> None:
     """대본 답을 1회 녹음한다 (그래프·Docker 없이 프롬프트만 동일하게 재현)."""
     project = detect_maven_project(gc.DEMO_PROJECT)
     context = gather_context(
-        JavaSourceInspector(project), JavaSimilarTestFinder(project), gc.TARGET
+        JavaSourceInspector(project), ParsingCodeGraph(JavaSimilarTestFinder(project)), gc.TARGET
     )
     recorder = RecordingClient(gc.ScriptedLlm([gc.SCRIPTED_ANSWER]), gc.CASSETTE)
     generator = PromptedGenerator(

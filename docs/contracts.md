@@ -17,6 +17,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `SimilarTestFinder` | `find(target: str) -> str` | 모양이 닮은 기존 테스트 발췌. 없으면 안내 문자열 |
 | `QualityChecker` | `check(path: str) -> str` | "통과"/"탈락" 선두의 결정적 검사 결과(R2) |
 | `UserGate` | `ask(question: str) -> UserReply` | 반복 중단 지점. PoC는 자동 "계속" 스텁, 2단계에서 interrupt 실연결 |
+| `CodeGraph` | `answer(query: str, target: str) -> str` | 그래프 질의(M4). 구현: GraphCodeGraph(그래프 실물)/ParsingCodeGraph(파싱 폴백). 답 상한 800토큰(도구 층 clip) |
 | `TestCodeGenerator` | `generate(instruction, context, current_code, last_failure) -> str` | LLM은 이 포트 뒤(llm/generation.py)에만 있다 |
 
 `target`·`selector` 문법은 어댑터가 해석한다 — core는 불투명 문자열로 취급.
@@ -59,6 +60,19 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `make_llm_client` | `() -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` |
 
 카세트 형식: `[{"request": {"model", "messages"}, "response": {"content"}}]` JSON 배열.
+
+## 코드 그래프 (graph/ — M4)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `GraphNode` | `kind("Class"/"Method"), key, props` | key: 클래스 `Calc`, 메서드 `Calc#add` (오버로드 미구분 — 알려진 한계) |
+| `GraphEdge` | `kind, src, dst` | 확정 3종: DECLARES(클래스→메서드), CREATES(메서드→생성 클래스), COVERS(테스트 클래스→실측 실행 메서드) |
+| `GraphStore` | `replace_project(project, nodes, edges)` / `neighbors(project, key, edge_kind, direction)` / `methods_by_kind(project, is_test)` | 구현: InMemoryGraphStore(테스트·폴백), Neo4jGraphStore(실물, 환경변수 `CTA_NEO4J_URI/USER/PASSWORD`) |
+| `build_graph` (adapters/java) | `(MavenProject) -> (nodes, edges)` | 정적 파싱으로 DECLARES·CREATES. COVERS는 `JacocoCoverageCollector.collect_edges` |
+| `parse_covered_methods` | `(jacoco_xml: str) -> set[str]` | 라인 커버>0 메서드 key. 생성자 제외. M6 커버리지 게이트가 재사용 |
+
+쿼리 6종 중 M4 실응답: `verifying_tests`(COVERS 실측) · `how_to_create`(CREATES, 테스트 우선) ·
+`similar_tests`(모양 거리). 후순위(안내 문장): `callers`(CALLS 추정 필요) · `implementations` · `touches_outside`.
 
 ## 도구 공통 규약
 

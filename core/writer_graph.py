@@ -14,8 +14,8 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from core.ports import (
+    CodeGraph,
     QualityChecker,
-    SimilarTestFinder,
     SourceInspector,
     TestCodeGenerator,
     TestRunner,
@@ -62,7 +62,7 @@ class WriterPorts:
     """서브그래프가 쓰는 포트 묶음. 실물(어댑터·LLM)과 Fake를 통째로 갈아끼운다."""
 
     inspector: SourceInspector
-    finder: SimilarTestFinder
+    graph: CodeGraph
     writer: TestWriter
     runner: TestRunner
     checker: QualityChecker
@@ -70,14 +70,14 @@ class WriterPorts:
     generator: TestCodeGenerator
 
 
-def gather_context(inspector: SourceInspector, finder: SimilarTestFinder, target: str) -> str:
+def gather_context(inspector: SourceInspector, graph: CodeGraph, target: str) -> str:
     """정보 수집 결과를 하나의 문자열로 조립한다.
 
-    모듈 함수로 분리한 이유: 카세트 녹음 스크립트가 그래프와 정확히 같은
+    모듈 함수로 분리한 이유: 호출 기록 생성 스크립트가 그래프와 정확히 같은
     프롬프트 재료를 만들어야 재생이 어긋나지 않는다(replay 요청 대조).
     """
     found = inspect_target(inspector, target)
-    similar = query_code_graph(finder, QUERY_SIMILAR_TESTS, target)
+    similar = query_code_graph(graph, QUERY_SIMILAR_TESTS, target)
     return f"[대상 조사]\n{found}\n\n[비슷한 모양의 기존 테스트]\n{similar}"
 
 
@@ -88,7 +88,7 @@ def build_writer_graph(ports: WriterPorts):
     """
 
     def gather(state: WriterState) -> dict:
-        return {"context": gather_context(ports.inspector, ports.finder, state["target"])}
+        return {"context": gather_context(ports.inspector, ports.graph, state["target"])}
 
     def write(state: WriterState) -> dict:
         code = ports.generator.generate(

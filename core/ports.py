@@ -72,7 +72,7 @@ class TestWriter(Protocol):
 
 
 class SimilarTestFinder(Protocol):
-    """구조가 비슷한 기존 테스트를 찾는 포트 (query_code_graph의 PoC 뒷단).
+    """구조가 비슷한 기존 테스트를 찾는 포트 (파싱 기반 최소 구현의 계약).
 
     입력: target 대상 메서드 식별자.
     출력: 모양(입력 개수·예외 유무)이 닮은 기존 테스트의 발췌 문자열 —
@@ -81,6 +81,18 @@ class SimilarTestFinder(Protocol):
     """
 
     def find(self, target: str) -> str: ...
+
+
+class CodeGraph(Protocol):
+    """코드 그래프 질의 포트 (도구 query_code_graph의 뒷단, M4에서 실물화).
+
+    입력: query 사전 정의 쿼리 이름(core/tools/query_code_graph.py의 허용 목록),
+      target 대상 식별자.
+    출력: 짧은 답 문장. 답할 수 없는 쿼리·대상도 예외가 아니라
+      다음 행동을 안내하는 문장이다. 길이 상한은 도구 층이 건다.
+    """
+
+    def answer(self, query: str, target: str) -> str: ...
 
 
 class QualityChecker(Protocol):

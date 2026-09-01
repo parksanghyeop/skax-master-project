@@ -1,24 +1,28 @@
 """도구 6개(core/tools)의 단위 테스트 — 문자열 반환·길이 상한·안내 메시지 규약."""
 
-from adapters.fake import FakeSimilarTestFinder, FakeTestRunner
+from adapters.fake import FakeCodeGraph, FakeTestRunner
 from core.tools import query_code_graph, report_finding, run_tests
-from core.tools.query_code_graph import QUERY_SIMILAR_TESTS
+from core.tools.query_code_graph import GRAPH_ANSWER_MAX_CHARS, QUERY_SIMILAR_TESTS
 
 
 class TestQueryCodeGraph:
-    def test_similar_tests_쿼리는_실응답한다(self):
-        finder = FakeSimilarTestFinder("본보기 코드")
-        assert query_code_graph(finder, QUERY_SIMILAR_TESTS, "A#b") == "본보기 코드"
+    def test_정의된_쿼리는_그래프_포트에_위임한다(self):
+        graph = FakeCodeGraph({QUERY_SIMILAR_TESTS: "본보기 코드"})
+        assert query_code_graph(graph, QUERY_SIMILAR_TESTS, "A#b") == "본보기 코드"
+        assert graph.calls == [(QUERY_SIMILAR_TESTS, "A#b")]
 
-    def test_다른_정의된_쿼리는_그래프_없음을_안내한다(self):
-        answer = query_code_graph(FakeSimilarTestFinder(), "callers", "A#b")
-        assert "그래프 없음" in answer
-        assert "inspect_target" in answer  # 다음 행동을 안내한다
-
-    def test_모르는_쿼리는_허용_목록을_알려준다(self):
-        answer = query_code_graph(FakeSimilarTestFinder(), "raw_cypher", "A#b")
+    def test_모르는_쿼리는_그래프에_가지_않고_허용_목록을_알려준다(self):
+        graph = FakeCodeGraph()
+        answer = query_code_graph(graph, "raw_cypher", "A#b")
         assert "모르는 쿼리" in answer
         assert QUERY_SIMILAR_TESTS in answer
+        assert graph.calls == []  # 자유 쿼리는 뒷단에 도달조차 못 한다
+
+    def test_그래프_답은_800토큰_상한으로_잘린다(self):
+        graph = FakeCodeGraph({"verifying_tests": "가" * 10_000})
+        answer = query_code_graph(graph, "verifying_tests", "A#b")
+        assert len(answer) <= GRAPH_ANSWER_MAX_CHARS
+        assert "잘림" in answer
 
 
 class TestRunTests:

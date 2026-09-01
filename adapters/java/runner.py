@@ -90,9 +90,20 @@ class JavaTestRunner:
         )
         if result.exit_code != 0:
             return result
+        # 예열은 커버리지 계측(JaCoCo)까지 포함해 돌린다 — 오프라인 커버리지 수집
+        # (coverage.py)과 M6 커버리지 게이트가 쓸 플러그인을 캐시에 채우기 위해서.
+        from adapters.java.coverage import JACOCO_PLUGIN
+
         return self._sandbox.run(
             image=MAVEN_IMAGE,
-            command=self._mvn(["test", f"-Dtest={selector}"]),
+            command=self._mvn(
+                [
+                    f"{JACOCO_PLUGIN}:prepare-agent",
+                    "test",
+                    f"-Dtest={selector}",
+                    f"{JACOCO_PLUGIN}:report",
+                ]
+            ),
             mounts=mounts,
             workdir=CONTAINER_WORKDIR,
             network_enabled=True,

@@ -6,7 +6,8 @@
 
 ```
 tests ──▶ (모든 층)
-adapters ──▶ core        # 구체 구현이 포트에 의존
+adapters ──▶ core, graph # 구체 구현이 포트에 의존, 그래프를 채운다
+graph    ──▶ (독립)      # 코드 그래프 모델·저장소·질의 (M4). 언어를 모른다
 llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2)
 core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
 ```
@@ -44,7 +45,14 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `adapters/java/writer.py` | 테스트 쓰기 + 오프라인 컴파일 검사, 테스트 폴더 범위 강제 | M3 |
 | `adapters/java/quality.py` | assert 수 비교 검사 최소본 (AST 비교는 2단계) | M3 |
 | `adapters/java/parsing.py` | 시그니처·본문 최소 파싱 공용 헬퍼 | M3 |
-| `evals/golden_case.py` | 골든 케이스 배선 단일 정의 (녹음·재생 공유) | M3 |
+| `evals/golden_case.py` | 대표 검증 시나리오 배선 단일 정의 (기록 생성·재생 공유) | M3 |
+| `graph/model.py` | 그래프 노드·엣지 모델 (확정 엣지 3종) | M4 |
+| `graph/store.py` | GraphStore 인터페이스 + 인메모리 구현 | M4 |
+| `graph/neo4j_store.py` | Neo4j 실물 저장소 (샌드박스 밖 별도 컨테이너, v4 6.5) | M4 |
+| `graph/answers.py` | 그래프 질의 → 답 문장 (CodeGraph 구현) | M4 |
+| `adapters/java/graph_builder.py` | Java 소스 → 노드·엣지 (DECLARES·CREATES) | M4 |
+| `adapters/java/coverage.py` | JaCoCo 실측 실행·파싱 — COVERS 근거, M6 게이트 재사용 | M4 |
+| `scripts/build_graph.py` | 그래프 빌드 CLI (--coverage로 COVERS 수집) | M4 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_golden.py` | 대표 시나리오 재생 시연 (산출물 캡처·발표용) | 산출물 |
 | `scripts/generate_test.py` | 실사용 CLI 최소본 — 임의 Maven 프로젝트·메서드에 테스트 생성 | 산출물 |

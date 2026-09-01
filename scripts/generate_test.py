@@ -22,7 +22,7 @@ from adapters.java.maven import detect_maven_project, find_existing_test_class  
 from adapters.java.parsing import find_class_file, parse_target, read_package  # noqa: E402
 from adapters.java.quality import AssertCountChecker  # noqa: E402
 from adapters.java.runner import JavaTestRunner  # noqa: E402
-from adapters.java.similar import JavaSimilarTestFinder  # noqa: E402
+from adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph  # noqa: E402
 from adapters.java.writer import JavaTestWriter  # noqa: E402
 from core.writer_graph import WriterPorts, build_writer_graph  # noqa: E402
 from llm.config import make_llm_client  # noqa: E402
@@ -92,7 +92,7 @@ def main() -> int:
 
     ports = WriterPorts(
         inspector=JavaSourceInspector(project),
-        finder=JavaSimilarTestFinder(project),
+        graph=ParsingCodeGraph(JavaSimilarTestFinder(project)),
         writer=JavaTestWriter(project, sandbox, cache_dir),
         runner=runner,
         checker=AssertCountChecker(project),

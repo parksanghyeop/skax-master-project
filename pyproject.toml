@@ -7,8 +7,12 @@ version = "0.1.0"
 description = "소스 변경에 맞춰 테스트 코드를 자동 생성·유지보수하는 LLM 에이전트 (PoC)"
 requires-python = ">=3.11"
 # langgraph: v4 5절이 확정한 오케스트레이션 프레임워크 (M3 서브그래프)
+# neo4j: 코드 그래프 저장소 드라이버 (M4, v4 6.5)
 # 게이트웨이 호출은 표준 라이브러리 urllib — 별도 SDK 불필요 (ADR-0011)
-dependencies = ["langgraph>=0.2"]
+dependencies = [
+    "langgraph>=0.2",
+    "neo4j>=5",
+]
 
 [dependency-groups]
 dev = [
@@ -21,10 +25,13 @@ dev = [
 # 리포 루트를 import 경로에 넣는다. 층 이름이 CLAUDE.md 표기와 1:1로 일치하게 하려는 선택.
 pythonpath = ["."]
 testpaths = ["tests"]
-# docker 마커는 기본 실행에서 제외 — M0 관문 "Java·Docker 없이 pytest 통과" 유지.
-# 통합 테스트 실행: pytest -m docker
-addopts = "-m 'not docker'"
-markers = ["docker: 실제 Docker 데몬이 필요한 통합 테스트"]
+# docker·neo4j 마커는 기본 실행에서 제외 — M0 관문 "외부 의존 없이 pytest 통과" 유지.
+# 통합 테스트 실행: pytest -m docker / pytest -m neo4j
+addopts = "-m 'not docker and not neo4j'"
+markers = [
+    "docker: 실제 Docker 데몬이 필요한 통합 테스트",
+    "neo4j: 실제 Neo4j 컨테이너가 필요한 통합 테스트",
+]
 
 [tool.ruff]
 line-length = 100

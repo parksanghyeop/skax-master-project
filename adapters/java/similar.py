@@ -13,6 +13,27 @@ from adapters.java.parsing import extract_methods, find_class_file, parse_target
 MAX_EXAMPLES = 2
 
 
+class ParsingCodeGraph:
+    """그래프 DB 없이 동작하는 CodeGraph 구현 — 파싱 기반 폴백.
+
+    similar_tests만 실응답(JavaSimilarTestFinder 위임)하고 나머지는 안내 문장.
+    왜 남겨 두나: 그래프를 아직 빌드하지 않은 프로젝트·1회성 실행에서도
+    파이프라인이 돌아야 하고, 저장된 LLM 호출 기록(대표 시나리오)의 재생
+    호환도 이 구현이 보장한다.
+    """
+
+    def __init__(self, finder: "JavaSimilarTestFinder") -> None:
+        self._finder = finder
+
+    def answer(self, query: str, target: str) -> str:
+        if query == "similar_tests":
+            return self._finder.find(target)
+        return (
+            f"그래프 미구축: 쿼리 {query!r}는 build_graph 실행 후 답할 수 있다 — "
+            "지금은 inspect_target을 쓰라"
+        )
+
+
 class JavaSimilarTestFinder:
     """대상 메서드와 모양이 닮은 기존 @Test 메서드를 찾아 발췌를 돌려준다."""
 

@@ -13,7 +13,7 @@ from adapters.java.inspector import JavaSourceInspector
 from adapters.java.maven import detect_maven_project
 from adapters.java.quality import AssertCountChecker
 from adapters.java.runner import JavaTestRunner
-from adapters.java.similar import JavaSimilarTestFinder
+from adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph
 from adapters.java.writer import JavaTestWriter
 from core.writer_graph import WriterPorts, WriterState
 from llm.client import ChatMessage, ChatResponse
@@ -116,7 +116,8 @@ def make_ports(llm_client, model: str | None = None) -> WriterPorts:
     sandbox = DockerSandbox()
     return WriterPorts(
         inspector=JavaSourceInspector(project),
-        finder=JavaSimilarTestFinder(project),
+        # 파싱 기반 CodeGraph: 저장된 호출 기록의 재생 호환(비슷한 테스트 답이 동일)을 보장한다
+        graph=ParsingCodeGraph(JavaSimilarTestFinder(project)),
         writer=JavaTestWriter(project, sandbox, M2_CACHE),
         runner=JavaTestRunner(project, sandbox, M2_CACHE),
         checker=AssertCountChecker(project),

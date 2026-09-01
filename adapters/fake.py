@@ -78,6 +78,18 @@ class FakeSimilarTestFinder:
         return self._examples
 
 
+class FakeCodeGraph:
+    """쿼리별 준비된 답을 돌려주는 CodeGraph 구현. 없는 쿼리는 안내 문장."""
+
+    def __init__(self, answers: dict[str, str] | None = None) -> None:
+        self._answers = dict(answers or {})
+        self.calls: list[tuple[str, str]] = []
+
+    def answer(self, query: str, target: str) -> str:
+        self.calls.append((query, target))
+        return self._answers.get(query, f"준비된 답 없음(Fake): {query}")
+
+
 class FakeTestWriter:
     """파일을 실제로 쓰지 않고 기록만 하는 TestWriter 구현."""
 
