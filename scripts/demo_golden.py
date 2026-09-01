@@ -1,6 +1,6 @@
-"""골든 케이스 시연 스크립트 — 카세트 재생으로 전체 흐름을 사람이 읽게 출력한다.
+"""대표 검증 시나리오 시연 스크립트 — 저장된 LLM 호출 기록을 재생해 전체 흐름을 출력한다.
 
-산출물(핵심 동작 검증)과 발표 데모에 쓴다. LLM 비용 0(재생), Docker 필요.
+산출물(핵심 동작 검증)과 발표 데모에 쓴다. LLM 비용 0(실호출 없음), Docker 필요.
 실행: .venv/Scripts/python scripts/demo_golden.py
 """
 
@@ -16,10 +16,10 @@ from llm.replay import ReplayClient  # noqa: E402
 
 
 def main() -> None:
-    print("=== Code Test Agent — 골든 케이스 시연 ===")
+    print("=== Code Test Agent — 대표 검증 시나리오 시연 ===")
     print(f"대상: {gc.TARGET}  (테스트가 없는 divide 메서드)")
     print(f"지침: {gc.INSTRUCTION}")
-    print(f"LLM: 카세트 재생 (녹음 모델: {gc.cassette_model()})")
+    print(f"LLM: 실호출 없음 — 저장된 호출 기록을 재생 (기록된 모델: {gc.cassette_model()})")
     print()
     started = time.monotonic()
     try:
