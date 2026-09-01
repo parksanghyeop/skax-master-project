@@ -53,6 +53,11 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `adapters/java/graph_builder.py` | Java 소스 → 노드·엣지 (DECLARES·CREATES) | M4 |
 | `adapters/java/coverage.py` | JaCoCo 실측 실행·파싱 — COVERS 근거, M6 게이트 재사용 | M4 |
 | `scripts/build_graph.py` | 그래프 빌드 CLI (--coverage로 COVERS 수집) | M4 |
+| `core/pipeline/models.py` | 파이프라인 데이터 모델 (변경 심볼·의도·조치) | M5 |
+| `core/pipeline/decide.py` | 조치 결정 규칙표 + 지침서 조립 — LLM 금지(R2) | M5 |
+| `llm/intent.py` | 의도 분류 LLM 구현 (JSON 파싱, 실패→unclear) | M5 |
+| `adapters/java/changes.py` | git diff → 변경 심볼 (메서드 줄 범위 매핑) | M5 |
+| `scripts/run_pipeline.py` | 파이프라인 CLI — 추출→분류→결정→(선택) 생성 | M5 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_golden.py` | 대표 시나리오 재생 시연 (산출물 캡처·발표용) | 산출물 |
 | `scripts/generate_test.py` | 실사용 CLI 최소본 — 임의 Maven 프로젝트·메서드에 테스트 생성 | 산출물 |

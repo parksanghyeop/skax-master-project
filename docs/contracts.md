@@ -61,6 +61,17 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 
 카세트 형식: `[{"request": {"model", "messages"}, "response": {"content"}}]` JSON 배열.
 
+## 파이프라인 (core/pipeline — M5)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `ChangedSymbol` | `target, lines_added, lines_removed, signature_changed, diff_excerpt` | 변경 추출 출력. 구현: `GitChangeExtractor(project, base="HEAD")` — `--relative`로 하위 폴더 프로젝트 지원 |
+| `Intent` | `category(bug_fix/refactor/new_feature/unclear), analysis` | 의도 분류 출력 — LLM 1회 호출(대분류+구체 분석). 파싱 실패·모르는 값 → unclear |
+| `decide` | `(ChangedSymbol, Intent, tests_status) -> ActionDecision` | **규칙표 조회, LLM 금지(R2)**. tests_status: pass/fail/none |
+| `ActionDecision` | `kind(create_test/no_action/escalate/ask), target, briefing, reason` | 기대값 자동 수정 행은 표에 없다(R3). refactor+fail→escalate, unclear→ask, refactor+none→ask |
+| `IntentClassifier` (포트) | `classify(change_summary) -> Intent` | 구현: `llm/intent.PromptedIntentClassifier` (프롬프트 `classify_intent.md`) |
+| `ChangeExtractor` (포트) | `extract() -> list[ChangedSymbol]` | 결정적 — 같은 diff면 같은 출력 |
+
 ## 코드 그래프 (graph/ — M4)
 
 | 항목 | 시그니처 | 계약 |

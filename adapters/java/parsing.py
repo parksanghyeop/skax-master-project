@@ -74,6 +74,32 @@ def extract_methods(source: str) -> list[JavaMethod]:
     return methods
 
 
+@dataclass(frozen=True)
+class MethodSpan:
+    """메서드의 소스 내 줄 범위(1부터, 양끝 포함) — diff 줄 번호를 메서드로 매핑할 때 쓴다."""
+
+    name: str
+    start_line: int
+    end_line: int
+
+
+def method_line_spans(source: str) -> list[MethodSpan]:
+    """소스의 각 메서드가 차지하는 줄 범위를 돌려준다 (extract_methods와 같은 파싱)."""
+    spans = []
+    for m in _METHOD_SIGNATURE.finditer(source):
+        close_index = _match_brace_span(source, m.end() - 1)
+        if close_index < 0:
+            continue
+        spans.append(
+            MethodSpan(
+                name=m.group("name"),
+                start_line=source.count("\n", 0, m.start()) + 1,
+                end_line=source.count("\n", 0, close_index) + 1,
+            )
+        )
+    return spans
+
+
 def find_class_file(project: MavenProject, class_name: str) -> Path | None:
     """프로젝트에서 클래스 소스 파일을 찾는다 (main 우선, 없으면 test)."""
     for base in (project.root / "src" / "main" / "java", project.test_source_dir):

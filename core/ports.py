@@ -122,6 +122,27 @@ class UserGate(Protocol):
     def ask(self, question: str) -> UserReply: ...
 
 
+class ChangeExtractor(Protocol):
+    """변경 추출 포트 — "어디가 바뀌었나" (v4 2.1, 일반 코드).
+
+    출력: 변경된 심볼 목록(core.pipeline.models.ChangedSymbol). 같은 변경을
+      넣으면 언제나 같은 목록이 나온다(결정적). 변경이 없으면 빈 목록.
+    """
+
+    def extract(self) -> list: ...
+
+
+class IntentClassifier(Protocol):
+    """의도 분류 포트 — "왜 바꿨나" (v4 2.1, LLM 1회 호출 지점).
+
+    입력: change_summary 변경 요약(diff 발췌 + 단서: 커밋 메시지, 증감 줄 수 등).
+    출력: Intent(대분류 + 구체 분석). 판단이 안 되면 category="unclear"로 —
+      던지지 않는다. LLM 구현은 llm/intent.py, 테스트는 대본 구현으로 바꿔 끼운다.
+    """
+
+    def classify(self, change_summary: str) -> object: ...
+
+
 class TestCodeGenerator(Protocol):
     """테스트 코드를 생성하는 포트 — LLM이 있는 곳은 이 뒤(llm/)뿐이다.
 
