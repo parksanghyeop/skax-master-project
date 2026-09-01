@@ -1,0 +1,4 @@
+# 결함 케이스: 음수 반올림 처리 누락 — 양수는 맞고 음수에서만 틀린다
+target = "MathUtil#divideRounded"
+class_rel = "src/main/java/com/example/bench/MathUtil.java"
+bug = "음수 분기(q - 1) 제거 — 음수 결과의 반올림 방향이 틀린다"

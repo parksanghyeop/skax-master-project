@@ -1,0 +1,4 @@
+# 결함 케이스: 기저 조건 오류 — fibonacci(0)이 0이 아니라 1을 반환
+target = "MathUtil#fibonacci"
+class_rel = "src/main/java/com/example/bench/MathUtil.java"
+bug = "n < 2에서 n 대신 1 반환 — 0번째 값이 틀린다"

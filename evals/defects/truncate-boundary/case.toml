@@ -1,0 +1,4 @@
+# 결함 케이스: 경계 off-by-one — 길이가 정확히 max일 때 불필요하게 잘린다
+target = "TextUtil#truncate"
+class_rel = "src/main/java/com/example/bench/TextUtil.java"
+bug = "trimmed.length() <= max 를 < max 로 — 경계값(길이==max)에서 오동작"

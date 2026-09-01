@@ -1,0 +1,4 @@
+# 결함 케이스: 빈 문자열 처리 오류 — 사양은 false인데 true를 반환
+target = "TextUtil#isPalindrome"
+class_rel = "src/main/java/com/example/bench/TextUtil.java"
+bug = "빈 문자열에서 true 반환 (사양: null·빈 문자열은 false)"

@@ -1,0 +1,4 @@
+# 결함 케이스: 잘못된 연산자 — 상한 고정이 min/max를 뒤바꿔 동작
+target = "MathUtil#clamp"
+class_rel = "src/main/java/com/example/bench/MathUtil.java"
+bug = "Math.min(value, max)를 Math.max(value, max)로 — 상한을 넘겨도 안 잘림"

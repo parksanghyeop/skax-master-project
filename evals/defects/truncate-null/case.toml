@@ -1,0 +1,4 @@
+# 결함 케이스: null 방어 누락 — null 입력에서 빈 문자열 대신 NPE
+target = "TextUtil#truncate"
+class_rel = "src/main/java/com/example/bench/TextUtil.java"
+bug = "null 체크 삭제 — text가 null이면 NullPointerException"
