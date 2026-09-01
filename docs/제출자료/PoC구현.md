@@ -17,40 +17,7 @@ cta apply                        # 소스 반영 — 코드 변경은 항상 사
 
 * **구현 기능**: 5단계 파이프라인 + 사람 개입 지점 2곳 + 진행 상황 실시간 출력
 
-```mermaid
-flowchart TD
-    A["① 변경 추출<br/>git diff → 바뀐 메서드"] --> B["② 의도 분류<br/>버그 수정 / 리팩터링 / 새 기능 / 불확실"]
-    B --> C{"③ 조치 결정 — 규칙표<br/>(LLM 관여 불가)"}
-    C -->|"버그 수정 · 새 기능"| W
-    C -->|"리팩터링 + 기존 테스트 통과"| OK["할 일 없음<br/>(동작 보존 확인)"]
-    C -->|"리팩터링 + 테스트 실패<br/>불확실"| HU["사람에게 넘김<br/>답해야만 진행"]
-    HU -->|"사람 결정"| W
-
-    subgraph W["④ 테스트 작성 루프 — LangGraph"]
-        direction TB
-        W1["정보 수집<br/>대상 조사 + 유사 테스트 검색"] --> W2["코드 생성 — LLM"]
-        W2 --> W3["Docker 샌드박스 실행<br/>(네트워크 차단)"]
-        W3 -->|"실패"| W4{"실패 분류<br/>(문자열 검사)"}
-        W4 -->|"자동 수정 가능"| W2
-        W4 -->|"같은 실패 반복 ·<br/>3회마다"| W5["정지 → 사용자 질문<br/>계속 / 중지 / 힌트"]
-        W5 -->|"재개"| W2
-        W4 -->|"환경 문제 · 6회 초과"| W6["한계 보고<br/>(정상 종료)"]
-    end
-
-    W3 -->|"통과"| G["⑤ 품질 게이트 5종"]
-    G -->|"탈락 — 사유를 지침서에 붙여<br/>재생성 (최대 3회)"| W2
-    G -->|"통과"| P["제안 보관<br/>.cta/proposals/"]
-    G -->|"3회 소진"| P2["'사람 확인 필요' 제안"]
-    P --> R["cta diff 검토 → cta apply 반영"]
-    P2 --> R
-
-    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
-    classDef human fill:#fde8d5,stroke:#f59e0b,stroke-width:2px
-    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
-    class B,W2 llm
-    class HU,W5,R human
-    class C,G,W4 safe
-```
+![에이전트 워크플로우](images/workflow.png)
 
 보라 = LLM 호출(2곳뿐) / 초록 = 결정적 안전장치(LLM 관여 불가) / 주황 = 사람 개입
 
@@ -67,44 +34,11 @@ flowchart TD
 
 * **구현 기능**: 에이전트 도구 6종 + 인터넷 차단 실행 환경 + 게이트 5종 + 제안 저장소
 
-```mermaid
-flowchart LR
-    subgraph AGENT["에이전트 — 도구 6종 (반환은 예외 없이 '모델이 읽을 문장', 상한 4,000자)"]
-        direction TB
-        T1["inspect_target<br/>대상 조사"]
-        T2["query_code_graph<br/>그래프 질의"]
-        T3["write_test<br/>테스트 쓰기"]
-        T4["run_tests<br/>테스트 실행"]
-        T5["check_quality<br/>assert 검사"]
-        T6["report_finding<br/>한계 보고"]
-    end
+![도구·함수 연동](images/tools.png)
 
-    subgraph LLMSIDE["LLM 경로 — 단일 계층 강제"]
-        direction TB
-        REC["record & replay<br/>요청·응답 JSON 저장"] --> GW["사내 게이트웨이<br/>gpt-5 (Azure OpenAI 호환)"]
-    end
-
-    subgraph BACK["실행·데이터 기반"]
-        direction TB
-        SRC["Java 소스 파싱<br/>(정규식 + 중괄호 짝맞춤)"]
-        NEO["Neo4j 코드 그래프<br/>COVERS = JaCoCo 실측"]
-        SBX["Docker 샌드박스 2단계<br/>준비: 온라인, 의존성+분석도구 캐시<br/>실행: 네트워크 차단, 캐시 읽기전용,<br/>지정한 테스트만 (전체 실행 거부)"]
-    end
-
-    AGENT -.->|"코드 생성 요청"| REC
-    T1 --> SRC
-    T2 --> NEO
-    T3 --> SBX
-    T4 --> SBX
-    T5 --> SRC
-
-    classDef tool fill:#dbeafe,stroke:#3b82f6
-    classDef infra fill:#f3f4f6,stroke:#6b7280
-    class T1,T2,T3,T4,T5,T6 tool
-    class SRC,NEO,SBX,REC,GW infra
-```
-
-* **동작 원리** — 게이트 5종(전부 기계 검사, 테스트를 만든 에이전트는 판정 관여 불가):
+* **동작 원리**
+  - 도구 반환은 예외 대신 "모델이 읽을 문장"(상한 4,000자) — 실패도 다음 행동의 재료가 된다
+  - 게이트 5종(전부 기계 검사, 테스트를 만든 에이전트는 판정 관여 불가):
 
   | 게이트 | 검사 방법 | 잡는 것 |
   |---|---|---|

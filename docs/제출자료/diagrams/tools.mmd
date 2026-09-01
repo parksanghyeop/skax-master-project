@@ -1,0 +1,37 @@
+flowchart LR
+    subgraph AGENT["에이전트 — LangGraph 작성 루프"]
+        direction TB
+        GEN["코드 생성 — LLM 호출"]
+        T1["inspect_target<br/>대상 조사"]
+        T5["check_quality<br/>assert 검사"]
+        T2["query_code_graph<br/>그래프 질의"]
+        T3["write_test<br/>테스트 쓰기"]
+        T4["run_tests<br/>테스트 실행"]
+        T6["report_finding<br/>한계 보고"]
+    end
+
+    subgraph LLMSIDE["LLM 경로 — 단일 계층 강제"]
+        direction LR
+        REC["record & replay<br/>요청·응답 JSON 저장"] --> GW["사내 게이트웨이<br/>gpt-5 (Azure OpenAI 호환)"]
+    end
+
+    subgraph BACK["실행·데이터 기반"]
+        direction TB
+        SRC["Java 소스 파싱<br/>(정규식 + 중괄호 짝맞춤)"]
+        NEO["Neo4j 코드 그래프<br/>COVERS = JaCoCo 실측"]
+        SBX["Docker 샌드박스 2단계<br/>준비: 온라인 — 의존성+분석도구 캐시<br/>실행: 네트워크 차단 — 캐시 읽기전용,<br/>지정한 테스트만 (전체 실행 거부)"]
+    end
+
+    GEN -->|"모든 LLM 호출은<br/>이 통로만"| REC
+    T1 --> SRC
+    T5 --> SRC
+    T2 --> NEO
+    T3 --> SBX
+    T4 --> SBX
+
+    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
+    classDef tool fill:#dbeafe,stroke:#3b82f6
+    classDef infra fill:#f3f4f6,stroke:#6b7280
+    class GEN,REC,GW llm
+    class T1,T2,T3,T4,T5,T6 tool
+    class SRC,NEO,SBX infra
