@@ -12,9 +12,7 @@ from pathlib import Path
 
 from adapters.java.maven import MavenProject, detect_maven_project
 from adapters.java.parsing import extract_methods
-
-# 탐색에서 건너뛸 폴더 — 빌드 산출물·캐시·다른 도구의 둥지
-PRUNE_DIRS = {".git", ".cta", "target", "build", "out", ".venv", "node_modules", ".idea"}
+from cli.locate import PRUNE_DIRS
 
 # 테스트 소스에서 "식별자(" 모양을 긁어 참조 여부를 판단한다 — 근사치지만 결정적.
 _CALL_LIKE = re.compile(r"\b(\w+)\s*\(")
@@ -99,11 +97,12 @@ def resolve_file(root: Path, name: str, non_interactive: bool) -> Path | None:
     if non_interactive:
         print("--non-interactive에서는 자동 선택하지 않는다 — 경로를 좁혀 다시 실행하라")
         return None
-    raw = input("번호 선택: ").lstrip("﻿").strip()
     try:
+        # EOFError: 파이프·CI처럼 stdin이 없는 환경 — 죽지 말고 경로 지정을 요구한다
+        raw = input("번호 선택: ").lstrip("﻿").strip()
         return matches[int(raw) - 1]
-    except (ValueError, IndexError):
-        print("잘못된 선택")
+    except (ValueError, IndexError, EOFError):
+        print("잘못된 선택 — 경로를 좁혀 다시 실행하라")
         return None
 
 
@@ -153,8 +152,8 @@ def run_file_mode(args) -> int:
     proposals = [o["proposal"] for _, o in results if o.get("proposal")]
     print(f"\n===== 요약: {len(todo)}개 중 제안 {len(proposals)}건 =====")
     if proposals:
-        print(f"검토: cta diff --project {project_root}")
-        print(f"반영: cta apply --project {project_root} --all  (또는 이름 지정)")
+        print("검토: cta diff")
+        print("반영: cta apply  (여러 건이면 이름 지정 또는 --all)")
     failed = [m for m, o in results if o["status"] in ("not_passed", "error")]
     if failed:
         print(f"미완: {', '.join(failed)} — 위 로그의 사유 참조")

@@ -92,6 +92,18 @@
 - 검증: 탐색·계획 단위 테스트 8건 + 실측 — `cta generate Calculator.java --fast`
   한 줄로 add 건너뜀·divide 생성(gpt-5, 47초, accepted). 단위 119 passed
 
+### 사용성 — 전 명령 인자 기본값 (2026-09-02, 사용자 피드백 2차)
+- 리서치: 유사 도구의 인자 관례 비교 —
+  Diffblue Cover CLI(`dcover create` 인자 없이 실행: 프로젝트=현재 폴더,
+  빌드 도구 자동 감지, 지정은 좁힐 때만. cover-docs.diffblue.com) vs
+  Qodo Cover-Agent(경로·명령 전부 필수 인자 → 이후 리포 스캔 자동화 모드를
+  추가하며 보완. github.com/qodo-ai/qodo-cover). **Diffblue 관례 채택**
+- 구현(cli/locate.py): `--project` 생략 시 현재 폴더→상위→하위 순 pom.xml 탐색
+  (하나면 자동, 여럿이면 번호 선택). generate/run/diff/apply/discard/graph 전부 적용.
+  apply/discard는 제안 1건이면 이름도 생략 가능, diff는 1건이면 바로 diff 출력
+- 검증: 자동 인식·자동 선택 단위 테스트 7건 + 실측(프로젝트 폴더 안에서
+  `cta generate Calculator.java` → `cta diff` → `cta apply` 인자 없이 왕복)
+
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010

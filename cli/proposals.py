@@ -72,12 +72,33 @@ def list_proposals(project: MavenProject) -> list[Proposal]:
     return result
 
 
+def select_names(project: MavenProject, name: str | None, all_flag: bool) -> list[str] | None:
+    """apply/discard가 다룰 제안 이름들을 정한다. 정하지 못하면 None(사유 출력됨).
+
+    기본값 규칙: 이름 생략 시 대기 제안이 정확히 1건이면 그것 — 인자 없이도
+    흔한 경우(방금 생성한 1건)가 동작하게 한다. 여럿이면 추측하지 않는다.
+    """
+    pending = [p.name for p in list_proposals(project)]
+    if not pending:
+        print("대기 중인 제안 없음")
+        return None
+    if all_flag:
+        return pending
+    if name:
+        return [name]
+    if len(pending) == 1:
+        print(f"제안이 1건이라 자동 선택: {pending[0]}")
+        return pending
+    print(f"제안이 {len(pending)}건이다 — 이름 또는 --all을 지정하라: {', '.join(pending)}")
+    return None
+
+
 def get_proposal(project: MavenProject, name: str) -> tuple[Proposal, str]:
     """(메타, 코드 본문)을 돌려준다. 없으면 FileNotFoundError."""
     d = _dir(project)
     meta = d / f"{name}.json"
     if not meta.is_file():
-        raise FileNotFoundError(f"제안 {name!r}이 없다 — `cta diff --project ...`로 목록 확인")
+        raise FileNotFoundError(f"제안 {name!r}이 없다 — `cta diff`로 목록 확인")
     data = json.loads(meta.read_text(encoding="utf-8"))
     code = (d / f"{name}.java").read_text(encoding="utf-8")
     return Proposal(**data), code
