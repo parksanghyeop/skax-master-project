@@ -1,0 +1,29 @@
+# 프로젝트 메타데이터와 도구 설정 (ruff, pytest).
+# 런타임 의존성은 아직 없다 — M2(llm/)·M3(LangGraph)에서 사용자 승인 후 추가한다.
+
+[project]
+name = "code-test-agent"
+version = "0.1.0"
+description = "소스 변경에 맞춰 테스트 코드를 자동 생성·유지보수하는 LLM 에이전트 (PoC)"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+# 왜 pythonpath: src 레이아웃 없이 core/, adapters/, llm/을 최상위 패키지로 쓰기 위해
+# 리포 루트를 import 경로에 넣는다. 층 이름이 CLAUDE.md 표기와 1:1로 일치하게 하려는 선택.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/F: 기본 오류, I: import 정렬, UP: 최신 문법, B: 흔한 버그 패턴
+select = ["E", "F", "I", "UP", "B"]
