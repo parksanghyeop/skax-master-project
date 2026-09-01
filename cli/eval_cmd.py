@@ -1,32 +1,26 @@
-"""평가 하네스 (M7) — 결함 세트로 검출률 등 지표를 실측해 evals/results/에 기록한다.
+"""cta eval — 결함 세트로 검출률 등 지표를 실측해 evals/results/에 기록한다 (M7).
 
 원리(테스트 스트리핑의 변형): 각 케이스는 (고친 버전, 버그 버전) 쌍이다.
-  1) 고친 버전에서 에이전트가 테스트를 생성한다 (게이트 포함, 사람 개입 없음)
-  2) 생성 테스트를 버그 버전에 돌린다 — **실패하면 버그를 잡은 것(검출 성공)**
+  1) 고친 버전에서 테스트를 생성한다 (게이트 포함, 사람 개입 없음) → 제안 반영
+  2) 생성 테스트를 버그 버전에 돌린다 — 실패하면 버그를 잡은 것(검출 성공)
   3) 원상 복구
-지표: 검출률, 게이트 통과율, 에스컬레이션율, 시도 수(≈LLM 호출 수), 소요 시간.
-수치는 모델·프롬프트 해시·데이터셋 버전에 묶여 기록된다(고도화 규칙: 재현 가능).
-
-사용: .venv/Scripts/python scripts/run_eval.py [--fast] [--cases id1,id2]
+수치는 모델·프롬프트 해시·데이터셋 버전에 묶여 기록된다(재현 가능성).
 """
 
-import argparse
 import hashlib
 import json
 import shutil
 import subprocess
-import sys
 import time
 import tomllib
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 리포 루트를 import 경로에
-
-from adapters.java.maven import detect_maven_project  # noqa: E402
-from adapters.java.runner import JavaTestRunner  # noqa: E402
-from sandbox.docker_sandbox import DockerSandbox  # noqa: E402
-from scripts.generate_test import run_generation  # noqa: E402
+from adapters.java.maven import detect_maven_project
+from adapters.java.runner import JavaTestRunner
+from cli.generate import run_generation
+from cli.proposals import apply_proposal
+from sandbox.docker_sandbox import DockerSandbox
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BENCH = REPO_ROOT / "examples" / "evalbench"
@@ -59,7 +53,7 @@ def reset_bench() -> None:
 
 
 def run_case(case_dir: Path, fast: bool) -> dict:
-    """케이스 하나: 생성(고친 버전) → 버그 버전에서 검출 확인 → 복구."""
+    """케이스 하나: 생성(고친 버전)→제안 반영 → 버그 버전에서 검출 확인 → 복구."""
     meta = tomllib.loads((case_dir / "case.toml").read_text(encoding="utf-8"))
     target = meta["target"]
     class_rel = meta["class_rel"]
@@ -85,14 +79,14 @@ def run_case(case_dir: Path, fast: bool) -> dict:
             print(f"생성 미승인: {outcome['status']}")
             return row
 
-        # 버그 버전을 심고, 생성된 테스트만 실행한다 — 실패해야 검출 성공
-        test_class = Path(outcome["test_path"]).stem
+        # 제안을 반영한 뒤 버그 버전을 심고, 생성된 테스트만 실행 — 실패해야 검출 성공
+        project = detect_maven_project(BENCH)
+        apply_proposal(project, outcome["proposal"])
         (BENCH / class_rel).write_text(
             (case_dir / "Buggy.java").read_text(encoding="utf-8"), encoding="utf-8"
         )
-        project = detect_maven_project(BENCH)
         runner = JavaTestRunner(project, DockerSandbox(), BENCH / ".cta" / "m2repo")
-        result = runner.run(test_class)
+        result = runner.run(outcome["proposal"])
         row["detected"] = not result.passed
         print(
             f"검출: {'성공(버그에서 테스트 실패)' if row['detected'] else '실패(버그를 통과시킴)'}"
@@ -102,12 +96,7 @@ def run_case(case_dir: Path, fast: bool) -> dict:
         reset_bench()
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="결함 세트 평가 하네스")
-    parser.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
-    parser.add_argument("--cases", help="쉼표로 구분한 케이스 id 필터 (기본: 전체)")
-    args = parser.parse_args()
-
+def run_eval(args) -> int:
     case_dirs = sorted(d for d in DEFECTS_DIR.iterdir() if (d / "case.toml").is_file())
     if args.cases:
         wanted = set(args.cases.split(","))
@@ -132,19 +121,17 @@ def main() -> int:
         "avg_writer_attempts": round(sum(r.get("writer_attempts", 0) for r in rows) / len(rows), 2),
         "total_elapsed_s": round(total_elapsed, 1),
     }
+    from llm.config import make_llm_client
+
     record = {
         "dataset": DATASET_VERSION,
-        "model": None,  # 아래에서 설정에서 읽어 채운다 (전 케이스 동일 모델)
+        "model": make_llm_client()[1],
         "prompt_hash": prompt_hash(),
         "gates": "fast(3종)" if args.fast else "full(5종)",
         "ran_at": datetime.now().isoformat(timespec="seconds"),
         "summary": summary,
         "rows": rows,
     }
-    # 모델 이름은 케이스 실행 결과에서 (전 케이스 동일)
-    from llm.config import make_llm_client
-
-    record["model"] = make_llm_client()[1]
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -156,7 +143,3 @@ def main() -> int:
         print(f"  {k}: {v}")
     print(f"기록: {out}")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

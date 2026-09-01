@@ -14,6 +14,15 @@ dependencies = [
     "neo4j>=5",
 ]
 
+[project.scripts]
+# 설치(pip install -e .) 후 어디서든 `cta <명령>`으로 실행되는 CLI 진입점
+cta = "cli.main:main"
+
+[tool.setuptools]
+# 최상위 층 패키지들 — 자동 탐색은 flat 레이아웃에서 모호해 명시한다
+packages = ["core", "core.tools", "core.pipeline", "adapters", "adapters.java",
+            "graph", "llm", "sandbox", "cli", "evals"]
+
 [dependency-groups]
 dev = [
     "pytest>=8",

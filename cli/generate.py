@@ -1,57 +1,44 @@
-"""테스트 생성 CLI — 지정한 Maven 프로젝트의 메서드에 새 테스트를 만든다 (M6 게이트 연결판).
+"""cta generate — 대상 메서드에 새 테스트를 생성해 '제안'으로 보관한다.
 
-사용 예:
-  .venv/Scripts/python scripts/generate_test.py --project examples/demo --target Calculator#divide
-
-동작: 대상 조사 → 비슷한 기존 테스트 수집 → LLM(사내 게이트웨이) 생성 →
-인터넷 차단 Docker 환경에서 컴파일·실행 → **품질 게이트 5종**(assert 훼손·스킵·
-파일 범위·커버리지·뮤테이션) 검사. 탈락하면 사유를 모델에게 돌려주고 재시도
-(기본 3회), 소진하면 사람 확인 목록으로 보고한다. 반복 중 판단이 필요한 실패는
-그 자리에서 멈추고 터미널로 묻는다(계속/중지/힌트).
+흐름: 준비(캐시) → 기준선 스냅샷 → [생성 → 게이트 5종] 루프 → **제안 저장**.
+생성물은 소스 트리에 남지 않는다 — 검토(cta diff)·반영(cta apply)은 사용자 몫
+(v4 Step 3: 변경은 즉시 반영되지 않는다). 층: cli(조립).
 """
 
-import argparse
-import sys
 import time
 import uuid
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 리포 루트를 import 경로에
+from langgraph.checkpoint.memory import MemorySaver
 
-from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
-
-from adapters.java.gates import (  # noqa: E402
+from adapters.java.gates import (
     AssertIntegrityGate,
     CoverageGate,
     FileScopeGate,
     SkipAnnotationGate,
     snapshot_baseline,
 )
-from adapters.java.inspector import JavaSourceInspector  # noqa: E402
-from adapters.java.maven import detect_maven_project, find_existing_test_class  # noqa: E402
-from adapters.java.mutation import MutationGate  # noqa: E402
-from adapters.java.parsing import (  # noqa: E402
-    find_class_file,
-    method_line_spans,
-    parse_target,
-    read_package,
-)
-from adapters.java.quality import AssertCountChecker  # noqa: E402
-from adapters.java.runner import JavaTestRunner  # noqa: E402
-from adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph  # noqa: E402
-from adapters.java.writer import JavaTestWriter  # noqa: E402
-from core.gates import load_gate_config  # noqa: E402
-from core.ports import UserReply  # noqa: E402
-from core.submit import generate_with_gates  # noqa: E402
-from core.writer_graph import (  # noqa: E402
+from adapters.java.inspector import JavaSourceInspector
+from adapters.java.maven import detect_maven_project, find_existing_test_class
+from adapters.java.mutation import MutationGate
+from adapters.java.parsing import find_class_file, method_line_spans, parse_target, read_package
+from adapters.java.quality import AssertCountChecker
+from adapters.java.runner import JavaTestRunner
+from adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph
+from adapters.java.writer import JavaTestWriter
+from cli.proposals import STATUS_ACCEPTED, STATUS_NEEDS_REVIEW, save_proposal
+from core.gates import load_gate_config
+from core.ports import UserReply
+from core.submit import generate_with_gates
+from core.writer_graph import (
     InterruptUserGate,
     WriterPorts,
     build_writer_graph,
     invoke_with_interrupts,
 )
-from llm.config import make_llm_client  # noqa: E402
-from llm.generation import PromptedGenerator  # noqa: E402
-from sandbox.docker_sandbox import DockerSandbox  # noqa: E402
+from llm.config import make_llm_client
+from llm.generation import PromptedGenerator
+from sandbox.docker_sandbox import DockerSandbox
 
 # 준비 단계에서 만드는 의존성 캐시 위치 — 대상 프로젝트 밑에 두어 지우기 쉽게 한다.
 CACHE_DIR_NAME = ".cta/m2repo"
@@ -65,7 +52,7 @@ def default_test_class(class_name: str, method_name: str) -> str:
 
 def ask_on_terminal(question: str) -> UserReply:
     """반복 중 멈춤 지점의 터미널 응답기 — 계속/중지/힌트를 stdin으로 받는다."""
-    print(f"\n⏸ 에이전트가 묻습니다:\n{question}")
+    print(f"\n[일시정지] 에이전트가 묻습니다:\n{question}")
     # lstrip("﻿"): Windows에서 파이프로 답을 넣으면 BOM이 붙을 수 있다
     raw = input("답 [Enter=계속 / s=중지 / 그 외 입력=힌트로 전달하고 계속]: ").lstrip("﻿").strip()
     if raw.lower() == "s":
@@ -83,12 +70,11 @@ def run_generation(
     fast: bool = False,
     ask_user=None,
 ) -> dict:
-    """테스트 생성 전체 흐름(준비→기준선→생성→게이트 루프)을 수행한다.
+    """생성→게이트→제안 저장까지 수행한다. CLI와 평가 하네스가 공유하는 진입점.
 
-    CLI(main)와 평가 하네스(run_eval)가 공유하는 진입점.
-    출력: {"status", "attempts", "writer_attempts", "elapsed", "test_path",
-           "gate_results", "failure_reasons", "report"} — status는 SubmitResult의
-    상태값 또는 "error"(입력·환경 문제, reason은 report에).
+    출력 dict: status(accepted/human_review/not_passed/error), proposal(제안 이름
+    또는 None), attempts, writer_attempts, elapsed, test_rel, gate_results,
+    failure_reasons, report, model.
     """
     client, model = make_llm_client()
     if model_override:
@@ -109,7 +95,6 @@ def run_generation(
     cache_dir = project.root / CACHE_DIR_NAME
     runner = JavaTestRunner(project, sandbox, cache_dir)
 
-    # 흐름: 캐시 준비 → 기준선 스냅샷 → [생성 → 게이트] 루프 → 보고
     if not cache_dir.is_dir():
         warmup = warmup_test or find_existing_test_class(project)
         if not warmup:
@@ -125,7 +110,6 @@ def run_generation(
     config = load_gate_config(project.root)
     baseline = snapshot_baseline(project)  # 게이트 기준선 — 생성 시작 전에 뜬다
 
-    # 커버리지 판정 대상: 대상 메서드의 줄 범위 (메서드 미지정 시 게이트 생략)
     target_lines: set[int] = set()
     if method_name:
         span = next((s for s in method_line_spans(class_source) if s.name == method_name), None)
@@ -179,7 +163,7 @@ def run_generation(
         writer=JavaTestWriter(project, sandbox, cache_dir),
         runner=runner,
         checker=AssertCountChecker(project),
-        gate=InterruptUserGate(),  # M6 실연결: 멈춤 지점에서 그래프가 정지한다
+        gate=InterruptUserGate(),
         generator=PromptedGenerator(
             client,
             model,
@@ -221,75 +205,41 @@ def run_generation(
         max_retries=config.max_retries,
     )
     elapsed = time.monotonic() - started
+
+    gate_results = [
+        (g.name, g.passed, g.reason)
+        for g in (result.gate_report.results if result.gate_report else [])
+    ]
+    # 생성물을 제안으로 옮기고 소스 트리는 원상 복구 — 반영은 apply만 한다(v4 Step 3)
+    proposal_name = None
+    if Path(test_path).is_file():
+        code = Path(test_path).read_text(encoding="utf-8")
+        Path(test_path).unlink()
+        if result.status in ("accepted", "human_review"):
+            status = STATUS_ACCEPTED if result.status == "accepted" else STATUS_NEEDS_REVIEW
+            save_proposal(
+                project,
+                test_class,
+                target,
+                test_rel,
+                code,
+                status,
+                [
+                    f"[{n}] {'통과' if p else '탈락'} — {r.splitlines()[0]}"
+                    for n, p, r in gate_results
+                ],
+            )
+            proposal_name = test_class
+
     return {
         "status": result.status,
+        "proposal": proposal_name,
         "attempts": result.attempts,
         "writer_attempts": result.final_state.get("attempts", 0),
         "elapsed": elapsed,
-        "test_path": str(test_path),
-        "gate_results": [
-            (g.name, g.passed, g.reason)
-            for g in (result.gate_report.results if result.gate_report else [])
-        ],
+        "test_rel": test_rel,
+        "gate_results": gate_results,
         "failure_reasons": result.gate_report.failure_reasons if result.gate_report else "",
         "report": result.final_state.get("report", ""),
         "model": model,
     }
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Maven 프로젝트의 메서드에 새 테스트를 생성한다")
-    parser.add_argument("--project", required=True, help="Maven 프로젝트 루트 (pom.xml 위치)")
-    parser.add_argument(
-        "--target", required=True, help='대상 "클래스#메서드" (예: Calculator#divide)'
-    )
-    parser.add_argument(
-        "--test-class", help="생성할 테스트 클래스 이름 (기본: <클래스><메서드>Test)"
-    )
-    parser.add_argument("--instruction", default="", help="작업 지침에 덧붙일 요구사항")
-    parser.add_argument("--model", help="게이트웨이 deployment 이름 (기본: .env의 CTA_LLM_MODEL)")
-    parser.add_argument("--warmup-test", help="준비 단계 예열에 쓸 기존 테스트 (기본: 자동 탐지)")
-    parser.add_argument(
-        "--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략 (결정적 게이트 3종만)"
-    )
-    parser.add_argument(
-        "--non-interactive", action="store_true", help="멈춤 지점에서 묻지 않고 자동 '계속'"
-    )
-    args = parser.parse_args()
-
-    outcome = run_generation(
-        project_path=args.project,
-        target=args.target,
-        test_class=args.test_class,
-        instruction_extra=args.instruction,
-        model_override=args.model,
-        warmup_test=args.warmup_test,
-        fast=args.fast,
-        ask_user=None if args.non_interactive else ask_on_terminal,
-    )
-
-    if outcome["status"] == "error":
-        print(f"오류: {outcome['report']}")
-        return 1
-    print(
-        f"\n결과: {outcome['status']}  "
-        f"(게이트 루프 {outcome['attempts']}회, {outcome['elapsed']:.0f}초)"
-    )
-    for name, passed, reason in outcome["gate_results"]:
-        print(f"  게이트[{name}] {'통과' if passed else '탈락'} — {reason.splitlines()[0]}")
-    if outcome["status"] == "accepted":
-        print(f"\n생성 파일: {outcome['test_path']}")
-        print("모든 게이트 통과. 내용을 git diff 등으로 검토한 뒤 커밋 여부를 결정하라.")
-        return 0
-    if outcome["status"] == "human_review":
-        print("\n⚠️ 사람 확인 필요 — 게이트 탈락 사유:")
-        print(outcome["failure_reasons"])
-        print(f"(검토용으로 파일은 남겨 둠: {outcome['test_path']})")
-        return 3
-    print(f"\n한계 보고:\n{outcome['report']}")
-    print(f"(생성 시도 파일이 남아 있다면 검토 후 삭제하라: {outcome['test_path']})")
-    return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

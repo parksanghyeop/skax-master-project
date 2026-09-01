@@ -66,6 +66,15 @@
 - 별도 실측: demo divide 생성 1건 — accepted 182초, 커버리지 100/100,
   뮤테이션 3/3 검출 (캡처: 제출자료/images/gates-run.png)
 
+### CLI화 — cta 명령 체계 + 제안 흐름 (2026-09-02, 사용자 피드백)
+- 배경: 스크립트 모음(python scripts/...)은 "CLI 도구"라는 제품 형태와 어긋남
+- 구현: `pip install -e .` → `cta` 단일 명령 (generate/run/diff/apply/discard/
+  graph/eval/demo). **v4 Step 3 실현**: 생성물은 제안(.cta/proposals/)으로만
+  보관, `cta diff` 검토 → `cta apply`로만 소스 반영 (기존에는 트리에 직접 썼음)
+- 검증: 제안 수명주기 단위 테스트 6건, 실 CLI 세션(generate 122초 게이트 5종
+  통과 → diff → apply) 및 escalate 시나리오를 cta 명령으로 재실측·재캡처.
+  scripts/의 구 진입점 5개 삭제(cli/로 이동), 단위 109 passed
+
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010

@@ -89,6 +89,15 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `classify_failure` | `(last_run, prev_run) -> auto/ask/impossible` | 환경 표식→impossible, 동일 실패 반복→ask |
 | `InterruptUserGate` / `invoke_with_interrupts` | LangGraph interrupt 실연결 | 정지→질문→답(계속/중지/힌트)→같은 지점 재개. checkpointer 필수 |
 
+## CLI 제안 보관소 (cli/proposals.py)
+
+| 항목 | 계약 |
+|---|---|
+| 저장 위치 | `<프로젝트>/.cta/proposals/<이름>.java` + `<이름>.json`(메타: target, test_rel, status, gate_summary, created_at) |
+| status | `accepted`(게이트 통과) / `needs_review`(탈락 — 사람 확인) |
+| 불변식 | apply 전에는 생성물이 소스 트리에 존재하지 않는다. apply하면 트리에 쓰고 보관소에서 제거(이중 반영 방지) |
+| 명령 대응 | save←generate/run, list·render_diff←`cta diff`, apply←`cta apply`, discard←`cta discard` |
+
 ## 코드 그래프 (graph/ — M4)
 
 | 항목 | 시그니처 | 계약 |

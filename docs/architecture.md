@@ -5,7 +5,8 @@
 ## 층 구조와 의존 방향
 
 ```
-tests ──▶ (모든 층)
+cli      ──▶ (모든 층)   # cta 명령 — 조립·입출력만. 판단 로직 없음
+tests    ──▶ (모든 층)
 adapters ──▶ core, graph # 구체 구현이 포트에 의존, 그래프를 채운다
 graph    ──▶ (독립)      # 코드 그래프 모델·저장소·질의 (M4). 언어를 모른다
 llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2)
@@ -62,6 +63,11 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `core/submit.py` | 생성→게이트 재시도 루프 (탈락 사유 반환, 소진 시 사람 확인) | M6 |
 | `adapters/java/gates.py` | 게이트 ①assert ②스킵 ③범위 ④커버리지 구현 + 기준선 스냅샷 | M6 |
 | `adapters/java/mutation.py` | 게이트 ⑤ PIT 뮤테이션 (overlay pom, 메서드 단위 집계) | M6 |
+| `cli/main.py` | `cta` 진입점 — generate/run/diff/apply/discard/graph/eval/demo | CLI화 |
+| `cli/proposals.py` | 제안 보관소 — 생성물은 apply 전까지 소스에 반영 안 됨(v4 Step 3) | CLI화 |
+| `cli/generate.py` | 생성→게이트→제안 저장 조립 (구 scripts/generate_test) | CLI화 |
+| `cli/pipeline_cmd.py` | 변경 파이프라인 조립 + escalate/ask 사람 해소 (구 run_pipeline) | CLI화 |
+| `cli/graph_cmd.py`·`eval_cmd.py`·`demo_cmd.py` | graph/eval/demo 서브커맨드 | CLI화 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_golden.py` | 대표 시나리오 재생 시연 (산출물 캡처·발표용) | 산출물 |
 | `scripts/generate_test.py` | 실사용 CLI 최소본 — 임의 Maven 프로젝트·메서드에 테스트 생성 | 산출물 |

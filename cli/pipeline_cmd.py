@@ -1,37 +1,27 @@
-"""파이프라인 CLI (M5) — 변경 추출 → 의도 분류 → 조치 결정 → (선택) 테스트 생성.
+"""cta run — 변경 추출 → 의도 분류 → 조치 결정 → (선택) 생성 (v4 2.1 파이프라인).
 
-사용 예:
-  .venv/Scripts/python scripts/run_pipeline.py --project examples/demo --message "버그 수정"
-  .venv/Scripts/python scripts/run_pipeline.py --project examples/demo --execute
-
-기본은 결정까지만 출력(dry-run). --execute면 create_test 결정을 실제로 수행한다.
-escalate/ask 결정은 출력으로 보고한다 — 대화형 개입(interrupt)은 M6에서 연결.
+escalate/ask 결정은 터미널에서 사람의 답을 받아 이어간다. create_test 실행은
+cta generate와 같은 경로라 결과는 '제안'으로 보관된다. 층: cli(조립).
 """
 
-import argparse
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 리포 루트를 import 경로에
-
-from adapters.java.changes import GitChangeExtractor  # noqa: E402
-from adapters.java.maven import detect_maven_project  # noqa: E402
-from adapters.java.runner import JavaTestRunner  # noqa: E402
-from core.pipeline.decide import decide  # noqa: E402
-from core.pipeline.models import (  # noqa: E402
+from adapters.java.changes import GitChangeExtractor
+from adapters.java.maven import detect_maven_project
+from adapters.java.runner import JavaTestRunner
+from cli.generate import CACHE_DIR_NAME, ask_on_terminal, run_generation
+from core.pipeline.decide import decide
+from core.pipeline.models import (
     ACTION_ASK,
     ACTION_CREATE_TEST,
     ACTION_ESCALATE,
     TESTS_FAIL,
     TESTS_NONE,
     TESTS_PASS,
+    Intent,
 )
-from graph.model import EDGE_COVERS  # noqa: E402
-from llm.config import load_dotenv_into_env, make_llm_client  # noqa: E402
-from llm.intent import PromptedIntentClassifier  # noqa: E402
-from sandbox.docker_sandbox import DockerSandbox  # noqa: E402
-
-CACHE_DIR_NAME = ".cta/m2repo"
+from graph.model import EDGE_COVERS
+from llm.config import load_dotenv_into_env, make_llm_client
+from llm.intent import PromptedIntentClassifier
+from sandbox.docker_sandbox import DockerSandbox
 
 
 def covering_tests(project_key: str, target: str) -> list[str] | None:
@@ -62,26 +52,7 @@ def tests_status(runner: JavaTestRunner, test_classes: list[str] | None) -> str:
     return TESTS_PASS if result.passed else TESTS_FAIL
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="변경 추출→의도 분류→조치 결정 파이프라인")
-    parser.add_argument("--project", required=True, help="Maven 프로젝트 루트 (git 저장소)")
-    parser.add_argument("--base", default="HEAD", help="diff 기준 (기본 HEAD: 미커밋 변경)")
-    parser.add_argument("--message", default="", help="커밋 메시지 등 의도 단서")
-    parser.add_argument(
-        "--intent",
-        choices=["bug_fix", "refactor", "new_feature"],
-        help="작성자가 의도를 확실히 알 때 직접 지정 — LLM 분류 호출을 생략한다",
-    )
-    parser.add_argument(
-        "--execute", action="store_true", help="create_test 결정을 실제로 수행 (기본: 결정만 출력)"
-    )
-    parser.add_argument(
-        "--non-interactive",
-        action="store_true",
-        help="escalate/ask 결정을 묻지 않고 보고만 (CI용)",
-    )
-    args = parser.parse_args()
-
+def run_pipeline(args) -> int:
     load_dotenv_into_env()
     project = detect_maven_project(args.project)
     project_key = str(project.root)
@@ -93,11 +64,8 @@ def main() -> int:
         return 0
     print(f"[변경 추출] {len(changes)}개 심볼: {', '.join(c.target for c in changes)}")
 
-    # 2단계: 의도 분류 — 작성자가 직접 지정하면 LLM 호출 생략 (v4: 의도가 명시된
-    # 명령은 분석 없이 진행). 아니면 LLM 1회로 대분류+구체 분석
+    # 2단계: 의도 분류 — 작성자 지정이면 LLM 생략, 아니면 LLM 1회
     if args.intent:
-        from core.pipeline.models import Intent
-
         intent = Intent(
             category=args.intent,
             analysis=f"작성자 지정 의도({args.intent}). 메시지: {args.message or '(없음)'}",
@@ -131,19 +99,18 @@ def main() -> int:
             f"(기존 테스트: {status})"
         )
 
-    # 4단계: escalate/ask 해소 — 사람이 답해야 재개된다 (M6, v4 2.1 Step 2)
+    # 4단계: escalate/ask 해소 — 사람이 답해야 재개된다
     resolved = []
     for decision in decisions:
         if decision.kind not in (ACTION_ESCALATE, ACTION_ASK):
             resolved.append(decision)
             continue
-        print(f"\n⏸ 사람 확인 필요 [{decision.kind}] {decision.target}")
+        print(f"\n[일시정지] 사람 확인 필요 [{decision.kind}] {decision.target}")
         print(f"   사유: {decision.reason}")
         print(f"   지침서:\n{decision.briefing}")
         if args.non_interactive:
             print("   (--non-interactive: 보고만 하고 건너뜀)")
             continue
-        # lstrip("﻿"): Windows에서 파이프로 답을 넣으면 BOM이 붙을 수 있다
         raw = (
             input("   답 [c=테스트 생성으로 진행 / Enter=건너뛰기 / 그 외=힌트와 함께 진행]: ")
             .lstrip("﻿")
@@ -166,33 +133,25 @@ def main() -> int:
         print("   → 사람 결정으로 재개: 테스트 생성 진행")
     decisions = resolved
 
-    # 5단계: 실행 (선택) — create_test만 자동
+    # 5단계: 실행 (선택) — create_test만, 결과는 제안으로 보관
     for decision in decisions:
         if decision.kind != ACTION_CREATE_TEST:
             continue
         if not args.execute:
-            print(
-                f"\n(dry-run) {decision.target}에 테스트 생성 예정 — 지침서:\n{decision.briefing}"
-            )
+            print(f"\n(계획만 출력) {decision.target}에 테스트 생성 예정 — --execute로 실행")
             continue
         print(f"\n[실행] {decision.target}에 테스트 생성...")
-        import subprocess as sp
-
-        # 왜 하위 프로세스인가: generate_test.py의 준비·경로 계산·보고를 그대로 재사용
-        cmd = [
-            sys.executable,
-            str(Path(__file__).parent / "generate_test.py"),
-            "--project",
-            str(project.root),
-            "--target",
-            decision.target,
-            "--instruction",
-            decision.briefing.replace("\n", " "),
-        ]
-        code = sp.call(cmd)
-        print(f"[실행 결과] 종료 코드 {code}")
+        outcome = run_generation(
+            project_path=str(project.root),
+            target=decision.target,
+            instruction_extra=decision.briefing.replace("\n", " "),
+            ask_user=None if args.non_interactive else ask_on_terminal,
+        )
+        if outcome.get("proposal"):
+            print(
+                f"[결과] {outcome['status']} → 제안 {outcome['proposal']!r} 저장됨 "
+                f"(cta diff / cta apply로 검토·반영)"
+            )
+        else:
+            print(f"[결과] {outcome['status']}: {outcome.get('report', '')[:300]}")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

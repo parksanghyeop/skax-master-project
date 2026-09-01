@@ -1,21 +1,16 @@
-"""대표 검증 시나리오 시연 스크립트 — 저장된 LLM 호출 기록을 재생해 전체 흐름을 출력한다.
+"""cta demo — 대표 검증 시나리오를 저장된 LLM 호출 기록으로 재생해 보여준다.
 
-산출물(핵심 동작 검증)과 발표 데모에 쓴다. LLM 비용 0(실호출 없음), Docker 필요.
-실행: .venv/Scripts/python scripts/demo_golden.py
+LLM 비용 0(실호출 없음), Docker 필요. 산출물 캡처·발표 데모용.
 """
 
-import sys
 import time
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 리포 루트를 import 경로에
-
-from core.writer_graph import build_writer_graph  # noqa: E402
-from evals import golden_case as gc  # noqa: E402
-from llm.replay import ReplayClient  # noqa: E402
+from core.writer_graph import build_writer_graph
+from evals import golden_case as gc
+from llm.replay import ReplayClient
 
 
-def main() -> None:
+def run_demo(args) -> int:
     print("=== Code Test Agent — 대표 검증 시나리오 시연 ===")
     print(f"대상: {gc.TARGET}  (테스트가 없는 divide 메서드)")
     print(f"지침: {gc.INSTRUCTION}")
@@ -40,9 +35,6 @@ def main() -> None:
         print()
         print("--- 생성된 테스트 (CalculatorDivideTest.java) ---")
         print(final["test_code"])
+        return 0
     finally:
         gc.TEST_PATH.unlink(missing_ok=True)  # 시연 후 생성물 정리 — 반복 실행 가능하게
-
-
-if __name__ == "__main__":
-    main()
