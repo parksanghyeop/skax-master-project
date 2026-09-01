@@ -66,11 +66,10 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `cli/main.py` | `cta` 진입점 — generate/run/diff/apply/discard/graph/eval/demo | CLI화 |
 | `cli/proposals.py` | 제안 보관소 — 생성물은 apply 전까지 소스에 반영 안 됨(v4 Step 3) | CLI화 |
 | `cli/generate.py` | 생성→게이트→제안 저장 조립 (구 scripts/generate_test) | CLI화 |
+| `cli/file_mode.py` | `cta generate <파일명>` 간편 모드 — 파일 탐색·프로젝트 인식·메서드 선별 | 사용성 |
 | `cli/pipeline_cmd.py` | 변경 파이프라인 조립 + escalate/ask 사람 해소 (구 run_pipeline) | CLI화 |
 | `cli/graph_cmd.py`·`eval_cmd.py`·`demo_cmd.py` | graph/eval/demo 서브커맨드 | CLI화 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
-| `scripts/demo_golden.py` | 대표 시나리오 재생 시연 (산출물 캡처·발표용) | 산출물 |
-| `scripts/generate_test.py` | 실사용 CLI 최소본 — 임의 Maven 프로젝트·메서드에 테스트 생성 | 산출물 |
 
 ## M0에서 한 구조 결정 (v4 원문 대조 완료 — 충돌 없음)
 

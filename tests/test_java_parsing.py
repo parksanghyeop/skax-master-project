@@ -58,6 +58,25 @@ class TestExtractMethods:
         assert methods["divide"].param_count == 2
         assert methods["divide"].uses_exception is True
 
+    def test_제어문은_메서드로_오인하지_않는다(self):
+        # 회귀: `if (b == 0) {`가 이름 "if"인 메서드로 잡히던 오탐 (파일 모드에서 발견)
+        source = """\
+public class C {
+    public int f(int b) {
+        if (b == 0) {
+            return 0;
+        } else if (b > 1) {
+            return 2;
+        }
+        while (b < 0) { b++; }
+        for (int i = 0; i < b; i++) { b--; }
+        switch (b) { default: break; }
+        return b;
+    }
+}
+"""
+        assert [m.name for m in extract_methods(source)] == ["f"]
+
     def test_테스트_어노테이션을_인식한다(self):
         methods = [m for m in extract_methods(TEST_SOURCE) if m.is_test]
         assert [m.name for m in methods] == ["add_twoPositives_returnsSum"]

@@ -18,6 +18,17 @@ from cli.proposals import (
 
 
 def _cmd_generate(args) -> int:
+    # 파일 모드: `cta generate Calculator.java` — 탐색·계획 후 메서드별 생성
+    if args.file:
+        if args.target:
+            print("파일 이름과 --target은 함께 쓸 수 없다 — 하나만 지정하라")
+            return 1
+        from cli.file_mode import run_file_mode
+
+        return run_file_mode(args)
+    if not args.project or not args.target:
+        print("사용법: cta generate <파일명>  또는  cta generate --project P --target 'C#m'")
+        return 1
     from cli.generate import ask_on_terminal, run_generation
 
     outcome = run_generation(
@@ -104,9 +115,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    g = sub.add_parser("generate", help="대상 메서드에 새 테스트 생성 → 제안으로 보관")
-    g.add_argument("--project", required=True, help="Maven 프로젝트 루트")
-    g.add_argument("--target", required=True, help='대상 "클래스#메서드"')
+    g = sub.add_parser("generate", help="파일/메서드에 테스트 생성 → 제안으로 보관")
+    g.add_argument(
+        "file",
+        nargs="?",
+        help="파일 이름 하나로 간편 실행 (예: Calculator.java) — 현재 폴더 하위에서 탐색",
+    )
+    g.add_argument("--project", help="Maven 프로젝트 루트 (파일 이름 생략 시 필수)")
+    g.add_argument("--target", help='대상 "클래스#메서드" (파일 이름 생략 시 필수)')
+    g.add_argument(
+        "--all", action="store_true", help="파일 모드: 이미 테스트가 참조하는 메서드도 생성"
+    )
     g.add_argument("--test-class", help="테스트 클래스 이름 (기본: <클래스><메서드>Test)")
     g.add_argument("--instruction", default="", help="지침에 덧붙일 요구사항")
     g.add_argument("--model", help="이번 실행만 다른 모델")

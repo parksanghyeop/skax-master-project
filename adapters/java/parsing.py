@@ -26,6 +26,13 @@ _METHOD_SIGNATURE = re.compile(
 # @Test 어노테이션이 시그니처 앞 이만큼 안에 있으면 테스트 메서드로 본다.
 _TEST_ANNOTATION_WINDOW = 80
 
+# 함정: 정규식의 반환 타입 부분이 공백만으로도 매칭돼 `if (x == 0) {` 같은
+# 제어문이 이름 "if"인 메서드로 오인된다. Java에서 키워드는 메서드 이름이 될 수
+# 없으므로 이름이 키워드면 무조건 오탐이다 — 파일 단위 전체 열거에서 실제로 발견됨.
+_JAVA_KEYWORDS = frozenset(
+    "if else for while do switch case catch try finally return throw new synchronized".split()
+)
+
 
 @dataclass(frozen=True)
 class JavaMethod:
@@ -55,6 +62,8 @@ def extract_methods(source: str) -> list[JavaMethod]:
     """소스 텍스트에서 메서드들을 뽑는다. 파싱 실패한 부분은 조용히 건너뛴다."""
     methods = []
     for m in _METHOD_SIGNATURE.finditer(source):
+        if m.group("name") in _JAVA_KEYWORDS:
+            continue
         open_index = m.end() - 1
         close_index = _match_brace_span(source, open_index)
         if close_index < 0:
