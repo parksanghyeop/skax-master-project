@@ -48,7 +48,9 @@ STYLE_NOTES = (
     "테스트 메서드 이름은 대상_상황_기대 형식(예: add_twoPositives_returnsSum). "
     "static import로 Assertions를 쓴다."
 )
-MODEL = "qwen"  # 게이트웨이 모델 이름 자리 — 사내망 접속 후 실모델로 재녹음(1주차 확인 3번)
+# 대본 녹음 시 기본 모델 이름. 재생 시에는 카세트에 기록된 모델을 그대로 쓴다
+# (cassette_model 참조) — provider 전환 후 재녹음해도 코드 수정이 없게 하기 위해서.
+SCRIPTED_MODEL = "qwen"
 
 # 대본 응답: 게이트웨이 미접속 환경이라 골든 카세트는 이 대본을 녹음한 것이다.
 # 사내망에서 실모델로 재녹음하면 이 상수는 참고용으로만 남는다(poc-findings 기록).
@@ -79,6 +81,21 @@ class CalculatorDivideTest {
 """
 
 
+def cassette_model() -> str:
+    """카세트에 기록된 모델 이름을 돌려준다. 카세트가 없으면 대본 기본값.
+
+    재생은 요청(모델 포함)을 기록과 대조하므로, 재생 측 모델은 반드시
+    녹음 시점의 모델과 같아야 한다 — 그 원천은 카세트 자신이다.
+    """
+    if CASSETTE.is_file():
+        import json
+
+        entries = json.loads(CASSETTE.read_text(encoding="utf-8"))
+        if entries:
+            return entries[0]["request"]["model"]
+    return SCRIPTED_MODEL
+
+
 class ScriptedLlm:
     """녹음용 대본 클라이언트 (LlmClient 구현) — 요청과 무관하게 대본을 돌려준다."""
 
@@ -89,10 +106,11 @@ class ScriptedLlm:
         return ChatResponse(content=self._answers.pop(0))
 
 
-def make_ports(llm_client) -> WriterPorts:
+def make_ports(llm_client, model: str | None = None) -> WriterPorts:
     """실물 어댑터 + 주어진 LLM 클라이언트로 서브그래프 포트를 조립한다.
 
     llm_client 자리에 RecordingClient(녹음)나 ReplayClient(재생)를 꽂는다.
+    model: 녹음 시에는 사용할 모델을 명시하고, 재생 시에는 생략(카세트 기록값 사용).
     """
     project = detect_maven_project(DEMO_PROJECT)
     sandbox = DockerSandbox()
@@ -103,7 +121,9 @@ def make_ports(llm_client) -> WriterPorts:
         runner=JavaTestRunner(project, sandbox, M2_CACHE),
         checker=AssertCountChecker(project),
         gate=ScriptedUserGate(),  # PoC: interrupt 자리의 자동 "계속" 스텁
-        generator=PromptedGenerator(llm_client, MODEL, LANGUAGE, FRAMEWORK, STYLE_NOTES),
+        generator=PromptedGenerator(
+            llm_client, model or cassette_model(), LANGUAGE, FRAMEWORK, STYLE_NOTES
+        ),
     )
 
 

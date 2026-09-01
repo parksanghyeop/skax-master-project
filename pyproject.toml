@@ -7,7 +7,11 @@ version = "0.1.0"
 description = "소스 변경에 맞춰 테스트 코드를 자동 생성·유지보수하는 LLM 에이전트 (PoC)"
 requires-python = ">=3.11"
 # langgraph: v4 5절이 확정한 오케스트레이션 프레임워크 (M3 서브그래프)
-dependencies = ["langgraph>=0.2"]
+# anthropic: 개발 환경 LLM 백엔드 공식 SDK (ADR-0010)
+dependencies = [
+    "langgraph>=0.2",
+    "anthropic>=0.60",
+]
 
 [dependency-groups]
 dev = [

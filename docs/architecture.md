@@ -34,6 +34,8 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `llm/client.py` | 공용 타입(ChatMessage·ChatResponse)과 LlmClient 포트 | M2 |
 | `llm/gateway.py` | 사내 게이트웨이 실호출 클라이언트 (환경변수로만 설정) | M2 |
 | `llm/replay.py` | record & replay 카세트 장치 — 재생 실패 시 폴백 없음 | M2 |
+| `llm/config.py` | 백엔드 선택(claude/gateway)·.env 로딩 — 클라이언트 생성의 유일한 입구 | ADR-0010 |
+| `llm/anthropic_client.py` | Claude API 클라이언트(공식 SDK) — 개발 백엔드 | ADR-0010 |
 | `llm/prompts/` | 프롬프트 파일 보관소 (system.md, write_test.md) | M0 |
 | `llm/generation.py` | 프롬프트 렌더링 + chat → 테스트 코드 (TestCodeGenerator 구현) | M3 |
 | `core/tools/` | 도구 6개 — 1도구 1파일, 문자열 반환 + clip 상한(R4) | M3 |
