@@ -23,6 +23,35 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `RunResult` | `passed: bool`, `summary: str` | frozen dataclass. summary는 모델에게 그대로 보여줄 요약 |
 | `EmptySelectorError` | (ValueError 하위) | 전체 테스트 실행 금지(R5)의 결정적 안전장치 |
 
+## 샌드박스 (sandbox/docker_sandbox.py — adapters가 사용하는 내부 계약)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `DockerSandbox.run` | `run(image, command, mounts, workdir, network_enabled=False, timeout_seconds=600) -> SandboxResult` | 기본 네트워크 차단. 실패는 exit_code로 전달(예외 아님), 시간 초과는 exit_code=124 |
+| `Mount` | `host_path, container_path, read_only=False` | read_only는 실행 단계의 의존성 캐시 보호용 |
+| `SandboxResult` | `exit_code: int, output: str` | output은 stdout·stderr 합본 |
+
+## Java 어댑터 (adapters/java)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `detect_maven_project` | `(path) -> MavenProject` | pom.xml 없으면 `NotAMavenProjectError` |
+| `JavaTestRunner.prepare` | `(warmup_selector: str) -> SandboxResult` | 네트워크 연결 상태에서 go-offline + 예열 1회. 빈 selector 거부(R5) |
+| `JavaTestRunner.run` | `(selector: str) -> RunResult` | TestRunner 포트 구현. 네트워크 차단 + `-o` + 캐시 읽기 전용 |
+
+## llm 계층 (R7 — 모든 LLM 호출의 유일한 통로)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `LlmClient` (포트) | `chat(messages: list[ChatMessage], model: str) -> ChatResponse` | 구현: GatewayClient(실호출) / RecordingClient(녹음) / ReplayClient(재생) |
+| `ChatMessage` | `role: str, content: str` | role: system/user/assistant |
+| `ChatResponse` | `content: str` | tool calling 확정(1주차 확인 3번) 시 필드 확장 |
+| `RecordingClient` | `(inner, cassette_path)` | 호출마다 카세트(JSON) 갱신. 시크릿은 기록에 미포함 |
+| `ReplayClient` | `(cassette_path)` | 순서대로 재생 + 요청 대조. 카세트 없음·소진·불일치 → `CassetteError`. **실호출 폴백 없음** |
+| `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_TOKEN` 필수 | OpenAI 호환 chat completions 가정(스펙 미확정). 없으면 `GatewayConfigError` |
+
+카세트 형식: `[{"request": {"model", "messages"}, "response": {"content"}}]` JSON 배열.
+
 ## 도구 공통 규약
 
 - 도구 반환은 예외가 아니라 **모델이 읽을 문자열**

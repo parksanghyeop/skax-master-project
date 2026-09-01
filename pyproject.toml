@@ -19,6 +19,10 @@ dev = [
 # 리포 루트를 import 경로에 넣는다. 층 이름이 CLAUDE.md 표기와 1:1로 일치하게 하려는 선택.
 pythonpath = ["."]
 testpaths = ["tests"]
+# docker 마커는 기본 실행에서 제외 — M0 관문 "Java·Docker 없이 pytest 통과" 유지.
+# 통합 테스트 실행: pytest -m docker
+addopts = "-m 'not docker'"
+markers = ["docker: 실제 Docker 데몬이 필요한 통합 테스트"]
 
 [tool.ruff]
 line-length = 100

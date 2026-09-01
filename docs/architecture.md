@@ -26,7 +26,14 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `core/ports.py` | 포트(SourceInspector, TestRunner)와 데이터 모델 | M0 |
 | `core/textlimit.py` | 도구 반환 문자열 길이 상한(clip) | M0 |
 | `adapters/fake.py` | 포트의 인메모리 Fake 구현 — 오프라인 테스트·데모용 | M0 |
-| `llm/__init__.py` | llm 층 자리 표시 (클라이언트·record&replay는 M2) | M0 |
+| `adapters/java/maven.py` | Maven 프로젝트 탐지 (pom.xml 확인, 표준 경로 계산) | M1 |
+| `adapters/java/runner.py` | TestRunner 포트 구현 — 2단계(준비/오프라인 실행) 샌드박스 호출 | M1 |
+| `sandbox/docker_sandbox.py` | 범용 Docker 실행 래퍼 — 기본 네트워크 차단, 마운트 통제 | M1 |
+| `examples/demo/` | PoC 대상 예제 Maven 프로젝트 (Calculator — divide는 미검증 표적) | M1 |
+| `llm/__init__.py` | llm 층 선언 — 모든 LLM 호출의 유일한 통로(R7) | M0 |
+| `llm/client.py` | 공용 타입(ChatMessage·ChatResponse)과 LlmClient 포트 | M2 |
+| `llm/gateway.py` | 사내 게이트웨이 실호출 클라이언트 (환경변수로만 설정) | M2 |
+| `llm/replay.py` | record & replay 카세트 장치 — 재생 실패 시 폴백 없음 | M2 |
 | `llm/prompts/` | 프롬프트 파일 보관소 (코드에서 분리) | M0 |
 
 ## M0에서 한 구조 결정 (v4 원문 대조 완료 — 충돌 없음)

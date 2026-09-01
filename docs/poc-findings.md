@@ -14,9 +14,22 @@
   - 동작 원리: core는 Protocol 인터페이스만 정의하고 구체 구현은 adapters/에 격리.
     빈 selector는 어댑터가 EmptySelectorError로 결정적 거부(R5)
   - 주요 기술: Python Protocol(구조적 타이핑), frozen dataclass, pytest
+- **[M1] Java 어댑터 + 2단계 Docker 샌드박스** (2026-09-01)
+  - 구현 기능: Maven 프로젝트 탐지, 준비(go-offline+예열)/실행(오프라인) 2단계 실행,
+    범용 Docker 래퍼(sandbox/)
+  - 동작 원리: 준비 단계만 네트워크를 켜 의존성 캐시를 채우고, 실행 단계는
+    `--network none` + `mvn -o` + 캐시 읽기 전용 마운트로 격리(v4 6.3).
+    안전 불변식(빈 selector 거부, 차단 플래그)은 스텁 샌드박스 단위 테스트로 고정
+  - 주요 기술: Docker(`--network none`, ro 마운트), Maven go-offline, surefire 출력 파싱
 
 ### 데이터·컨텍스트
-- (M2~M3에서 기록 예정: 파싱 기반 few-shot 검색, record & replay)
+- **[M2] llm/ 계층 — record & replay** (2026-09-01)
+  - 구현 기능: LlmClient 포트 + 게이트웨이 실호출/녹음/재생 3구현, JSON 카세트
+  - 동작 원리: 녹음은 실호출을 감싸 요청·응답을 파일에 누적, 재생은 순서대로
+    요청을 대조하며 응답만 돌려준다. 카세트 없음·소진·불일치는 CassetteError로
+    즉시 실패 — 실호출 폴백 없음(R7). 시크릿은 카세트에 애초에 담지 않는다
+  - 주요 기술: 표준 라이브러리 urllib(의존성 0), OpenAI 호환 형식 가정, monkeypatch 테스트
+- (M3에서 기록 예정: 파싱 기반 few-shot 검색)
 
 ## 문제·리서치 로그 (→ 양식 2. 문제 해결 및 기술 리서치)
 
@@ -42,7 +55,8 @@
 
 ## 측정 메모 — 토큰/시간/재시도 횟수 대략값
 
-- (M2 이후 기록)
+- M1 통합(최초 실행): 이미지 풀(802MB) + go-offline + 예열 + 오프라인 실행 = 총 3분 25초.
+  캐시 완성 후 오프라인 실행 단독은 수십 초 수준으로 예상 — 2단계 분리의 효과
 
 ## 1주차 확인 의무 3건 (설계 미확정 — 사내 환경 확인 필요)
 
