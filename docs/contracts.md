@@ -13,6 +13,11 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|---|
 | `SourceInspector` | `inspect(target: str) -> str` | 대상 소스 텍스트 반환. 없는 대상이면 예외 대신 안내 문자열(알려진 대상 목록 포함) |
 | `TestRunner` | `run(selector: str) -> RunResult` | 선택한 테스트만 실행. 빈/공백 selector → `EmptySelectorError`(R5). 테스트 실패는 예외가 아니라 `passed=False` |
+| `TestWriter` | `write(path: str, code: str) -> str` | 테스트 폴더 밖 경로는 쓰지 않고 거부 문자열(v4 제약 ④) |
+| `SimilarTestFinder` | `find(target: str) -> str` | 모양이 닮은 기존 테스트 발췌. 없으면 안내 문자열 |
+| `QualityChecker` | `check(path: str) -> str` | "통과"/"탈락" 선두의 결정적 검사 결과(R2) |
+| `UserGate` | `ask(question: str) -> UserReply` | 반복 중단 지점. PoC는 자동 "계속" 스텁, 2단계에서 interrupt 실연결 |
+| `TestCodeGenerator` | `generate(instruction, context, current_code, last_failure) -> str` | LLM은 이 포트 뒤(llm/generation.py)에만 있다 |
 
 `target`·`selector` 문법은 어댑터가 해석한다 — core는 불투명 문자열로 취급.
 
@@ -58,9 +63,11 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 - 길이 상한: `core.textlimit.clip(text)` 경유, `TOOL_OUTPUT_MAX_CHARS = 4000`
   (임시값 — v4 원문 확인 필요)
 
-## 도구 6종 (R4 — 상세 시그니처는 M3에서 확정)
+## 도구 6종 (R4 — core/tools/, 1도구 1파일)
 
-v4 3절의 도구 표와 코드 식별자의 대응. 공통: 입력은 문자열, 반환은 clip을 거친 문장.
+v4 3절의 도구 표와 코드 식별자의 대응. 공통: 포트를 첫 인자로 받는 순수 함수,
+반환은 clip을 거친 문장(예외 없음). `query_code_graph`의 쿼리 이름 6종은
+`core/tools/query_code_graph.py`의 `KNOWN_QUERIES`가 원천이다.
 
 | 코드 식별자 | v4 이름 | 입력 | 출력 |
 |---|---|---|---|

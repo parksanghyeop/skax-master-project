@@ -5,7 +5,7 @@
 Fake는 테스트 전용이 아니라 데모·오프라인 실행에도 쓰는 정식 어댑터다.
 """
 
-from core.ports import EmptySelectorError, RunResult
+from core.ports import EmptySelectorError, RunResult, UserReply
 
 
 class FakeSourceInspector:
@@ -46,3 +46,90 @@ class FakeTestRunner:
         if selector in self._results:
             return self._results[selector]
         return RunResult(passed=False, summary=f"해당 selector의 테스트 없음: {selector!r}")
+
+
+class ScriptedTestRunner:
+    """호출 순서대로 준비된 결과를 돌려주는 TestRunner — 재시도 루프 테스트용.
+
+    FakeTestRunner와 달리 같은 selector라도 호출마다 다른 결과를 낼 수 있어,
+    "실패 → 실패 → 통과" 같은 흐름을 대본으로 만들 수 있다.
+    """
+
+    def __init__(self, results: list[RunResult]) -> None:
+        self._results = list(results)
+        self.calls: list[str] = []
+
+    def run(self, selector: str) -> RunResult:
+        if not selector.strip():
+            raise EmptySelectorError("빈 selector — 전체 테스트 실행은 금지다(R5)")
+        self.calls.append(selector)
+        if self._results:
+            return self._results.pop(0)
+        return RunResult(passed=False, summary="대본 소진 — 준비된 결과가 없다")
+
+
+class FakeSimilarTestFinder:
+    """정해진 발췌 문자열을 돌려주는 SimilarTestFinder 구현."""
+
+    def __init__(self, examples: str = "기존 테스트 없음") -> None:
+        self._examples = examples
+
+    def find(self, target: str) -> str:
+        return self._examples
+
+
+class FakeTestWriter:
+    """파일을 실제로 쓰지 않고 기록만 하는 TestWriter 구현."""
+
+    def __init__(self) -> None:
+        self.writes: list[tuple[str, str]] = []
+
+    def write(self, path: str, code: str) -> str:
+        self.writes.append((path, code))
+        return f"쓰기 완료(Fake): {path}"
+
+
+class FakeQualityChecker:
+    """정해진 결과를 돌려주는 QualityChecker 구현."""
+
+    def __init__(self, verdict: str = "통과: 검사 생략(Fake)") -> None:
+        self._verdict = verdict
+
+    def check(self, path: str) -> str:
+        return self._verdict
+
+
+class ScriptedUserGate:
+    """준비된 답을 차례로 돌려주는 UserGate — interrupt 지점의 PoC 스텁.
+
+    답이 소진되면 "continue"를 계속 돌려준다(자동 계속). 실제 interrupt 연결은
+    2단계 몫이고, PoC 관문에는 이 스텁이 들어간다(phase1 스킬 제외 목록).
+    """
+
+    def __init__(self, replies: list[UserReply] | None = None) -> None:
+        self._replies = list(replies or [])
+        self.questions: list[str] = []
+
+    def ask(self, question: str) -> UserReply:
+        self.questions.append(question)
+        if self._replies:
+            return self._replies.pop(0)
+        return UserReply(action="continue")
+
+
+class ScriptedGenerator:
+    """준비된 코드를 차례로 돌려주는 TestCodeGenerator — LLM 없이 그래프를 시험한다."""
+
+    def __init__(self, codes: list[str]) -> None:
+        self._codes = list(codes)
+        self.calls: list[dict] = []
+
+    def generate(self, instruction: str, context: str, current_code: str, last_failure: str) -> str:
+        self.calls.append({"instruction": instruction, "last_failure": last_failure})
+        if self._codes:
+            return self._codes.pop(0)
+        return self._codes_exhausted()
+
+    @staticmethod
+    def _codes_exhausted() -> str:
+        return "// 대본 소진\n"

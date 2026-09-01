@@ -57,3 +57,69 @@ class TestRunner(Protocol):
     """
 
     def run(self, selector: str) -> RunResult: ...
+
+
+class TestWriter(Protocol):
+    """테스트 파일을 만들거나 고치는 포트 (도구 write_test의 뒷단).
+
+    입력: path 테스트 파일 경로, code 파일 전체 내용.
+    출력: 컴파일·정적 검사 결과 문자열 (모델이 읽는다).
+    실패 시 동작: 테스트 폴더 밖 경로는 쓰지 않고 거부 문자열을 돌려준다
+      (v4 1절 제약 ④ — 결정적 검사라 LLM 판단을 끼우지 않는다).
+    """
+
+    def write(self, path: str, code: str) -> str: ...
+
+
+class SimilarTestFinder(Protocol):
+    """구조가 비슷한 기존 테스트를 찾는 포트 (query_code_graph의 PoC 뒷단).
+
+    입력: target 대상 메서드 식별자.
+    출력: 모양(입력 개수·예외 유무)이 닮은 기존 테스트의 발췌 문자열 —
+      프롬프트에 few-shot 예시로 첨부된다(v4 4.1 쿼리 "비슷한 모양의 테스트는?").
+    없으면 "없다"는 문자열 (예외 아님).
+    """
+
+    def find(self, target: str) -> str: ...
+
+
+class QualityChecker(Protocol):
+    """완성된 테스트의 기계적 품질 검사 포트 (도구 check_quality의 뒷단).
+
+    PoC 범위: assert 검사 1종(기존 파일의 assert 수 감소 탐지) 최소본.
+    출력: 검사 결과 문자열. 왜 LLM이 없나: 품질 게이트는 결정적이어야 한다(R2).
+    """
+
+    def check(self, path: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class UserReply:
+    """중단 지점에서 사용자가 준 답. action: "continue" | "stop". hint: 추가 지시."""
+
+    action: str
+    hint: str = ""
+
+
+class UserGate(Protocol):
+    """반복 도중 사용자에게 묻는 포트 (v4 2.3의 ⏸ 멈춤 지점).
+
+    PoC에서는 자동 "계속" 스텁으로 채우고, 실제 interrupt 연결은 2단계에서 한다.
+    """
+
+    def ask(self, question: str) -> UserReply: ...
+
+
+class TestCodeGenerator(Protocol):
+    """테스트 코드를 생성하는 포트 — LLM이 있는 곳은 이 뒤(llm/)뿐이다.
+
+    왜 포트인가: core는 llm/을 import할 수 없다(의존 방향). LLM 구현은
+    llm/generation.py에 있고, 테스트에서는 대본 있는 Fake로 바꾼다.
+    입력: instruction 작업 지침서, context 수집된 정보, current_code 직전 시도(없으면 빈 값),
+      last_failure 직전 실패 내용(없으면 빈 값).
+    출력: 테스트 파일 전체 코드.
+    """
+
+    def generate(
+        self, instruction: str, context: str, current_code: str, last_failure: str
+    ) -> str: ...
