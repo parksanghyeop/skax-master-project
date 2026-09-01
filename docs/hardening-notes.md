@@ -75,6 +75,14 @@
   통과 → diff → apply) 및 escalate 시나리오를 cta 명령으로 재실측·재캡처.
   scripts/의 구 진입점 5개 삭제(cli/로 이동), 단위 109 passed
 
+### 설치형 배포 검증 — 일반 pip install로 리포 밖 실행 (2026-09-02)
+- 문제 3건 발견·수정: ① 프롬프트(.md)가 wheel에 미포함 → package-data 등록
+  ② .env를 리포 루트에서만 탐색 → 실행 폴더 → ~/.cta/.env 순 탐색으로 변경
+  ③ demo/eval이 리포 경로 의존 → 리포 밖에서는 안내 후 종료(가드)
+- 실검증: 새 venv에 비-편집 `pip install <리포>` → 임의 작업 폴더에서
+  `.env`(cwd)만 두고 `cta generate --fast`(gpt-5 실호출 71초, accepted) →
+  `cta apply`로 자바 프로젝트 반영 확인. 가이드 설치 절을 방법 A(일반)/B(개발)로 재작성
+
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010

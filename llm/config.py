@@ -18,7 +18,16 @@ ENV_MODEL = "CTA_LLM_MODEL"  # 게이트웨이 deployment 이름. 미설정 시 
 # 중 보수적 선택 — 모델 비교 실험은 2단계 평가 하네스에서 한다.
 DEFAULT_MODEL = "gpt-4.1"
 
-_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+def default_dotenv_paths() -> list[Path]:
+    """.env 탐색 순서 — 설치형 CLI로 어디서 실행해도 설정을 찾기 위한 규칙.
+
+    1) 현재 폴더의 .env  (프로젝트별 설정 — 실행 위치 기준)
+    2) 홈의 ~/.cta/.env  (전역 설정 — 한 번 두면 어디서든 동작)
+    둘 다 있으면 1)의 값이 이긴다(먼저 주입되고, 환경변수 주입은 setdefault라
+    이미 있는 키를 덮지 않는다).
+    """
+    return [Path.cwd() / ".env", Path.home() / ".cta" / ".env"]
 
 
 class LlmConfigError(RuntimeError):
@@ -43,21 +52,24 @@ def read_dotenv(path: str | Path) -> dict[str, str]:
     return result
 
 
-def load_dotenv_into_env(path: str | Path = _DOTENV_PATH) -> None:
+def load_dotenv_into_env(path: str | Path | None = None) -> None:
     """.env 내용을 환경변수로 주입한다. 이미 설정된 환경변수가 항상 이긴다.
 
+    path 생략 시 default_dotenv_paths() 순서로 전부 읽는다(먼저 읽힌 값 우선).
     왜 필요한가: GatewayClient는 os.environ만 읽는다 — .env를 여기서 주입해야
     "파일 하나로 전체 설정"이 성립한다.
     """
-    for key, value in read_dotenv(path).items():
-        os.environ.setdefault(key, value)
+    paths = [Path(path)] if path is not None else default_dotenv_paths()
+    for p in paths:
+        for key, value in read_dotenv(p).items():
+            os.environ.setdefault(key, value)
 
 
-def make_llm_client(dotenv_path: str | Path = _DOTENV_PATH) -> tuple[LlmClient, str]:
+def make_llm_client(dotenv_path: str | Path | None = None) -> tuple[LlmClient, str]:
     """(게이트웨이 클라이언트, deployment 이름)을 만든다.
 
-    dotenv_path: 기본은 리포 루트의 .env. 테스트는 임시 경로를 넘겨 로컬 설정과
-      격리한다 — 개발자의 실제 .env가 단위 테스트 결과를 바꾸면 안 된다.
+    dotenv_path: 기본은 탐색 규칙(default_dotenv_paths). 테스트는 임시 경로를
+      넘겨 로컬 설정과 격리한다 — 개발자의 .env가 테스트 결과를 바꾸면 안 된다.
     실패 시 동작: 주소·키 미설정은 GatewayClient가 GatewayConfigError로 알린다.
     """
     load_dotenv_into_env(dotenv_path)

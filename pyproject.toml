@@ -23,6 +23,10 @@ cta = "cli.main:main"
 packages = ["core", "core.tools", "core.pipeline", "adapters", "adapters.java",
             "graph", "llm", "sandbox", "cli", "evals"]
 
+[tool.setuptools.package-data]
+# 프롬프트 파일은 코드가 아니라 데이터 — 일반(비-편집) 설치에도 함께 담는다
+llm = ["prompts/*.md"]
+
 [dependency-groups]
 dev = [
     "pytest>=8",

@@ -29,6 +29,14 @@ class TestDotenv:
         load_dotenv_into_env(env)
         assert os.environ["CTA_TEST_KEY"] == "환경값"
 
+    def test_경로_생략_시_현재_폴더의_env를_읽는다(self, tmp_path, monkeypatch):
+        # 설치형 CLI 계약: 자바 프로젝트 폴더에서 실행하면 그 폴더의 .env가 잡힌다
+        (tmp_path / ".env").write_text("CTA_CWD_KEY=현재폴더값", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CTA_CWD_KEY", raising=False)
+        load_dotenv_into_env()
+        assert os.environ.pop("CTA_CWD_KEY") == "현재폴더값"
+
 
 class TestMakeLlmClient:
     def test_게이트웨이_클라이언트와_기본_deployment를_만든다(self, monkeypatch, tmp_path):

@@ -15,3 +15,7 @@ pom-cta-pit.xml
 # 로컬 설정·시크릿 (게이트웨이 토큰은 절대 커밋하지 않는다)
 .env
 .claude/settings.local.json
+
+# 패키징 산출물
+build/
+*.egg-info/

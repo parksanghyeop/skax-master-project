@@ -11,6 +11,11 @@ from llm.replay import ReplayClient
 
 
 def run_demo(args) -> int:
+    # 개발 리포 전용 — 예제 프로젝트·저장된 호출 기록이 리포에 있어야 돈다
+    if not gc.CASSETTE.is_file() or not gc.DEMO_PROJECT.is_dir():
+        print("cta demo는 개발 리포지토리 안에서만 동작한다 (예제·호출 기록 필요).")
+        print("일반 사용은 cta generate / cta run을 쓰라.")
+        return 1
     print("=== Code Test Agent — 대표 검증 시나리오 시연 ===")
     print(f"대상: {gc.TARGET}  (테스트가 없는 divide 메서드)")
     print(f"지침: {gc.INSTRUCTION}")

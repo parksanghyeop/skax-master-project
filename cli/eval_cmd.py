@@ -97,6 +97,10 @@ def run_case(case_dir: Path, fast: bool) -> dict:
 
 
 def run_eval(args) -> int:
+    # 개발 리포 전용 — 결함 세트·벤치 프로젝트가 리포에 있어야 돈다
+    if not DEFECTS_DIR.is_dir() or not BENCH.is_dir():
+        print("cta eval은 개발 리포지토리 안에서만 동작한다 (결함 세트·벤치 필요).")
+        return 1
     case_dirs = sorted(d for d in DEFECTS_DIR.iterdir() if (d / "case.toml").is_file())
     if args.cases:
         wanted = set(args.cases.split(","))
