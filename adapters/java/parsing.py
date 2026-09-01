@@ -113,6 +113,31 @@ def find_class_file(project: MavenProject, class_name: str) -> Path | None:
 
 _PACKAGE_DECL = re.compile(r"^\s*package\s+([\w.]+)\s*;", re.MULTILINE)
 
+_ASSERT_CALL_START = re.compile(r"\bassert\w*\s*\(")
+
+
+def extract_assert_statements(source: str) -> list[str]:
+    """assert 계열 호출문 전체(닫는 괄호까지)를 공백 정규화해 뽑는다.
+
+    왜 필요한가: 게이트의 assert 훼손 검사는 "개수"가 아니라 "내용"을 비교해야
+    assertEquals→assertNotNull 같은 완화를 잡는다(v4 2.4). 괄호 짝을 세므로
+    인자 안의 중첩 호출·람다도 통째로 잡힌다.
+    """
+    statements = []
+    for m in _ASSERT_CALL_START.finditer(source):
+        open_index = m.end() - 1
+        depth = 0
+        for i in range(open_index, len(source)):
+            if source[i] == "(":
+                depth += 1
+            elif source[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    raw = source[m.start() : i + 1]
+                    statements.append(" ".join(raw.split()))
+                    break
+    return statements
+
 
 def read_package(source: str) -> str:
     """소스의 package 선언을 읽는다. 없으면 빈 문자열(기본 패키지).

@@ -94,7 +94,7 @@ class JavaTestRunner:
         # (coverage.py)과 M6 커버리지 게이트가 쓸 플러그인을 캐시에 채우기 위해서.
         from adapters.java.coverage import JACOCO_PLUGIN
 
-        return self._sandbox.run(
+        warmed = self._sandbox.run(
             image=MAVEN_IMAGE,
             command=self._mvn(
                 [
@@ -108,6 +108,24 @@ class JavaTestRunner:
             workdir=CONTAINER_WORKDIR,
             network_enabled=True,
         )
+        if warmed.exit_code != 0:
+            return warmed
+        # PIT(뮤테이션 게이트) 플러그인도 캐시에 채운다 — help 골로 산출물만 해석.
+        # 실패해도 준비 전체를 막지 않는다(뮤테이션 게이트가 자체 사유로 탈락 처리).
+        from adapters.java.mutation import PIT_PLUGIN, write_overlay_pom
+
+        try:
+            write_overlay_pom(self._project)
+        except RuntimeError:
+            return warmed  # plugins 절이 없는 pom — 뮤테이션 게이트 쪽에서 안내된다
+        self._sandbox.run(
+            image=MAVEN_IMAGE,
+            command=self._mvn(["-f", "pom-cta-pit.xml", f"{PIT_PLUGIN}:help"]),
+            mounts=mounts,
+            workdir=CONTAINER_WORKDIR,
+            network_enabled=True,
+        )
+        return warmed
 
     def run(self, selector: str) -> RunResult:
         """실행 단계(네트워크 차단): 지정한 테스트만 돌린다.

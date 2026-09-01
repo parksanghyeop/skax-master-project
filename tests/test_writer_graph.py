@@ -25,6 +25,11 @@ PASS = RunResult(passed=True, summary="Tests run: 2, Failures: 0")
 FAIL = RunResult(passed=False, summary="[ERROR] expected 3 but was 4")
 
 
+def distinct_fails(n: int) -> list[RunResult]:
+    """서로 다른 실패 n개 — '같은 실패 반복' 분류에 걸리지 않는 자동 재시도 시나리오용."""
+    return [RunResult(passed=False, summary=f"[ERROR] 실패 유형 {i}") for i in range(n)]
+
+
 def make_ports(run_script: list[RunResult], gate: ScriptedUserGate | None = None) -> WriterPorts:
     return WriterPorts(
         inspector=FakeSourceInspector({"Calc#divide": "int divide(int a, int b)"}),
@@ -47,6 +52,7 @@ def initial_state() -> dict:
         "test_code": "",
         "write_result": "",
         "last_run": "",
+        "prev_run": "",
         "attempts": 0,
         "quality": "",
         "report": "",
@@ -75,7 +81,7 @@ class TestHappyPath:
 class TestLimitsAndGate:
     def test_소프트_한도마다_사용자에게_묻는다(self):
         gate = ScriptedUserGate()  # 항상 "계속"
-        ports = make_ports([FAIL] * MAX_TOTAL_ATTEMPTS, gate)
+        ports = make_ports(distinct_fails(MAX_TOTAL_ATTEMPTS), gate)
         final = build_writer_graph(ports).invoke(initial_state())
         # 3회째 실패에서 한 번 물었고(자동 계속), 6회째는 묻지 않고 하드 캡으로 끝났다
         assert len(gate.questions) == 1
@@ -85,14 +91,35 @@ class TestLimitsAndGate:
 
     def test_사용자가_중지하면_한계_보고로_정상_종료한다(self):
         gate = ScriptedUserGate([UserReply(action="stop")])
-        ports = make_ports([FAIL] * 10, gate)
+        ports = make_ports(distinct_fails(10), gate)
         final = build_writer_graph(ports).invoke(initial_state())
         assert final["status"] == "reported"
         assert final["attempts"] == ASK_EVERY_ATTEMPTS  # 첫 질문 시점에 멈췄다
 
     def test_사용자_힌트는_다음_시도의_재료에_들어간다(self):
         gate = ScriptedUserGate([UserReply(action="continue", hint="0 나누기를 먼저 시험하라")])
-        ports = make_ports([FAIL] * ASK_EVERY_ATTEMPTS + [PASS], gate)
+        ports = make_ports(distinct_fails(ASK_EVERY_ATTEMPTS) + [PASS], gate)
         final = build_writer_graph(ports).invoke(initial_state())
         assert final["status"] == "passed"
         assert "0 나누기를 먼저 시험하라" in final["context"]
+
+
+class TestFailureClassification:
+    """실패 분류(M6, v4 2.3) — 자동 수정 가능 / 판단 필요 / 불가능."""
+
+    def test_같은_실패가_반복되면_한도_전에_묻는다(self):
+        gate = ScriptedUserGate([UserReply(action="stop")])
+        ports = make_ports([FAIL, FAIL], gate)  # 동일한 실패 두 번 = 판단 필요
+        final = build_writer_graph(ports).invoke(initial_state())
+        assert len(gate.questions) == 1
+        assert final["attempts"] == 2  # 소프트 한도(3) 전에 물었다
+        assert final["status"] == "reported"
+
+    def test_환경_문제는_묻지_않고_한계_보고한다(self):
+        blocked = RunResult(passed=False, summary="[샌드박스 시간 초과: 600초]")
+        gate = ScriptedUserGate()
+        ports = make_ports([blocked], gate)
+        final = build_writer_graph(ports).invoke(initial_state())
+        assert final["status"] == "reported"
+        assert final["attempts"] == 1  # 재시도해도 소용없는 실패는 즉시 끝낸다
+        assert gate.questions == []

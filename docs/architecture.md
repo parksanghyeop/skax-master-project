@@ -57,7 +57,11 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `core/pipeline/decide.py` | 조치 결정 규칙표 + 지침서 조립 — LLM 금지(R2) | M5 |
 | `llm/intent.py` | 의도 분류 LLM 구현 (JSON 파싱, 실패→unclear) | M5 |
 | `adapters/java/changes.py` | git diff → 변경 심볼 (메서드 줄 범위 매핑) | M5 |
-| `scripts/run_pipeline.py` | 파이프라인 CLI — 추출→분류→결정→(선택) 생성 | M5 |
+| `scripts/run_pipeline.py` | 파이프라인 CLI — 추출→분류→결정→사람 개입(escalate/ask 해소)→생성 | M5·M6 |
+| `core/gates.py` | 게이트 실행기·설정(cta.toml) — 검문소의 언어 무관 틀 | M6 |
+| `core/submit.py` | 생성→게이트 재시도 루프 (탈락 사유 반환, 소진 시 사람 확인) | M6 |
+| `adapters/java/gates.py` | 게이트 ①assert ②스킵 ③범위 ④커버리지 구현 + 기준선 스냅샷 | M6 |
+| `adapters/java/mutation.py` | 게이트 ⑤ PIT 뮤테이션 (overlay pom, 메서드 단위 집계) | M6 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_golden.py` | 대표 시나리오 재생 시연 (산출물 캡처·발표용) | 산출물 |
 | `scripts/generate_test.py` | 실사용 CLI 최소본 — 임의 Maven 프로젝트·메서드에 테스트 생성 | 산출물 |

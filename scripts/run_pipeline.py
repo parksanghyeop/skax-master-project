@@ -19,7 +19,9 @@ from adapters.java.maven import detect_maven_project  # noqa: E402
 from adapters.java.runner import JavaTestRunner  # noqa: E402
 from core.pipeline.decide import decide  # noqa: E402
 from core.pipeline.models import (  # noqa: E402
+    ACTION_ASK,
     ACTION_CREATE_TEST,
+    ACTION_ESCALATE,
     TESTS_FAIL,
     TESTS_NONE,
     TESTS_PASS,
@@ -68,6 +70,11 @@ def main() -> int:
     parser.add_argument(
         "--execute", action="store_true", help="create_test 결정을 실제로 수행 (기본: 결정만 출력)"
     )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="escalate/ask 결정을 묻지 않고 보고만 (CI용)",
+    )
     args = parser.parse_args()
 
     load_dotenv_into_env()
@@ -109,7 +116,39 @@ def main() -> int:
             f"(기존 테스트: {status})"
         )
 
-    # 4단계: 실행 (선택) — create_test만 자동, escalate/ask는 사람 몫
+    # 4단계: escalate/ask 해소 — 사람이 답해야 재개된다 (M6, v4 2.1 Step 2)
+    resolved = []
+    for decision in decisions:
+        if decision.kind not in (ACTION_ESCALATE, ACTION_ASK):
+            resolved.append(decision)
+            continue
+        print(f"\n⏸ 사람 확인 필요 [{decision.kind}] {decision.target}")
+        print(f"   사유: {decision.reason}")
+        print(f"   지침서:\n{decision.briefing}")
+        if args.non_interactive:
+            print("   (--non-interactive: 보고만 하고 건너뜀)")
+            continue
+        raw = input(
+            "   답 [c=테스트 생성으로 진행 / Enter=건너뛰기 / 그 외=힌트와 함께 진행]: "
+        ).strip()
+        if not raw:
+            print("   → 건너뜀 (기록됨)")
+            continue
+        briefing = (
+            decision.briefing if raw.lower() == "c" else f"{decision.briefing}\n사람의 지시: {raw}"
+        )
+        resolved.append(
+            type(decision)(
+                kind=ACTION_CREATE_TEST,
+                target=decision.target,
+                briefing=briefing,
+                reason=f"{decision.reason} → 사람이 진행 결정",
+            )
+        )
+        print("   → 사람 결정으로 재개: 테스트 생성 진행")
+    decisions = resolved
+
+    # 5단계: 실행 (선택) — create_test만 자동
     for decision in decisions:
         if decision.kind != ACTION_CREATE_TEST:
             continue

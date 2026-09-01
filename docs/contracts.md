@@ -72,6 +72,23 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `IntentClassifier` (포트) | `classify(change_summary) -> Intent` | 구현: `llm/intent.PromptedIntentClassifier` (프롬프트 `classify_intent.md`) |
 | `ChangeExtractor` (포트) | `extract() -> list[ChangedSymbol]` | 결정적 — 같은 diff면 같은 출력 |
 
+## 품질 게이트 (M6 — 결정적, LLM 금지 R2)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `GateConfig` / `load_gate_config` | `(project_root) -> GateConfig` | `cta.toml` [gates]로 조정: line_min(0.80), branch_min(0.70), max_retries(3), mutation_min(0.5) |
+| `Gate` (포트) | `name; check() -> GateResult(name, passed, reason)` | 예외 없이 판정. 측정 불가 = 탈락(보수적) |
+| `run_gates` | `(list[Gate]) -> GateReport` | 단락 없이 전부 실행 — 탈락 사유를 한 번에 모은다 |
+| `snapshot_baseline` | `(project) -> SourceBaseline` | 에이전트 실행 **전** 기준선(assert 문·스킵 수·파일 해시) |
+| `AssertIntegrityGate` | ① | 기존 assert 호출문 내용 비교 — 삭제·변경(완화) 탈락, 추가는 자유 |
+| `SkipAnnotationGate` | ② | @Disabled/@Ignore 신규 부착 탈락 (FQN 우회 포함) |
+| `FileScopeGate` | ③ | 소스 전체(main 포함) 해시 대조 — 허용 목록 밖 변경 탈락 |
+| `CoverageGate` | ④ | JaCoCo 실측: 대상 라인·분기 기준 미달 탈락, 사유에 미실행 라인·분기 명시 |
+| `MutationGate` | ⑤ | PIT(overlay pom, 원본 불변): 대상 메서드 변형 검출률 < 기준 탈락 |
+| `generate_with_gates` (core/submit) | `-> SubmitResult(status, ...)` | 생성→게이트, 탈락 사유를 지침서에 붙여 재시도(max_retries), 소진 시 human_review |
+| `classify_failure` | `(last_run, prev_run) -> auto/ask/impossible` | 환경 표식→impossible, 동일 실패 반복→ask |
+| `InterruptUserGate` / `invoke_with_interrupts` | LangGraph interrupt 실연결 | 정지→질문→답(계속/중지/힌트)→같은 지점 재개. checkpointer 필수 |
+
 ## 코드 그래프 (graph/ — M4)
 
 | 항목 | 시그니처 | 계약 |

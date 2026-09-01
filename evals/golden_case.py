@@ -138,6 +138,7 @@ def initial_state() -> WriterState:
         "test_code": "",
         "write_result": "",
         "last_run": "",
+        "prev_run": "",
         "attempts": 0,
         "quality": "",
         "report": "",
