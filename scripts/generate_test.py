@@ -66,7 +66,8 @@ def default_test_class(class_name: str, method_name: str) -> str:
 def ask_on_terminal(question: str) -> UserReply:
     """반복 중 멈춤 지점의 터미널 응답기 — 계속/중지/힌트를 stdin으로 받는다."""
     print(f"\n⏸ 에이전트가 묻습니다:\n{question}")
-    raw = input("답 [Enter=계속 / s=중지 / 그 외 입력=힌트로 전달하고 계속]: ").strip()
+    # lstrip("﻿"): Windows에서 파이프로 답을 넣으면 BOM이 붙을 수 있다
+    raw = input("답 [Enter=계속 / s=중지 / 그 외 입력=힌트로 전달하고 계속]: ").lstrip("﻿").strip()
     if raw.lower() == "s":
         return UserReply(action="stop")
     return UserReply(action="continue", hint=raw)

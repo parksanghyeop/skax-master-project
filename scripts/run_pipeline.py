@@ -68,6 +68,11 @@ def main() -> int:
     parser.add_argument("--base", default="HEAD", help="diff 기준 (기본 HEAD: 미커밋 변경)")
     parser.add_argument("--message", default="", help="커밋 메시지 등 의도 단서")
     parser.add_argument(
+        "--intent",
+        choices=["bug_fix", "refactor", "new_feature"],
+        help="작성자가 의도를 확실히 알 때 직접 지정 — LLM 분류 호출을 생략한다",
+    )
+    parser.add_argument(
         "--execute", action="store_true", help="create_test 결정을 실제로 수행 (기본: 결정만 출력)"
     )
     parser.add_argument(
@@ -88,16 +93,26 @@ def main() -> int:
         return 0
     print(f"[변경 추출] {len(changes)}개 심볼: {', '.join(c.target for c in changes)}")
 
-    # 2단계: 의도 분류 (LLM 1회 — 변경 묶음 전체에 대해 대분류+구체 분석)
-    client, model = make_llm_client()
-    summary_parts = [f"커밋 메시지: {args.message or '(없음)'}"]
-    for c in changes:
-        summary_parts.append(
-            f"\n### {c.target} (+{c.lines_added}/-{c.lines_removed}"
-            f"{', 시그니처 변경' if c.signature_changed else ''})\n{c.diff_excerpt}"
+    # 2단계: 의도 분류 — 작성자가 직접 지정하면 LLM 호출 생략 (v4: 의도가 명시된
+    # 명령은 분석 없이 진행). 아니면 LLM 1회로 대분류+구체 분석
+    if args.intent:
+        from core.pipeline.models import Intent
+
+        intent = Intent(
+            category=args.intent,
+            analysis=f"작성자 지정 의도({args.intent}). 메시지: {args.message or '(없음)'}",
         )
-    intent = PromptedIntentClassifier(client, model).classify("\n".join(summary_parts))
-    print(f"[의도 분류] {intent.category} — {intent.analysis}")
+        print(f"[의도 분류] {intent.category} (작성자 지정 — LLM 호출 생략)")
+    else:
+        client, model = make_llm_client()
+        summary_parts = [f"커밋 메시지: {args.message or '(없음)'}"]
+        for c in changes:
+            summary_parts.append(
+                f"\n### {c.target} (+{c.lines_added}/-{c.lines_removed}"
+                f"{', 시그니처 변경' if c.signature_changed else ''})\n{c.diff_excerpt}"
+            )
+        intent = PromptedIntentClassifier(client, model).classify("\n".join(summary_parts))
+        print(f"[의도 분류] {intent.category} — {intent.analysis}")
 
     # 3단계: 조치 결정 (규칙표 — LLM 없음)
     sandbox = DockerSandbox()
@@ -128,9 +143,12 @@ def main() -> int:
         if args.non_interactive:
             print("   (--non-interactive: 보고만 하고 건너뜀)")
             continue
-        raw = input(
-            "   답 [c=테스트 생성으로 진행 / Enter=건너뛰기 / 그 외=힌트와 함께 진행]: "
-        ).strip()
+        # lstrip("﻿"): Windows에서 파이프로 답을 넣으면 BOM이 붙을 수 있다
+        raw = (
+            input("   답 [c=테스트 생성으로 진행 / Enter=건너뛰기 / 그 외=힌트와 함께 진행]: ")
+            .lstrip("﻿")
+            .strip()
+        )
         if not raw:
             print("   → 건너뜀 (기록됨)")
             continue
