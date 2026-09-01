@@ -31,17 +31,18 @@ class TestDotenv:
 
 
 class TestMakeLlmClient:
-    def test_게이트웨이_클라이언트와_기본_deployment를_만든다(self, monkeypatch):
+    def test_게이트웨이_클라이언트와_기본_deployment를_만든다(self, monkeypatch, tmp_path):
         monkeypatch.setenv("CTA_GATEWAY_URL", "http://gw.test")
         monkeypatch.setenv("CTA_GATEWAY_API_KEY", "atl-test-not-real")
         monkeypatch.delenv("CTA_LLM_MODEL", raising=False)
-        client, model = make_llm_client()
+        # 임시 경로: 개발자의 실제 .env가 테스트 결과를 바꾸지 않게 격리한다
+        client, model = make_llm_client(dotenv_path=tmp_path / "없음.env")
         assert type(client).__name__ == "GatewayClient"
         assert model == DEFAULT_MODEL
 
-    def test_deployment는_설정으로_바꿀_수_있다(self, monkeypatch):
+    def test_deployment는_설정으로_바꿀_수_있다(self, monkeypatch, tmp_path):
         monkeypatch.setenv("CTA_GATEWAY_URL", "http://gw.test")
         monkeypatch.setenv("CTA_GATEWAY_API_KEY", "atl-test-not-real")
         monkeypatch.setenv("CTA_LLM_MODEL", "gpt-5-mini")
-        _, model = make_llm_client()
+        _, model = make_llm_client(dotenv_path=tmp_path / "없음.env")
         assert model == "gpt-5-mini"

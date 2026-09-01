@@ -1,7 +1,7 @@
 [
   {
     "request": {
-      "model": "gpt-4.1",
+      "model": "gpt-5",
       "messages": [
         {
           "role": "system",
@@ -14,7 +14,7 @@
       ]
     },
     "response": {
-      "content": "```java\npackage com.example.demo;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertThrows;\n\nimport org.junit.jupiter.api.Test;\n\nclass CalculatorDivideTest {\n\n    @Test\n    void divide_evenlyDivisible_returnsQuotient() {\n        Calculator calculator = new Calculator();\n        assertEquals(3, calculator.divide(12, 4));\n    }\n\n    @Test\n    void divide_byZero_throwsIllegalArgumentException() {\n        Calculator calculator = new Calculator();\n        assertThrows(IllegalArgumentException.class, () -> calculator.divide(1, 0));\n    }\n}\n```\n"
+      "content": "```java\npackage com.example.demo;\n\nimport org.junit.jupiter.api.Test;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\npublic class CalculatorDivideTest {\n\n    @Test\n    void divide_twoPositives_returnsQuotient() {\n        Calculator calculator = new Calculator();\n        assertEquals(4, calculator.divide(8, 2));\n    }\n\n    @Test\n    void divide_divisionByZero_throwsIllegalArgumentException() {\n        Calculator calculator = new Calculator();\n        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> calculator.divide(10, 0));\n        assertEquals(\"0으로 나눌 수 없다\", ex.getMessage());\n    }\n}\n```"
     }
   }
 ]

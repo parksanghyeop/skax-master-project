@@ -53,12 +53,14 @@ def load_dotenv_into_env(path: str | Path = _DOTENV_PATH) -> None:
         os.environ.setdefault(key, value)
 
 
-def make_llm_client() -> tuple[LlmClient, str]:
+def make_llm_client(dotenv_path: str | Path = _DOTENV_PATH) -> tuple[LlmClient, str]:
     """(게이트웨이 클라이언트, deployment 이름)을 만든다.
 
+    dotenv_path: 기본은 리포 루트의 .env. 테스트는 임시 경로를 넘겨 로컬 설정과
+      격리한다 — 개발자의 실제 .env가 단위 테스트 결과를 바꾸면 안 된다.
     실패 시 동작: 주소·키 미설정은 GatewayClient가 GatewayConfigError로 알린다.
     """
-    load_dotenv_into_env()
+    load_dotenv_into_env(dotenv_path)
     from llm.gateway import GatewayClient
 
     model = os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL

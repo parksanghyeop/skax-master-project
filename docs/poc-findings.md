@@ -73,8 +73,10 @@
   5. `run_tests(CalculatorDivideTest)` → 네트워크 차단 실행, `통과 / Tests run: 2, Failures: 0`
   6. `check_quality` → `통과: 새 테스트, assert 2개`
 - 최종 결과: status=passed, 시도 1회, 소요 35.4초 (1 passed)
-- ⚠️ 카세트는 게이트웨이 미접속 환경이라 대본(ScriptedLlm) 녹음본이다.
-  사내망에서 `scripts/record_golden.py`의 클라이언트를 GatewayClient로 바꿔 재녹음한다
+- **실모델 재녹음 완료** (2026-09-01): `record_golden.py --live`로 사내 게이트웨이
+  **gpt-5** 실호출 녹음. gpt-5가 생성한 CalculatorDivideTest가 시도 1회에
+  컴파일 → 네트워크 차단 실행 통과 → 품질 검사 통과. 재생 검증 docker 2 passed(69초).
+  카세트에 시크릿 미포함 확인(atl-/주소 문자열 0건)
 
 ## 문제·리서치 로그 (추가분)
 
@@ -104,7 +106,10 @@
 - M1 통합(최초 실행): 이미지 풀(802MB) + go-offline + 예열 + 오프라인 실행 = 총 3분 25초.
   캐시 완성 후 오프라인 실행 단독은 수십 초 수준으로 예상 — 2단계 분리의 효과
 - M3 골든 케이스(캐시 준비된 상태): 서브그래프 전체(컴파일 검사 + 오프라인 실행 포함)
-  35.4초. LLM 토큰 0 (카세트 재생) — 실호출 측정은 게이트웨이 접속 후
+  35.4초. LLM 토큰 0 (카세트 재생)
+- 실호출(gpt-5, 2026-09-01): 서브그래프 전체 수 분 이내 완료, LLM 호출 1회
+  (재시도 0회 — 첫 생성이 컴파일·실행 모두 통과). 토큰 수 측정은 2단계
+  트레이스 계측에서 (현재 게이트웨이 응답의 usage를 기록하지 않음)
 
 ## 1주차 확인 의무 3건 — 게이트웨이 스펙 확정으로 해소 (2026-09-01, ADR-0011)
 
@@ -118,7 +123,8 @@
 | 2 | Neo4j 별도 구동 가능 여부 | ✅ 개발 환경에서 **가능** — `neo4j:5` 컨테이너 단독 기동 + `cypher-shell RETURN 1` 응답 실측. 사내망 정책(별도 컨테이너 허용 여부)만 추가 확인 |
 | 3 | tool calling 지원 여부 | ✅ **스펙상 지원** — Azure OpenAI chat completions는 tools/function calling을 정식 지원. gpt-4.1/4o/5 계열 deployment별 실지원은 키 확보 후 실호출 1회로 확정. PoC 파이프라인은 텍스트(코드 블록) 파싱 방식이라 어느 쪽이든 동작 — 도구 직접 노출 전환은 2단계 결정 |
 
-- 남은 실측: `.env`에 `CTA_GATEWAY_API_KEY`(atl-...) 설정 후
-  `scripts/record_golden.py --live`로 실호출 스모크 + 골든 카세트 재녹음
+- 실측 완료 (2026-09-01): 키 설정 후 `--live` 실행 — 게이트웨이 인증(api-key 헤더)·
+  경로·gpt-5 deployment 모두 정상 동작, 서브그래프 전체가 실모델로 통과.
+  (tool calling 실측은 미수행 — PoC는 파싱 방식이라 불필요, 2단계 전환 시 확인)
 - 설계 영향: v4 5절의 "Kimi/Qwen/GLM 비교 실험" 전제는 GPT 계열 deployment 비교로
   바뀐다(gpt-4.1 vs gpt-5 계열 등) — 2단계 평가 하네스에 반영
