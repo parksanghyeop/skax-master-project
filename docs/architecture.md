@@ -13,7 +13,21 @@ llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2)
 core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
 ```
 
-v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계)는 아직 없다.
+## 디렉터리 배치 (2026-09-02 정리)
+
+리포 루트는 역할별 5개 폴더로 나뉜다 — 제품 코드는 전부 `cta/` 아래에 있다:
+
+```
+cta/        제품 코드 (파이썬 패키지 — core/adapters/llm/graph/sandbox/cli/evals)
+tests/      단위·통합 테스트
+scripts/    개발용 스크립트 (record_golden)
+examples/   예제 Maven 프로젝트 (demo, evalbench)
+docs/       설계·산출물 문서
+```
+
+층 패키지들은 `cta/` 아래에 그대로 있고 import 경로만 `cta.core...` 형태다.
+아래 모듈 표의 경로도 `cta/` 생략 표기다(예: `core/ports.py` = `cta/core/ports.py`).
+v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 어댑터 실물은 `adapters/java/`로 들어간다(M1) — 새 언어 지원 = 폴더 추가.
 
 - **core는 언어를 모른다(R1)**: 언어·빌드 도구 이름 문자열 금지.

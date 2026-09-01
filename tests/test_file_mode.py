@@ -6,8 +6,8 @@
 
 from pathlib import Path
 
-from adapters.java.maven import MavenProject
-from cli.file_mode import (
+from cta.adapters.java.maven import MavenProject
+from cta.cli.file_mode import (
     find_source_files,
     plan_targets,
     project_root_for,

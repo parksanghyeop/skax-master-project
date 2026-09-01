@@ -104,6 +104,16 @@
 - 검증: 자동 인식·자동 선택 단위 테스트 7건 + 실측(프로젝트 폴더 안에서
   `cta generate Calculator.java` → `cta diff` → `cta apply` 인자 없이 왕복)
 
+### 디렉터리 정리 — 제품 코드를 cta/ 아래로 (2026-09-02, 사용자 피드백 3차)
+- 배경: 루트에 층 패키지 7개 + 문서 + 예제가 섞여 구조가 안 보임
+- 구현: core/adapters/llm/graph/sandbox/cli/evals → `cta/` 아래로 이동(git mv,
+  이력 보존). import는 `cta.core...` 형태로 일괄 치환(59파일 218건).
+  루트는 cta/ tests/ scripts/ examples/ docs/ 5개 폴더 + 설정 파일만 남음
+- 따라간 것: pyproject(packages·entry point `cta.cli.main:main`·package-data),
+  test_layering(core 경로 + cta.adapters 형태 import도 금지 목록에 추가),
+  리포 루트 기준 경로 상수 3곳(golden_case·eval_cmd — parents 깊이 +1)
+- 검증: 단위 126 passed, ruff 통과, pip install -e . 재설치 후 cta 실행 확인
+
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010

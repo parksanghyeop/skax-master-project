@@ -2,7 +2,7 @@
 
 from langgraph.checkpoint.memory import MemorySaver
 
-from adapters.fake import (
+from cta.adapters.fake import (
     FakeCodeGraph,
     FakeQualityChecker,
     FakeSourceInspector,
@@ -10,10 +10,10 @@ from adapters.fake import (
     ScriptedGenerator,
     ScriptedTestRunner,
 )
-from core.gates import GateResult
-from core.ports import RunResult, UserReply
-from core.submit import generate_with_gates
-from core.writer_graph import (
+from cta.core.gates import GateResult
+from cta.core.ports import RunResult, UserReply
+from cta.core.submit import generate_with_gates
+from cta.core.writer_graph import (
     InterruptUserGate,
     WriterPorts,
     build_writer_graph,

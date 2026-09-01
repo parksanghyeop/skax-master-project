@@ -6,10 +6,10 @@
 
 import pytest
 
-from adapters.java.maven import NotAMavenProjectError, detect_maven_project
-from adapters.java.runner import JavaTestRunner
-from core.ports import EmptySelectorError
-from sandbox.docker_sandbox import SandboxResult
+from cta.adapters.java.maven import NotAMavenProjectError, detect_maven_project
+from cta.adapters.java.runner import JavaTestRunner
+from cta.core.ports import EmptySelectorError
+from cta.sandbox.docker_sandbox import SandboxResult
 
 
 class StubSandbox:

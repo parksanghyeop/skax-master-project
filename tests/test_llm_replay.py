@@ -7,9 +7,9 @@
 
 import pytest
 
-from llm.client import ChatMessage, ChatResponse
-from llm.gateway import GatewayClient, GatewayConfigError, build_payload, build_url
-from llm.replay import CassetteError, RecordingClient, ReplayClient
+from cta.llm.client import ChatMessage, ChatResponse
+from cta.llm.gateway import GatewayClient, GatewayConfigError, build_payload, build_url
+from cta.llm.replay import CassetteError, RecordingClient, ReplayClient
 
 
 class FakeLlm:

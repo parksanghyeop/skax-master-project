@@ -6,9 +6,9 @@ M0 관문 "Java·Docker 없이 pytest 통과"의 실체 — Fake만으로 포트
 
 import pytest
 
-from adapters.fake import FakeSourceInspector, FakeTestRunner
-from core.ports import EmptySelectorError, RunResult
-from core.textlimit import TOOL_OUTPUT_MAX_CHARS, clip
+from cta.adapters.fake import FakeSourceInspector, FakeTestRunner
+from cta.core.ports import EmptySelectorError, RunResult
+from cta.core.textlimit import TOOL_OUTPUT_MAX_CHARS, clip
 
 
 class TestFakeTestRunner:

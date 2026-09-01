@@ -1,8 +1,8 @@
 """도구 6개(core/tools)의 단위 테스트 — 문자열 반환·길이 상한·안내 메시지 규약."""
 
-from adapters.fake import FakeCodeGraph, FakeTestRunner
-from core.tools import query_code_graph, report_finding, run_tests
-from core.tools.query_code_graph import GRAPH_ANSWER_MAX_CHARS, QUERY_SIMILAR_TESTS
+from cta.adapters.fake import FakeCodeGraph, FakeTestRunner
+from cta.core.tools import query_code_graph, report_finding, run_tests
+from cta.core.tools.query_code_graph import GRAPH_ANSWER_MAX_CHARS, QUERY_SIMILAR_TESTS
 
 
 class TestQueryCodeGraph:
@@ -32,14 +32,14 @@ class TestRunTests:
         assert answer.startswith("실행 거부")
 
     def test_통과와_실패가_선두_단어로_구분된다(self):
-        from core.ports import RunResult
+        from cta.core.ports import RunResult
 
         runner = FakeTestRunner({"T": RunResult(passed=True, summary="Tests run: 1")})
         assert run_tests(runner, "T").startswith("통과")
         assert run_tests(runner, "Unknown").startswith("실패")
 
     def test_seed는_받되_미반영을_안내한다(self):
-        from core.ports import RunResult
+        from cta.core.ports import RunResult
 
         runner = FakeTestRunner({"T": RunResult(passed=True, summary="ok")})
         assert "seed 42" in run_tests(runner, "T", seed=42)

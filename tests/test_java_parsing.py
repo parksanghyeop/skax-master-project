@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from adapters.java.maven import detect_maven_project
-from adapters.java.parsing import extract_methods
-from adapters.java.quality import AssertCountChecker, count_asserts
-from adapters.java.similar import JavaSimilarTestFinder
+from cta.adapters.java.maven import detect_maven_project
+from cta.adapters.java.parsing import extract_methods
+from cta.adapters.java.quality import AssertCountChecker, count_asserts
+from cta.adapters.java.similar import JavaSimilarTestFinder
 
 MAIN_SOURCE = """\
 package com.example;
@@ -84,19 +84,19 @@ public class C {
 
 class TestProjectHelpers:
     def test_package_선언을_읽는다(self):
-        from adapters.java.parsing import read_package
+        from cta.adapters.java.parsing import read_package
 
         assert read_package(MAIN_SOURCE) == "com.example"
         assert read_package("public class NoPkg {}") == ""
 
     def test_기존_테스트_클래스를_찾는다(self, tmp_path):
-        from adapters.java.maven import find_existing_test_class
+        from cta.adapters.java.maven import find_existing_test_class
 
         project = _demo_project(tmp_path)
         assert find_existing_test_class(project) == "CalcTest"
 
     def test_테스트가_없으면_None이다(self, tmp_path):
-        from adapters.java.maven import detect_maven_project, find_existing_test_class
+        from cta.adapters.java.maven import detect_maven_project, find_existing_test_class
 
         (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
         assert find_existing_test_class(detect_maven_project(tmp_path)) is None

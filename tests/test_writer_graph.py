@@ -4,7 +4,7 @@
 사용자에게 묻기(자동 계속 스텁) / 하드 한도에서 한계 보고 / 사용자 중지.
 """
 
-from adapters.fake import (
+from cta.adapters.fake import (
     FakeCodeGraph,
     FakeQualityChecker,
     FakeSourceInspector,
@@ -13,8 +13,8 @@ from adapters.fake import (
     ScriptedTestRunner,
     ScriptedUserGate,
 )
-from core.ports import RunResult, UserReply
-from core.writer_graph import (
+from cta.core.ports import RunResult, UserReply
+from cta.core.writer_graph import (
     ASK_EVERY_ATTEMPTS,
     MAX_TOTAL_ATTEMPTS,
     WriterPorts,

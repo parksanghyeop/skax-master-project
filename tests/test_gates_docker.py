@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from adapters.java.gates import CoverageGate
-from adapters.java.maven import detect_maven_project
-from adapters.java.mutation import MutationGate
-from adapters.java.parsing import method_line_spans
-from core.gates import GateConfig
-from sandbox.docker_sandbox import DockerSandbox
+from cta.adapters.java.gates import CoverageGate
+from cta.adapters.java.maven import detect_maven_project
+from cta.adapters.java.mutation import MutationGate
+from cta.adapters.java.parsing import method_line_spans
+from cta.core.gates import GateConfig
+from cta.sandbox.docker_sandbox import DockerSandbox
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMO = REPO_ROOT / "examples" / "demo"

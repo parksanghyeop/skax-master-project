@@ -8,16 +8,16 @@ phase2 스킬의 최소 세트: assert 완화 / @Disabled / 허용 목록 밖 �
 
 from pathlib import Path
 
-from adapters.java.gates import (
+from cta.adapters.java.gates import (
     AssertIntegrityGate,
     FileScopeGate,
     SkipAnnotationGate,
     snapshot_baseline,
 )
-from adapters.java.maven import detect_maven_project
-from adapters.java.mutation import parse_mutations, write_overlay_pom
-from adapters.java.parsing import extract_assert_statements
-from core.gates import load_gate_config, run_gates
+from cta.adapters.java.maven import detect_maven_project
+from cta.adapters.java.mutation import parse_mutations, write_overlay_pom
+from cta.adapters.java.parsing import extract_assert_statements
+from cta.core.gates import load_gate_config, run_gates
 
 ORIGINAL_TEST = """\
 package com.example;

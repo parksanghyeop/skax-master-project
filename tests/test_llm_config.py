@@ -5,7 +5,7 @@
 
 import os
 
-from llm.config import (
+from cta.llm.config import (
     DEFAULT_MODEL,
     load_dotenv_into_env,
     make_llm_client,

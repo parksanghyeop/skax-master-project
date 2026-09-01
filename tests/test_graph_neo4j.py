@@ -7,8 +7,8 @@
 
 import pytest
 
-from graph.model import EDGE_DECLARES, GraphEdge, GraphNode
-from llm.config import load_dotenv_into_env
+from cta.graph.model import EDGE_DECLARES, GraphEdge, GraphNode
+from cta.llm.config import load_dotenv_into_env
 
 PROJECT = "cta-test-roundtrip"
 
@@ -16,7 +16,7 @@ PROJECT = "cta-test-roundtrip"
 @pytest.mark.neo4j
 def test_저장_조회_왕복이_인메모리와_같은_계약으로_동작한다():
     load_dotenv_into_env()
-    from graph.neo4j_store import Neo4jGraphStore
+    from cta.graph.neo4j_store import Neo4jGraphStore
 
     store = Neo4jGraphStore()
     try:

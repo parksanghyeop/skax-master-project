@@ -8,13 +8,23 @@ core/ 아래에 등장하면 실패한다. 이 테스트를 예외 처리로 우
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CORE_DIR = REPO_ROOT / "core"
+CORE_DIR = REPO_ROOT / "cta" / "core"
 
 # CLAUDE.md R1이 명시한 금지 문자열 목록 그대로. 대소문자 무시로 검사한다.
 FORBIDDEN_WORDS = ("java", "maven", "pom.xml", "junit", "jacoco", "mvn", "pitest")
 
 # 의존 방향 검사: core는 안쪽 층이라 바깥 층(adapters, llm)을 import할 수 없다.
-FORBIDDEN_IMPORTS = ("import adapters", "from adapters", "import llm", "from llm")
+# cta/ 이동 후에는 import 경로가 cta.adapters 형태라 두 표기 모두 검사한다.
+FORBIDDEN_IMPORTS = (
+    "import adapters",
+    "from adapters",
+    "import llm",
+    "from llm",
+    "import cta.adapters",
+    "from cta.adapters",
+    "import cta.llm",
+    "from cta.llm",
+)
 
 
 def _core_files() -> list[Path]:

@@ -6,10 +6,10 @@
 import subprocess
 from pathlib import Path
 
-from adapters.java.changes import GitChangeExtractor
-from adapters.java.maven import detect_maven_project
-from core.pipeline.decide import decide
-from core.pipeline.models import (
+from cta.adapters.java.changes import GitChangeExtractor
+from cta.adapters.java.maven import detect_maven_project
+from cta.core.pipeline.decide import decide
+from cta.core.pipeline.models import (
     ACTION_ASK,
     ACTION_CREATE_TEST,
     ACTION_ESCALATE,
@@ -20,7 +20,7 @@ from core.pipeline.models import (
     ChangedSymbol,
     Intent,
 )
-from llm.intent import parse_intent
+from cta.llm.intent import parse_intent
 
 CHANGE = ChangedSymbol(
     target="Calc#divide",

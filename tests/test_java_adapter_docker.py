@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from adapters.java.maven import detect_maven_project
-from adapters.java.runner import JavaTestRunner
-from sandbox.docker_sandbox import DockerSandbox
+from cta.adapters.java.maven import detect_maven_project
+from cta.adapters.java.runner import JavaTestRunner
+from cta.sandbox.docker_sandbox import DockerSandbox
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMO_PROJECT = REPO_ROOT / "examples" / "demo"

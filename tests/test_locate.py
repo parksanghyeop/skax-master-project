@@ -6,8 +6,8 @@
 
 from pathlib import Path
 
-from cli.locate import find_maven_projects, resolve_project
-from cli.proposals import save_proposal, select_names
+from cta.cli.locate import find_maven_projects, resolve_project
+from cta.cli.proposals import save_proposal, select_names
 
 
 def make_project(root: Path, name: str) -> Path:
@@ -57,7 +57,7 @@ def test_find_projects_does_not_descend_into_project(tmp_path):
 
 
 def test_select_names_defaults_to_single_pending(tmp_path):
-    from adapters.java.maven import detect_maven_project
+    from cta.adapters.java.maven import detect_maven_project
 
     proj = make_project(tmp_path, "svc")
     project = detect_maven_project(proj)

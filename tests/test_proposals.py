@@ -4,8 +4,8 @@
 보관소에서 사라진다(이중 반영 방지).
 """
 
-from adapters.java.maven import detect_maven_project
-from cli.proposals import (
+from cta.adapters.java.maven import detect_maven_project
+from cta.cli.proposals import (
     STATUS_ACCEPTED,
     apply_proposal,
     discard_proposal,

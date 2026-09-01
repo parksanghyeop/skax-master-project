@@ -8,9 +8,9 @@ test_java_adapter_docker가 먼저 채운다).
 
 import pytest
 
-from core.writer_graph import build_writer_graph
-from evals import golden_case as gc
-from llm.replay import ReplayClient
+from cta.core.writer_graph import build_writer_graph
+from cta.evals import golden_case as gc
+from cta.llm.replay import ReplayClient
 
 
 @pytest.mark.docker

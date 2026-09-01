@@ -5,12 +5,12 @@ Neo4j·Docker 없이 돈다 — 실물 Neo4j 왕복은 tests/test_graph_neo4j.py
 
 from pathlib import Path
 
-from adapters.java.coverage import parse_covered_methods
-from adapters.java.graph_builder import build_graph
-from adapters.java.maven import detect_maven_project
-from graph.answers import GraphCodeGraph
-from graph.model import EDGE_COVERS, EDGE_CREATES, EDGE_DECLARES, GraphEdge
-from graph.store import InMemoryGraphStore
+from cta.adapters.java.coverage import parse_covered_methods
+from cta.adapters.java.graph_builder import build_graph
+from cta.adapters.java.maven import detect_maven_project
+from cta.graph.answers import GraphCodeGraph
+from cta.graph.model import EDGE_COVERS, EDGE_CREATES, EDGE_DECLARES, GraphEdge
+from cta.graph.store import InMemoryGraphStore
 
 MAIN = """\
 package com.example;

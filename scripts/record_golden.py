@@ -17,13 +17,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 리포 루트를 import 경로에
 
-from adapters.java.inspector import JavaSourceInspector  # noqa: E402
-from adapters.java.maven import detect_maven_project  # noqa: E402
-from adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph  # noqa: E402
-from core.writer_graph import build_writer_graph, gather_context  # noqa: E402
-from evals import golden_case as gc  # noqa: E402
-from llm.generation import PromptedGenerator  # noqa: E402
-from llm.replay import RecordingClient  # noqa: E402
+from cta.adapters.java.inspector import JavaSourceInspector  # noqa: E402
+from cta.adapters.java.maven import detect_maven_project  # noqa: E402
+from cta.adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph  # noqa: E402
+from cta.core.writer_graph import build_writer_graph, gather_context  # noqa: E402
+from cta.evals import golden_case as gc  # noqa: E402
+from cta.llm.generation import PromptedGenerator  # noqa: E402
+from cta.llm.replay import RecordingClient  # noqa: E402
 
 
 def record_scripted() -> None:
@@ -43,7 +43,7 @@ def record_scripted() -> None:
 
 def record_live() -> None:
     """설정된 백엔드로 서브그래프 전체를 실행하며 녹음한다 (Docker 필요)."""
-    from llm.config import make_llm_client
+    from cta.llm.config import make_llm_client
 
     client, model = make_llm_client()
     print(f"[실호출 녹음] 백엔드: {type(client).__name__}, 모델: {model}")

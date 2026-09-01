@@ -16,16 +16,17 @@ dependencies = [
 
 [project.scripts]
 # 설치(pip install -e .) 후 어디서든 `cta <명령>`으로 실행되는 CLI 진입점
-cta = "cli.main:main"
+cta = "cta.cli.main:main"
 
 [tool.setuptools]
-# 최상위 층 패키지들 — 자동 탐색은 flat 레이아웃에서 모호해 명시한다
-packages = ["core", "core.tools", "core.pipeline", "adapters", "adapters.java",
-            "graph", "llm", "sandbox", "cli", "evals"]
+# 제품 코드는 전부 cta/ 아래 — 층 패키지들을 명시한다 (디렉터리 정리, 2026-09-02)
+packages = ["cta", "cta.core", "cta.core.tools", "cta.core.pipeline",
+            "cta.adapters", "cta.adapters.java",
+            "cta.graph", "cta.llm", "cta.sandbox", "cta.cli", "cta.evals"]
 
 [tool.setuptools.package-data]
 # 프롬프트 파일은 코드가 아니라 데이터 — 일반(비-편집) 설치에도 함께 담는다
-llm = ["prompts/*.md"]
+"cta.llm" = ["prompts/*.md"]
 
 [dependency-groups]
 dev = [
@@ -34,8 +35,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-# 왜 pythonpath: src 레이아웃 없이 core/, adapters/, llm/을 최상위 패키지로 쓰기 위해
-# 리포 루트를 import 경로에 넣는다. 층 이름이 CLAUDE.md 표기와 1:1로 일치하게 하려는 선택.
+# 왜 pythonpath: 리포 루트를 import 경로에 넣어 설치 없이도 cta 패키지를 찾게 한다.
+# 층 이름(core/adapters/llm/...)은 cta/ 아래에 그대로 있어 CLAUDE.md 표기와 일치한다.
 pythonpath = ["."]
 testpaths = ["tests"]
 # docker·neo4j 마커는 기본 실행에서 제외 — M0 관문 "외부 의존 없이 pytest 통과" 유지.
