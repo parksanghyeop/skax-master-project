@@ -86,7 +86,22 @@ class Gate(Protocol):
     def check(self) -> GateResult: ...
 
 
-def run_gates(gates: list[Gate]) -> GateReport:
+def run_gates(gates: list[Gate], progress=None) -> GateReport:
     """게이트를 전부 실행한다(단락 없음 — 탈락 사유를 한 번에 모아 반환해야
-    재시도가 한 바퀴로 끝난다)."""
-    return GateReport(results=[g.check() for g in gates])
+    재시도가 한 바퀴로 끝난다).
+
+    progress: 진행 보고 콜백(문자열 하나). coverage·mutation처럼 수십 초~수 분
+    걸리는 게이트가 있어 검사 시작·판정을 실시간으로 알린다. None이면 무음.
+    """
+    import time
+
+    report = progress or (lambda _msg: None)
+    results = []
+    for g in gates:
+        report(f"게이트[{g.name}] 검사 중")
+        started = time.monotonic()
+        result = g.check()
+        verdict = "통과" if result.passed else "탈락"
+        report(f"게이트[{g.name}] {verdict} ({time.monotonic() - started:.0f}초)")
+        results.append(result)
+    return GateReport(results=results)

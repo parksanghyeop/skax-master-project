@@ -157,6 +157,12 @@ def run_generation(
     if instruction_extra:
         instruction += f" 추가 요구: {instruction_extra}"
 
+    started = time.monotonic()
+
+    def progress(message: str) -> None:
+        """진행 한 줄 출력 — 경과 시간을 붙여 어디서 오래 걸리는지 보이게 한다."""
+        print(f"  [{time.monotonic() - started:4.0f}초] {message}", flush=True)
+
     ports = WriterPorts(
         inspector=JavaSourceInspector(project),
         graph=ParsingCodeGraph(JavaSimilarTestFinder(project)),
@@ -171,6 +177,7 @@ def run_generation(
             "JUnit 5",
             "프로젝트의 기존 테스트 스타일(이름 규칙, import 방식)을 따른다.",
         ),
+        progress=progress,
     )
     app = build_writer_graph(ports, checkpointer=MemorySaver())
     ask = ask_user or (lambda q: UserReply(action="continue"))
@@ -196,13 +203,13 @@ def run_generation(
         }
 
     print(f"[실행] 대상 {target} → {test_rel} (모델: {model})")
-    started = time.monotonic()
     result = generate_with_gates(
         run_writer=run_writer,
         make_state=make_state,
         make_gates=make_gates,
         base_instruction=instruction,
         max_retries=config.max_retries,
+        progress=progress,
     )
     elapsed = time.monotonic() - started
 

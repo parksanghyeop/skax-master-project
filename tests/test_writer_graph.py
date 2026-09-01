@@ -69,6 +69,21 @@ class TestHappyPath:
         assert final["quality"].startswith("통과")
         assert "[대상 조사]" in final["context"]  # 정보 수집이 프롬프트 재료를 만들었다
 
+    def test_진행_상황이_콜백으로_보고된다(self):
+        # 긴 단계(LLM 호출·샌드박스 실행)가 무음이면 사용자가 멈춘 줄 안다 — 실시간 보고
+        messages: list[str] = []
+        ports = make_ports([FAIL, PASS])
+        ports.progress = messages.append
+        build_writer_graph(ports).invoke(initial_state())
+        text = "\n".join(messages)
+        assert "정보 수집" in text
+        assert "코드 생성 중" in text and "2번째 시도" in text  # 재시도도 보인다
+        assert "샌드박스 실행 중" in text
+
+    def test_progress_기본값은_무음이라_기존_호출부가_그대로_돈다(self):
+        final = build_writer_graph(make_ports([PASS])).invoke(initial_state())
+        assert final["status"] == "passed"
+
     def test_실패하면_실패_내용을_들고_재시도한다(self):
         ports = make_ports([FAIL, PASS])
         final = build_writer_graph(ports).invoke(initial_state())

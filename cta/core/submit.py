@@ -33,23 +33,29 @@ def generate_with_gates(
     make_gates: Callable[[], list[Gate]],
     base_instruction: str,
     max_retries: int,
+    progress: Callable[[str], None] | None = None,
 ) -> SubmitResult:
     """생성→게이트를 최대 max_retries회 돌린다.
 
     입력: run_writer — 상태를 받아 작성 그래프를 끝까지 돌리는 함수,
       make_state — 지침서로 초기 상태를 만드는 함수,
       make_gates — 게이트 목록 팩토리(호출 시점마다 새로 검사),
-      base_instruction — 원래 작업 지침서.
+      base_instruction — 원래 작업 지침서,
+      progress — 진행 보고 콜백(무음 기본) — 루프·게이트 단계를 실시간으로 알린다.
     """
+    report = progress or (lambda _msg: None)
     instruction = base_instruction
     last_report: GateReport | None = None
     final_state: WriterState = make_state(instruction)
     for attempt in range(1, max_retries + 1):
+        if attempt > 1:
+            report(f"게이트 탈락 사유를 지침서에 붙여 재생성 ({attempt}/{max_retries}회차)")
         final_state = run_writer(make_state(instruction))
         if final_state["status"] != "passed":
             # 에이전트 스스로 한계 보고로 끝냄 — 게이트를 볼 것도 없다
             return SubmitResult("not_passed", final_state, None, attempt)
-        last_report = run_gates(make_gates())
+        report("테스트 통과 — 품질 게이트 검사 시작")
+        last_report = run_gates(make_gates(), progress)
         if last_report.passed:
             return SubmitResult("accepted", final_state, last_report, attempt)
         # 탈락 사유를 다음 지침서에 그대로 붙인다 (v4 2.4 "탈락했을 때")

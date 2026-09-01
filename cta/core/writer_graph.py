@@ -8,8 +8,9 @@
 층: core — 포트만 알고 대상 언어를 모른다(R1). LLM은 generator 포트 뒤에만 있다(R2).
 """
 
+import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -94,6 +95,10 @@ class WriterPorts:
     checker: QualityChecker
     gate: UserGate
     generator: TestCodeGenerator
+    # 진행 상황 보고 콜백 — LLM 호출·샌드박스 실행처럼 수십 초 걸리는 단계를
+    # 사용자가 볼 수 있게 한다. 기본은 무음(테스트·재생 호환). 층 규칙: 메시지는
+    # 언어 중립 문구만 담는다(R1) — 출력 형식(경과 시간 등)은 CLI 몫이다.
+    progress: Callable[[str], None] = field(default=lambda _msg: None)
 
 
 def gather_context(inspector: SourceInspector, graph: CodeGraph, target: str) -> str:
@@ -155,25 +160,35 @@ def build_writer_graph(ports: WriterPorts, checkpointer=None):
     """
 
     def gather(state: WriterState) -> dict:
+        ports.progress("정보 수집 — 대상 조사·비슷한 테스트 검색")
         return {"context": gather_context(ports.inspector, ports.graph, state["target"])}
 
     def write(state: WriterState) -> dict:
+        attempt = state.get("attempts", 0) + 1
+        ports.progress(f"코드 생성 중 — LLM 호출 ({attempt}번째 시도, 수십 초 걸릴 수 있다)")
+        started = time.monotonic()
         code = ports.generator.generate(
             state["instruction"],
             state["context"],
             state.get("test_code", ""),
             state.get("last_run", ""),
         )
+        ports.progress(f"생성 완료 ({len(code)}자, {time.monotonic() - started:.0f}초) → 파일 쓰기")
         result = write_test(ports.writer, state["test_path"], code)
         return {
             "test_code": code,
             "write_result": result,
-            "attempts": state.get("attempts", 0) + 1,
+            "attempts": attempt,
         }
 
     def run(state: WriterState) -> dict:
+        ports.progress(f"샌드박스 실행 중 — {state['selector']}")
+        started = time.monotonic()
+        outcome = run_tests(ports.runner, state["selector"])
+        first_line = outcome.splitlines()[0] if outcome else ""
+        ports.progress(f"실행 끝 ({time.monotonic() - started:.0f}초) — {first_line}")
         return {
-            "last_run": run_tests(ports.runner, state["selector"]),
+            "last_run": outcome,
             "prev_run": state.get("last_run", ""),
         }
 
