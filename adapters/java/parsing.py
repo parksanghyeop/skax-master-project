@@ -85,6 +85,19 @@ def find_class_file(project: MavenProject, class_name: str) -> Path | None:
     return None
 
 
+_PACKAGE_DECL = re.compile(r"^\s*package\s+([\w.]+)\s*;", re.MULTILINE)
+
+
+def read_package(source: str) -> str:
+    """소스의 package 선언을 읽는다. 없으면 빈 문자열(기본 패키지).
+
+    왜 필요한가: 생성할 테스트 파일의 저장 경로는 대상 클래스의 패키지를
+    따라가야 컴파일된다 — CLI가 경로를 자동 계산할 때 쓴다.
+    """
+    m = _PACKAGE_DECL.search(source)
+    return m.group(1) if m else ""
+
+
 def parse_target(target: str) -> tuple[str, str]:
     """ "Class#method" 식별자를 (클래스, 메서드)로 나눈다. 메서드가 없으면 빈 문자열."""
     class_name, _, method_name = target.partition("#")

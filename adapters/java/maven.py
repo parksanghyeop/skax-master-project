@@ -32,6 +32,18 @@ class MavenProject:
         return self.root / "src" / "test" / "java"
 
 
+def find_existing_test_class(project: MavenProject) -> str | None:
+    """프로젝트에서 기존 테스트 클래스 이름 하나를 찾는다. 없으면 None.
+
+    왜 필요한가: 실행 환경 준비 단계의 예열(실제 테스트 1회 실행)에 쓸
+    대상이 필요하다 — 아무 테스트나 하나면 충분하다.
+    """
+    if not project.test_source_dir.is_dir():
+        return None
+    hits = sorted(project.test_source_dir.rglob("*Test.java"))
+    return hits[0].stem if hits else None
+
+
 def detect_maven_project(path: str | Path) -> MavenProject:
     """path가 Maven 프로젝트 루트인지 확인하고 MavenProject를 돌려준다.
 

@@ -45,7 +45,9 @@ v4 6.1의 전체 목표 구조 중 `sandbox/`(M1), `cli/`·`mcp_server/`(3단계
 | `adapters/java/quality.py` | assert 수 비교 검사 최소본 (AST 비교는 2단계) | M3 |
 | `adapters/java/parsing.py` | 시그니처·본문 최소 파싱 공용 헬퍼 | M3 |
 | `evals/golden_case.py` | 골든 케이스 배선 단일 정의 (녹음·재생 공유) | M3 |
-| `scripts/record_golden.py` | 골든 카세트 녹음 스크립트 | M3 |
+| `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
+| `scripts/demo_golden.py` | 대표 시나리오 재생 시연 (산출물 캡처·발표용) | 산출물 |
+| `scripts/generate_test.py` | 실사용 CLI 최소본 — 임의 Maven 프로젝트·메서드에 테스트 생성 | 산출물 |
 
 ## M0에서 한 구조 결정 (v4 원문 대조 완료 — 충돌 없음)
 

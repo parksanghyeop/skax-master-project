@@ -2,6 +2,9 @@
 
 Claude Code로 3단계(PoC → 테스트·고도화 → E2E) 구현을 진행하기 위한 지침 묶음.
 
+> **에이전트를 직접 실행해 보려면** → [docs/사용가이드.md](docs/사용가이드.md)
+> (설치, `.env` 설정, `scripts/generate_test.py`로 내 Maven 프로젝트에 테스트 생성)
+
 ## 구성
 
 ```

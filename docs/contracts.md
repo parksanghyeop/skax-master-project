@@ -41,6 +41,8 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
 | `detect_maven_project` | `(path) -> MavenProject` | pom.xml 없으면 `NotAMavenProjectError` |
+| `find_existing_test_class` | `(project) -> str \| None` | 예열용 기존 테스트 클래스 탐지 (없으면 None) |
+| `read_package` (parsing) | `(source: str) -> str` | package 선언 읽기, 없으면 빈 문자열 — 테스트 저장 경로 계산용 |
 | `JavaTestRunner.prepare` | `(warmup_selector: str) -> SandboxResult` | 네트워크 연결 상태에서 go-offline + 예열 1회. 빈 selector 거부(R5) |
 | `JavaTestRunner.run` | `(selector: str) -> RunResult` | TestRunner 포트 구현. 네트워크 차단 + `-o` + 캐시 읽기 전용 |
 

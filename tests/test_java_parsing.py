@@ -63,6 +63,26 @@ class TestExtractMethods:
         assert [m.name for m in methods] == ["add_twoPositives_returnsSum"]
 
 
+class TestProjectHelpers:
+    def test_package_선언을_읽는다(self):
+        from adapters.java.parsing import read_package
+
+        assert read_package(MAIN_SOURCE) == "com.example"
+        assert read_package("public class NoPkg {}") == ""
+
+    def test_기존_테스트_클래스를_찾는다(self, tmp_path):
+        from adapters.java.maven import find_existing_test_class
+
+        project = _demo_project(tmp_path)
+        assert find_existing_test_class(project) == "CalcTest"
+
+    def test_테스트가_없으면_None이다(self, tmp_path):
+        from adapters.java.maven import detect_maven_project, find_existing_test_class
+
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        assert find_existing_test_class(detect_maven_project(tmp_path)) is None
+
+
 class TestSimilarTestFinder:
     def test_모양이_닮은_기존_테스트를_발췌한다(self, tmp_path):
         finder = JavaSimilarTestFinder(_demo_project(tmp_path))
