@@ -1,0 +1,50 @@
+flowchart TB
+    GIT["git diff · git log<br/>(수정 전 소스는 git show)"] --> CH["adapters · changes.py<br/>diff → 메서드 매핑 + 단서<br/>(시그니처·접근 제어자·줄 수·주석만 여부)"]
+    CH --> CS["core · ChangeSet<br/>symbols[ChangedSymbol] · commit_message · issue_refs"]
+
+    CS -->|"변경 건별 1회"| CLS["llm · classify_intent.md → JSON<br/>category · confidence · evidence[] · analysis"]
+    CS -->|"주석만 변경 → LLM 생략"| IT
+    CLS --> IT["core · Intent"]
+    ME["memos/ 판단 메모"] -.->|"참고"| CLS
+
+    SRC["Java 소스 + 기존 테스트"] --> TL["adapters · TestLocator<br/>Neo4j COVERS 실측 / 참조 파싱 폴백"]
+    TL -->|"검증 테스트 실행 (Docker)"| ST["기존 테스트 상태<br/>pass · fail · none"]
+
+    IT --> DEC{"core · 규칙표 decide()<br/>의도 × 기존 테스트 상태<br/>기대값 자동 수정 행 없음"}
+    ST --> DEC
+    DEC -->|"create_test"| MAT
+    DEC -->|"escalate · ask"| ES["escalations/<br/>실패 테스트(기대/실제) · diff · 지침"]
+    DEC -->|"no_action"| NA["손대지 않음"]
+    ES -->|"cta resolve (사람 결정)"| MAT
+    ES --> ME
+
+    SRC --> MAT["adapters · materials.py<br/>메서드 선정 · 확인 항목 · 객체 생성법 · 기존 테스트 파일"]
+    MAT --> WS["core · WriterState (LangGraph)<br/>instruction · context · extra_context<br/>test_code · last_run · history[]"]
+    NEO["Neo4j 코드 그래프"] -.->|"유사 테스트 본보기"| WS
+    WS -->|"프롬프트"| GEN["llm · write_test.md → 테스트 파일 전체"]
+    GEN -->|"코드"| WS
+    WS -->|"write_test · run_tests"| DK["Docker 샌드박스<br/>컴파일 · 지정 테스트만 실행<br/>(네트워크 차단)"]
+    DK -->|"실패 → 재시도 (최대 8회)"| WS
+    DK -->|"통과"| GT["adapters · 게이트 6종<br/>assert · skip · scope · coverage · mutation · regression"]
+    GIT -.->|"수정 전 소스"| GT
+    GT --> GR["core · GateReport"]
+    GR -->|"탈락 사유 → 지침서 (최대 3회)"| WS
+    GR -->|"통과 / 소진(품질 미달)"| PR["proposals/<br/>테스트 파일 + 게이트 판정"]
+    PR -->|"cta apply"| TREE["src/test/java 반영"]
+
+    GW["사내 게이트웨이 gpt-5<br/>record & replay · usage 토큰"]
+    CLS <-.-> GW
+    GEN <-.-> GW
+
+    classDef core fill:#e8eef9,stroke:#2b4c8c
+    classDef adp fill:#dbeafe,stroke:#3b82f6
+    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
+    classDef ext fill:#f3f4f6,stroke:#6b7280
+    classDef out fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef safe fill:#fdebd3,stroke:#b4690e,stroke-width:2px
+    class CS,IT,WS,GR,ST core
+    class CH,MAT,TL adp
+    class CLS,GEN,GW llm
+    class GIT,SRC,NEO,DK ext
+    class PR,ES,ME,TREE,NA out
+    class DEC,GT safe
