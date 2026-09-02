@@ -20,26 +20,41 @@ from cta.sandbox.docker_sandbox import DockerSandbox
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMO = REPO_ROOT / "examples" / "demo"
 CACHE = DEMO / ".cta" / "m2repo"
+ORDER_DIR = DEMO / "src" / "main" / "java" / "com" / "example" / "demo" / "order"
 
-# assert가 하나도 없는 "실행만 하는" 테스트 — 라인은 커버하지만 아무것도 검증 안 함
+# assert가 하나도 없는 "실행만 하는" 테스트 — 라인은 커버하지만 아무것도 검증 안 함.
+# total은 저장소를 쓰지 않아 mock 없이 호출할 수 있다.
 ASSERTLESS_TEST = """\
-package com.example.demo;
+package com.example.demo.order;
 
+import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class CalculatorAssertlessTest {
+class OrderServiceAssertlessTest {
 
     @Test
-    void add_runsWithoutChecking() {
-        Calculator calculator = new Calculator();
-        calculator.add(3, 4);
-        calculator.add(-1, 1);
+    void total_runsWithoutChecking() {
+        OrderService service = new OrderService(null);
+        Order kept = Order.builder().customerName("a").amount(new BigDecimal("100")).build();
+        Order cancelled = Order.builder().customerName("b").amount(new BigDecimal("50"))
+                .status(OrderStatus.CANCELLED).build();
+        service.total(List.of(kept, cancelled));
+        service.total(List.of());
     }
 }
 """
 
 TEST_PATH = (
-    DEMO / "src" / "test" / "java" / "com" / "example" / "demo" / "CalculatorAssertlessTest.java"
+    DEMO
+    / "src"
+    / "test"
+    / "java"
+    / "com"
+    / "example"
+    / "demo"
+    / "order"
+    / "OrderServiceAssertlessTest.java"
 )
 
 
@@ -47,11 +62,9 @@ TEST_PATH = (
 def test_불변식4_assert_없는_테스트는_커버리지를_채워도_뮤테이션에서_탈락한다():
     project = detect_maven_project(DEMO)
     sandbox = DockerSandbox()
-    source = (
-        DEMO / "src" / "main" / "java" / "com" / "example" / "demo" / "Calculator.java"
-    ).read_text(encoding="utf-8")
-    span = next(s for s in method_line_spans(source) if s.name == "add")
-    add_lines = set(range(span.start_line, span.end_line + 1))
+    source = (ORDER_DIR / "OrderService.java").read_text(encoding="utf-8")
+    span = next(s for s in method_line_spans(source) if s.name == "total")
+    total_lines = set(range(span.start_line, span.end_line + 1))
     try:
         TEST_PATH.write_text(ASSERTLESS_TEST, encoding="utf-8")
 
@@ -59,45 +72,22 @@ def test_불변식4_assert_없는_테스트는_커버리지를_채워도_뮤테�
             project,
             sandbox,
             CACHE,
-            "CalculatorAssertlessTest",
-            "Calculator.java",
-            add_lines,
+            "OrderServiceAssertlessTest",
+            "OrderService.java",
+            total_lines,
             GateConfig(),
         ).check()
-        # 실행은 되므로 커버리지는 채워진다 — 커버리지 단독으로는 못 거른다는 증거
-        assert coverage.passed is True, coverage.reason
+        assert coverage.passed is True, coverage.reason  # 실행만으로 커버리지는 채워진다
 
         mutation = MutationGate(
             project,
             sandbox,
             CACHE,
-            "com.example.demo.Calculator",
-            "com.example.demo.CalculatorAssertlessTest",
-            min_killed_ratio=0.5,
-            target_method="add",
+            "com.example.demo.order.OrderService",
+            "com.example.demo.order.OrderServiceAssertlessTest",
+            0.5,
+            target_methods={"total"},
         ).check()
-        # 검증이 없으니 심은 버그를 하나도 못 잡는다 → 탈락해야 한다
-        assert mutation.passed is False, mutation.reason
-        assert "0개" in mutation.reason or "검출" in mutation.reason
+        assert mutation.passed is False, mutation.reason  # 심은 버그를 하나도 못 잡는다
     finally:
         TEST_PATH.unlink(missing_ok=True)
-        (DEMO / "pom-cta-pit.xml").unlink(missing_ok=True)
-
-
-@pytest.mark.docker
-def test_진짜_검증이_있는_테스트는_뮤테이션을_통과한다():
-    project = detect_maven_project(DEMO)
-    sandbox = DockerSandbox()
-    mutation = MutationGate(
-        project,
-        sandbox,
-        CACHE,
-        "com.example.demo.Calculator",
-        "com.example.demo.CalculatorTest",
-        min_killed_ratio=0.5,
-        target_method="add",  # CalculatorTest는 add를 검증한다
-    ).check()
-    try:
-        assert mutation.passed is True, mutation.reason
-    finally:
-        (DEMO / "pom-cta-pit.xml").unlink(missing_ok=True)

@@ -1,10 +1,10 @@
-"""골든 카세트 녹음 스크립트 — evals/golden/generate_divide_test.json을 만든다.
+"""대표 검증 시나리오의 LLM 호출 기록 생성 — cta/evals/golden/generate_discount_test.json.
 
 두 모드:
   기본(대본):  .venv/Scripts/python scripts/record_golden.py
       ScriptedLlm의 정해진 답을 녹음한다. LLM·Docker 불필요, 결정적.
   실호출:      .venv/Scripts/python scripts/record_golden.py --live
-      llm/config가 고른 백엔드(예: Claude API — .env에 키 필요)로 서브그래프
+      llm/config가 고른 게이트웨이(.env에 키 필요)로 서브그래프
       전체를 Docker 샌드박스와 함께 실행하며 모든 LLM 호출을 녹음한다.
       재시도가 있으면 그 호출들도 카세트에 남아 재생이 그대로 재현된다.
 

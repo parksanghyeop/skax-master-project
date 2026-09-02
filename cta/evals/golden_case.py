@@ -1,9 +1,10 @@
-"""골든 케이스 배선 — "Calculator#divide에 새 테스트 생성" 시나리오의 단일 정의.
+"""대표 검증 시나리오 배선 — "OrderService#applyDiscount에 새 테스트 생성"의 단일 정의.
 
-녹음 스크립트(scripts/record_golden.py)와 재생 테스트(tests/test_golden_case_docker.py)가
-이 모듈 하나를 공유한다 — 두 곳의 프롬프트 재료가 조금이라도 어긋나면 카세트
-재생이 실패하므로, 정의를 한 곳에 모은다. PoC는 "새 테스트 생성" 경로 하나만
-하드코딩한다(phase1 스킬 범위).
+기록 생성 스크립트(scripts/record_golden.py)와 재생 테스트(tests/test_golden_case_docker.py),
+`cta demo`가 이 모듈 하나를 공유한다 — 프롬프트 재료가 조금이라도 어긋나면 저장된 LLM
+호출 기록의 재생이 실패하므로, 정의를 한 곳에 모은다. 대상 예제는 Spring Boot 주문
+CRUD 앱(examples/demo)이고, 재생은 작성 서브그래프(정보 수집→생성→컴파일→실행→품질)만
+돈다. 테스트 클래스는 새 파일(OrderServiceDiscountTest)로 두어 반복 실행 후 지울 수 있게 한다.
 """
 
 from pathlib import Path
@@ -22,11 +23,11 @@ from cta.sandbox.docker_sandbox import DockerSandbox
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # cta/evals/ → 리포 루트
 DEMO_PROJECT = REPO_ROOT / "examples" / "demo"
-M2_CACHE = REPO_ROOT / ".cta" / "m2repo-demo"  # M1 통합 테스트와 같은 캐시를 재사용
-CASSETTE = REPO_ROOT / "cta" / "evals" / "golden" / "generate_divide_test.json"
+M2_CACHE = DEMO_PROJECT / ".cta" / "m2repo"  # CLI(generate/maintain)와 같은 캐시를 공유
+CASSETTE = REPO_ROOT / "cta" / "evals" / "golden" / "generate_discount_test.json"
 
-TARGET = "Calculator#divide"
-SELECTOR = "CalculatorDivideTest"
+TARGET = "OrderService#applyDiscount"
+SELECTOR = "OrderServiceDiscountTest"
 TEST_PATH = (
     DEMO_PROJECT
     / "src"
@@ -35,46 +36,90 @@ TEST_PATH = (
     / "com"
     / "example"
     / "demo"
-    / "CalculatorDivideTest.java"
+    / "order"
+    / "OrderServiceDiscountTest.java"
 )
 INSTRUCTION = (
-    "Calculator#divide에 대한 새 테스트를 만들라. "
-    "정상 나눗셈과 0으로 나누는 예외 상황을 모두 시험하라. "
-    f"테스트 클래스 이름은 {SELECTOR}, 패키지는 com.example.demo."
+    "OrderService#applyDiscount에 대한 새 테스트를 만들라. "
+    "GOLD 등급의 임계금액 경계(같음·미만), 프로모션 여부, null 입력과 음수 금액 예외를 시험하라. "
+    f"테스트 클래스 이름은 {SELECTOR}, 패키지는 com.example.demo.order."
 )
 LANGUAGE = "Java"
 FRAMEWORK = "JUnit 5"
 STYLE_NOTES = (
-    "테스트 메서드 이름은 대상_상황_기대 형식(예: add_twoPositives_returnsSum). "
-    "static import로 Assertions를 쓴다."
+    "테스트 메서드 이름은 대상_상황_기대 형식(예: create_validInput_savesNewOrder). "
+    "static import로 Assertions를 쓰고, 저장소는 Mockito mock으로 만든다."
 )
-# 대본 녹음 시 기본 모델(deployment) 이름. 재생 시에는 카세트에 기록된 모델을 그대로
-# 쓴다(cassette_model 참조) — 모델 변경 후 재녹음해도 코드 수정이 없게 하기 위해서.
+# 대본 기록 시 기본 모델(deployment) 이름. 재생 시에는 기록에 적힌 모델을 그대로
+# 쓴다(cassette_model 참조) — 모델 변경 후 다시 기록해도 코드 수정이 없게 하기 위해서.
 SCRIPTED_MODEL = "gpt-4.1"
 
-# 대본 응답: 게이트웨이 미접속 환경이라 골든 카세트는 이 대본을 녹음한 것이다.
-# 사내망에서 실모델로 재녹음하면 이 상수는 참고용으로만 남는다(poc-findings 기록).
+# 대본 응답: 게이트웨이 미접속 환경에서도 기록을 만들 수 있게 둔 고정 답.
 SCRIPTED_ANSWER = """\
 ```java
-package com.example.demo;
+package com.example.demo.order;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 
+import com.example.demo.customer.Customer;
+import com.example.demo.customer.Grade;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
-class CalculatorDivideTest {
+class OrderServiceDiscountTest {
 
-    @Test
-    void divide_evenlyDivisible_returnsQuotient() {
-        Calculator calculator = new Calculator();
-        assertEquals(3, calculator.divide(12, 4));
+    private final OrderService service = new OrderService(mock(OrderRepository.class));
+
+    private static Order orderOf(String amount) {
+        return Order.builder().customerName("kim").amount(new BigDecimal(amount)).build();
     }
 
     @Test
-    void divide_byZero_throwsIllegalArgumentException() {
-        Calculator calculator = new Calculator();
-        assertThrows(IllegalArgumentException.class, () -> calculator.divide(1, 0));
+    void applyDiscount_goldAtThreshold_appliesGoldRate() {
+        Customer gold = new Customer("kim", Grade.GOLD);
+        BigDecimal result = service.applyDiscount(orderOf("10000"), gold, false);
+        assertEquals(0, new BigDecimal("8500").compareTo(result));
+    }
+
+    @Test
+    void applyDiscount_goldBelowThreshold_noGoldRate() {
+        Customer gold = new Customer("kim", Grade.GOLD);
+        BigDecimal result = service.applyDiscount(orderOf("9999"), gold, false);
+        assertEquals(0, new BigDecimal("9999").compareTo(result));
+    }
+
+    @Test
+    void applyDiscount_promo_appliesPromoRate() {
+        Customer basic = new Customer("kim", Grade.BASIC);
+        BigDecimal result = service.applyDiscount(orderOf("1000"), basic, true);
+        assertEquals(0, new BigDecimal("950").compareTo(result));
+    }
+
+    @Test
+    void applyDiscount_noPromoBasic_returnsAmount() {
+        Customer basic = new Customer("kim", Grade.BASIC);
+        BigDecimal result = service.applyDiscount(orderOf("1000"), basic, false);
+        assertEquals(0, new BigDecimal("1000").compareTo(result));
+    }
+
+    @Test
+    void applyDiscount_nullOrder_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.applyDiscount(null, new Customer("kim", Grade.GOLD), false));
+    }
+
+    @Test
+    void applyDiscount_nullCustomer_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.applyDiscount(orderOf("1000"), null, false));
+    }
+
+    @Test
+    void applyDiscount_negativeAmount_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.applyDiscount(orderOf("-1"), new Customer("kim", Grade.GOLD), false));
     }
 }
 ```
@@ -82,10 +127,10 @@ class CalculatorDivideTest {
 
 
 def cassette_model() -> str:
-    """카세트에 기록된 모델 이름을 돌려준다. 카세트가 없으면 대본 기본값.
+    """기록에 적힌 모델 이름을 돌려준다. 기록이 없으면 대본 기본값.
 
     재생은 요청(모델 포함)을 기록과 대조하므로, 재생 측 모델은 반드시
-    녹음 시점의 모델과 같아야 한다 — 그 원천은 카세트 자신이다.
+    기록 시점의 모델과 같아야 한다 — 그 원천은 기록 파일 자신이다.
     """
     if CASSETTE.is_file():
         import json
@@ -97,7 +142,7 @@ def cassette_model() -> str:
 
 
 class ScriptedLlm:
-    """녹음용 대본 클라이언트 (LlmClient 구현) — 요청과 무관하게 대본을 돌려준다."""
+    """기록용 대본 클라이언트 (LlmClient 구현) — 요청과 무관하게 대본을 돌려준다."""
 
     def __init__(self, answers: list[str]) -> None:
         self._answers = list(answers)
@@ -109,8 +154,8 @@ class ScriptedLlm:
 def make_ports(llm_client, model: str | None = None) -> WriterPorts:
     """실물 어댑터 + 주어진 LLM 클라이언트로 서브그래프 포트를 조립한다.
 
-    llm_client 자리에 RecordingClient(녹음)나 ReplayClient(재생)를 꽂는다.
-    model: 녹음 시에는 사용할 모델을 명시하고, 재생 시에는 생략(카세트 기록값 사용).
+    llm_client 자리에 RecordingClient(기록)나 ReplayClient(재생)를 꽂는다.
+    model: 기록 시에는 사용할 모델을 명시하고, 재생 시에는 생략(기록값 사용).
     """
     project = detect_maven_project(DEMO_PROJECT)
     sandbox = DockerSandbox()
@@ -121,7 +166,7 @@ def make_ports(llm_client, model: str | None = None) -> WriterPorts:
         writer=JavaTestWriter(project, sandbox, M2_CACHE),
         runner=JavaTestRunner(project, sandbox, M2_CACHE),
         checker=AssertCountChecker(project),
-        gate=ScriptedUserGate(),  # PoC: interrupt 자리의 자동 "계속" 스텁
+        gate=ScriptedUserGate(),  # 재생·시연은 자동 "계속" 스텁
         generator=PromptedGenerator(
             llm_client, model or cassette_model(), LANGUAGE, FRAMEWORK, STYLE_NOTES
         ),
@@ -143,4 +188,6 @@ def initial_state() -> WriterState:
         "quality": "",
         "report": "",
         "status": "working",
+        "extra_context": "",
+        "history": [],
     }

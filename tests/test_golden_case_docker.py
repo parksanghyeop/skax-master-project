@@ -2,7 +2,7 @@
 
 카세트 재생(LLM 비용 0) + 실물 어댑터로 서브그래프를 끝까지 돌린다:
 정보 수집 → 코드 생성(재생) → 파일 쓰기+컴파일 → 네트워크 차단 실행 → 품질 확인.
-사전 조건: M1 캐시(.cta/m2repo-demo)가 준비돼 있어야 한다 (pytest -m docker로
+사전 조건: 데모 캐시(examples/demo/.cta/m2repo)가 준비돼 있어야 한다 (pytest -m docker로
 test_java_adapter_docker가 먼저 채운다).
 """
 
