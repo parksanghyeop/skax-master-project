@@ -28,6 +28,14 @@ def coverage_command(test_selector: str) -> list[str]:
         "-B",
         "-o",
         f"-Dmaven.repo.local={CONTAINER_M2_REPO}",
+        # 함정: JaCoCo 실행 기록(jacoco.exec)은 기본적으로 이전 실행분에 덧붙여진다(append=true).
+        # 그대로 두면 앞선 게이트·그래프 실측의 기록이 섞여 "이 테스트가 이 메서드를 실행했다"가
+        # 틀리고 커버리지 수치가 부풀려진다 — 실측 발견(2026-09-03, hardening-notes). 매번 새로 쓴다
+        "-Djacoco.append=false",
+        # 테스트가 실패해도 리포트는 만든다 — "이 테스트가 이 메서드를 실행했는가"(COVERS)는
+        # 통과 여부와 무관하고, 리팩터링으로 깨진 상태에서도 검증 테스트를 찾아야 한다(SC-003).
+        # 통과 판정은 run_tests(러너)가 따로 한다.
+        "-Dmaven.test.failure.ignore=true",
         f"{JACOCO_PLUGIN}:prepare-agent",
         "test",
         f"-Dtest={test_selector}",

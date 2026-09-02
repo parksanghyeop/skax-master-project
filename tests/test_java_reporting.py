@@ -274,3 +274,12 @@ def test_실패_요약_줄이_없으면_합계_줄로_규모를_알린다():
     assert (
         describe_attempt("쓰기 완료 — 컴파일 성공", out) == "실행 실패 — 20개 중 실패 0건, 오류 2건"
     )
+
+
+def test_커버리지_실측은_이전_실행_기록을_덧붙이지_않는다():
+    # jacoco.exec append 기본값이 true라 앞선 실행의 기록이 섞이면 COVERS·커버리지 게이트가 틀린다
+    from cta.adapters.java.coverage import coverage_command
+
+    command = coverage_command("SomeTest")
+    assert "-Djacoco.append=false" in command
+    assert "-Dmaven.test.failure.ignore=true" in command  # 깨진 테스트도 실행 기록은 남긴다

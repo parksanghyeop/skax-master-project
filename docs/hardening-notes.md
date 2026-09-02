@@ -164,6 +164,13 @@
     적어라"로 바꾸자 refactor(90%) + 근거에 의심 지점 → 규칙표 escalate(시나리오 흐름). 질문 상자도
     테스트가 깨진 상태면 실패 상세·선택지를 같이 보여주도록 통일
   - Git Bash heredoc이 긴 파이썬 패치를 잘라먹음(unexpected EOF) — 패치는 파일로 써서 실행
+  - **[이슈: 도구 연동] JaCoCo 실행 기록이 이전 실행분에 덧붙여짐** — Neo4j를 켜고 그래프 경로로
+    SC-003을 돌리자 `PricingCalculator#calculate`의 검증 테스트가 `OrderServiceTest`로 나옴. 원인:
+    jacoco.exec의 append 기본값(true)으로 직전 커버리지 게이트 실행의 기록이 그래프 실측에 섞임 —
+    커버리지 게이트 수치도 부풀릴 수 있는 결함. `-Djacoco.append=false`로 매번 새로 기록
+  - **[이슈: 도구 연동] 깨진 테스트 클래스는 COVERS가 비었음** — 리팩터링으로 실패 중인
+    PricingCalculatorTest는 mvn이 report 단계 전에 멈춰 실행 기록이 없었다. "실행했는가"는 통과
+    여부와 무관하므로 `-Dmaven.test.failure.ignore=true`로 리포트를 남긴다(통과 판정은 러너가 담당)
 
 ## 문제·리서치 로그
 
