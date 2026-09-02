@@ -11,6 +11,7 @@ from cta.adapters.java.maven import detect_maven_project
 from cta.adapters.java.runner import JavaTestRunner
 from cta.cli.escalations import Escalation, make_id, save_escalation
 from cta.cli.generate import CACHE_DIR_NAME, ask_on_terminal, ensure_prepared, run_generation
+from cta.cli.graph_access import FALLBACK_NOTE, GRAPH_NOTE, try_open_store
 from cta.cli.memos import find_similar, render_memos
 from cta.cli.render import (
     EXIT_CODES,
@@ -41,12 +42,10 @@ from cta.sandbox.docker_sandbox import DockerSandbox
 
 
 class GraphTestLocator:
-    """그래프의 실측 COVERS로 검증 테스트를 찾는다 (TestLocator 구현). 접속 실패는 None."""
+    """그래프의 실측 COVERS로 검증 테스트를 찾는다 (TestLocator 구현)."""
 
-    def __init__(self, project_key: str) -> None:
-        from cta.graph.neo4j_store import Neo4jGraphStore
-
-        self._store = Neo4jGraphStore()  # 환경변수 없음·접속 불가 → 예외(호출부가 폴백)
+    def __init__(self, store, project_key: str) -> None:
+        self._store = store
         self._project_key = project_key
 
     def find(self, target: str) -> list[str]:
@@ -59,15 +58,10 @@ class GraphTestLocator:
 
 def _make_locator(project):
     """그래프가 있으면 실측, 없으면 소스 참조 파싱 폴백 — 어느 쪽인지 화면에 알린다."""
-    try:
-        locator = GraphTestLocator(str(project.root))
-        # 드라이버 생성은 접속 없이 성공한다 — 실제 질의로 접속을 확인해야 폴백이 제때 걸린다
-        locator.find("__probe__")
-        return locator, "코드 그래프(커버리지 실측)"
-    except Exception:
-        return ReferencingTestLocator(
-            project
-        ), "소스 참조 파싱 (그래프 미접속 — cta graph --coverage로 정확도 향상)"
+    store = try_open_store(str(project.root))
+    if store is None:
+        return ReferencingTestLocator(project), FALLBACK_NOTE
+    return GraphTestLocator(store, str(project.root)), GRAPH_NOTE
 
 
 def run_maintain(args) -> int:

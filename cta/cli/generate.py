@@ -37,8 +37,8 @@ from cta.adapters.java.parsing import find_class_file, parse_methods, parse_targ
 from cta.adapters.java.quality import AssertCountChecker
 from cta.adapters.java.regression import BugReproductionGate
 from cta.adapters.java.runner import JavaTestRunner
-from cta.adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph
 from cta.adapters.java.writer import JavaTestWriter
+from cta.cli.graph_access import choose_code_graph
 from cta.cli.proposals import STATUS_ACCEPTED, STATUS_NEEDS_REVIEW, save_proposal
 from cta.cli.render import (
     INDENT,
@@ -253,9 +253,11 @@ def run_generation(
         """진행 한 줄 출력 — 경과 시간을 붙여 어디서 오래 걸리는지 보이게 한다."""
         print(f"{INDENT}      [{time.monotonic() - started:4.0f}초] {message}", flush=True)
 
+    code_graph, graph_note, graph_store = choose_code_graph(project)
+    print(f"{INDENT}      유사 테스트 검색: {graph_note}")
     ports = WriterPorts(
         inspector=JavaSourceInspector(project),
-        graph=ParsingCodeGraph(JavaSimilarTestFinder(project)),
+        graph=code_graph,
         writer=JavaTestWriter(project, sandbox, cache_dir),
         runner=runner,
         checker=AssertCountChecker(project),
@@ -297,14 +299,18 @@ def run_generation(
         }
 
     print(f"\n{INDENT}[3/4] 테스트 작성  (모델: {model}, 결과: {test_rel})")
-    result = generate_with_gates(
-        run_writer=run_writer,
-        make_state=make_state,
-        make_gates=make_gates,
-        base_instruction=instruction,
-        max_retries=config.max_retries,
-        progress=progress,
-    )
+    try:
+        result = generate_with_gates(
+            run_writer=run_writer,
+            make_state=make_state,
+            make_gates=make_gates,
+            base_instruction=instruction,
+            max_retries=config.max_retries,
+            progress=progress,
+        )
+    finally:
+        if graph_store is not None:
+            graph_store.close()
     history = result.final_state.get("history") or []
     for entry in history:
         summary = describe_attempt(entry.get("write_result", ""), entry.get("run_result", ""))

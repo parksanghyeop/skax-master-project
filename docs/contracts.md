@@ -21,7 +21,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `TestCodeGenerator` | `generate(instruction, context, current_code, last_failure) -> str` | LLM은 이 포트 뒤(llm/generation.py)에만 있다 |
 | `ChangeExtractor` | `extract() -> ChangeSet` | 결정적 — 같은 diff면 같은 출력. 구현 `GitChangeExtractor` |
 | `IntentClassifier` | `classify(change: ChangedSymbol, change_set: ChangeSet, memos: str = "") -> Intent` | 변경 **한 건당** LLM 1회. 구현 `llm/intent.PromptedIntentClassifier`. memos는 참고 자료일 뿐 규칙표를 우회 못 함 |
-| `TestLocator` | `find(target: str) -> list[str]` | 대상을 검증하는 기존 테스트 selector. 구현: `GraphTestLocator`(COVERS 실측, cli) / `ReferencingTestLocator`(소스 참조 파싱 폴백, adapters) |
+| `TestLocator` | `find(target: str) -> list[str]` | 대상을 검증하는 기존 테스트 selector. 구현: `GraphTestLocator(store, project_key)`(COVERS 실측, cli) / `ReferencingTestLocator`(소스 참조 파싱 폴백, adapters). 선택은 `cli/graph_access.try_open_store`(접속 확인 질의 후 결정) |
 
 `target`·`selector` 문법은 어댑터가 해석한다 — core는 불투명 문자열로 취급.
 
@@ -120,6 +120,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 사람 확인 `escalations.py` | `<프로젝트>/.cta/escalations/<id>.json` = `Escalation(id, kind, target, category, confidence, evidence, analysis, reason, briefing, tests, run_summary, failed_tests, file_rel, change_line, diff_excerpt, base, commit_message, created_at)`. maintain이 저장·종료(코드 3), resolve가 읽어 재개 후 삭제 |
 | 판단 메모 `memos.py` | `<프로젝트>/.cta/memos/*.json` = `Memo(target, category, decision, note, created_at)`. `find_similar(project, target)` 같은 메서드→같은 클래스 최근순 최대 3건. 참고용 |
 | 결과 상태 `render.py` | 정상 완료 0 / 사람 확인 필요 3 / 품질 미달 2 / 실패 1 (`EXIT_CODES`) |
+| `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
 | `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False) -> dict` | generate/maintain/resolve/eval 공용. 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가) |
 
 ## 코드 그래프 (graph/ — M4)

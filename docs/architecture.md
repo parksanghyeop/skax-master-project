@@ -96,6 +96,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 | `cli/proposals.py` | 제안 보관소 — 생성물은 apply 전까지 소스에 반영 안 됨(v4 Step 3) | CLI화 |
 | `cli/escalations.py` | 사람 확인 보관소 — 저장하고 멈춤, resolve가 재개 | ADR-0015 |
 | `cli/memos.py` | 판단 메모 — resolve 결정 기록, 다음 maintain의 참고 자료(키워드 검색) | ADR-0015 |
+| `cli/graph_access.py` | 코드 그래프 접속 선택 — Neo4j 접속 확인 후 실물, 아니면 파싱 폴백 (generate·maintain 공용) | ADR-0015 |
 | `cli/generate.py` | 재료 수집→생성→게이트→제안 조립 + 4단계 출력 | CLI화·ADR-0015 |
 | `cli/maintain_cmd.py` | 변경 대응 조립 + 판단 블록 출력 + 사람 확인 상자 | ADR-0015 |
 | `cli/resolve_cmd.py` | 판단 전달 — 사람 결정에 따른 지침·허용 목록으로 재개 | ADR-0015 |

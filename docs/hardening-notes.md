@@ -172,6 +172,23 @@
     PricingCalculatorTest는 mvn이 report 단계 전에 멈춰 실행 기록이 없었다. "실행했는가"는 통과
     여부와 무관하므로 `-Dmaven.test.failure.ignore=true`로 리포트를 남긴다(통과 판정은 러너가 담당)
 
+
+### 코드 그래프 실연결 실측 — Neo4j 경로로 SC-001/002/003 (2026-09-03)
+- 구현: `cli/graph_access.py` — 접속 확인 질의 후 Neo4j면 실물, 아니면 파싱 폴백. generate의
+  유사 테스트 검색(GraphCodeGraph.similar_tests)과 maintain의 검증 테스트 찾기(COVERS)가 공유.
+  화면에 "코드 그래프(Neo4j 실측)" / "소스 파싱 폴백"을 표시
+- 실측(cta graph --coverage → Neo4j, gpt-5, Docker):
+  - 데모 그래프: 클래스 13, 메서드 65, 엣지 97(COVERS 포함). SC-001 `--max-methods 2`:
+    delete·total 선정(20개 기존 참조 제외), 유사 테스트를 그래프에서 검색, 1차 통과, 게이트 5종 통과
+    (검출력 4/4), +4 테스트(총 24), 5분 13초 · 8,874 토큰
+  - SC-003: COVERS 실측으로 PricingCalculatorTest 발견 → 4건 중 1건 실패 → 리팩터링 86% → 사람 확인.
+    "참고" 줄에 직전 resolve의 판단 메모가 나옴. `cta resolve --test-issue` 재개: 실패 테스트 1건만
+    재작성(assertNull), 기존 assert 9개 보존, 검출력 100%, 4분 0초 · 4,516 토큰
+- **[이슈: 재생] SC-001 결과를 apply하자 `cta demo` 재생이 깨짐** — 저장된 호출 기록은 요청 전문을
+  대조하는데, 예제의 기존 테스트가 24개로 늘자 '비슷한 테스트' 본보기가 달라져 불일치. 예제 트리를
+  바꾸면 `scripts/record_golden.py`로 기록을 다시 만든다(대본 모드, 비용 0) — 재생성 후 정상
+- 산출물: 실행 로그를 그대로 PNG로 그리는 `scripts/render_capture.py`(스크린샷 대신 로그 기반 —
+  캡처와 로그가 어긋날 일이 없다), 사용자 관점·데이터 흐름 관점 워크플로우 다이어그램 2종 추가
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010
