@@ -1,7 +1,7 @@
 """Neo4j 저장소 왕복 통합 테스트 — 실제 Neo4j 컨테이너 필요 (marker: neo4j).
 
 기본 pytest 실행에서는 제외된다. 실행 방법:
-  docker run -d --name cta-neo4j -e NEO4J_AUTH=neo4j/<암호> -p 7687:7687 neo4j:5
+  docker run -d --name cta-neo4j -e NEO4J_AUTH=neo4j/<암호> -p 7687:7687 -p 7474:7474 neo4j:5
   .env에 CTA_NEO4J_PASSWORD=<암호> 설정 후: pytest -m neo4j
 """
 
