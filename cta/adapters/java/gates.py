@@ -8,12 +8,13 @@
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from cta.adapters.java.assert_report import compare_test_asserts, render_changes
 from cta.adapters.java.coverage import JACOCO_XML_PATH, coverage_command
 from cta.adapters.java.maven import MavenProject
-from cta.adapters.java.parsing import extract_assert_statements
+from cta.adapters.java.parsing import extract_assert_statements, strip_methods
 from cta.adapters.java.runner import CONTAINER_M2_REPO, CONTAINER_WORKDIR, MAVEN_IMAGE
 from cta.core.gates import GateConfig, GateResult
 from cta.sandbox.docker_sandbox import DockerSandbox, Mount
@@ -40,6 +41,9 @@ class SourceBaseline:
     asserts: dict[str, tuple[str, ...]]  # 테스트 파일 → assert 호출문(정규화) 목록
     skip_counts: dict[str, int]  # 테스트 파일 → 스킵 어노테이션 수
     file_hashes: dict[str, str]  # 전체 소스(main+test) → sha256
+    test_sources: dict[str, str] = field(
+        default_factory=dict
+    )  # 테스트 파일 → 원문(메서드 단위 비교용)
 
 
 def snapshot_baseline(project: MavenProject) -> SourceBaseline:
@@ -47,6 +51,7 @@ def snapshot_baseline(project: MavenProject) -> SourceBaseline:
     asserts: dict[str, tuple[str, ...]] = {}
     skip_counts: dict[str, int] = {}
     hashes: dict[str, str] = {}
+    sources: dict[str, str] = {}
     test_root = project.test_source_dir.resolve()
     for rel, path in _rel_java_files(project).items():
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -54,7 +59,10 @@ def snapshot_baseline(project: MavenProject) -> SourceBaseline:
         if path.resolve().is_relative_to(test_root):
             asserts[rel] = tuple(extract_assert_statements(text))
             skip_counts[rel] = len(_SKIP_ANNOTATION.findall(text))
-    return SourceBaseline(asserts=asserts, skip_counts=skip_counts, file_hashes=hashes)
+            sources[rel] = text
+    return SourceBaseline(
+        asserts=asserts, skip_counts=skip_counts, file_hashes=hashes, test_sources=sources
+    )
 
 
 class AssertIntegrityGate:
@@ -63,25 +71,41 @@ class AssertIntegrityGate:
     왜 내용 비교인가: 개수만 세면 assertEquals→assertNotNull 완화를 놓친다.
     왜 판단하지 않는가: 정당한 assert 변경인지 기계는 모른다 — 일단 탈락시키고
     사람 확인으로 보낸다(v4 2.4). 새 assert 추가는 자유다.
+    authorized_tests: 사람이 resolve로 "고쳐도 된다"고 지정한 테스트 메서드 이름 —
+      그 메서드 안의 assert만 비교에서 제외한다(ADR-0015 D3). 나머지는 여전히 보호.
+    탈락 사유는 테스트 메서드 단위로 "바뀌기 전/후 + 엄격함 점수"를 담는다(SC-004).
     """
 
     name = "assert"
 
-    def __init__(self, project: MavenProject, baseline: SourceBaseline) -> None:
+    def __init__(
+        self,
+        project: MavenProject,
+        baseline: SourceBaseline,
+        authorized_tests: set[str] | None = None,
+    ) -> None:
         self._project = project
         self._baseline = baseline
+        self._authorized = set(authorized_tests or ())
 
     def check(self) -> GateResult:
         damaged: list[str] = []
-        for rel, old_asserts in self._baseline.asserts.items():
+        for rel, old_source in self._baseline.test_sources.items():
             path = self._project.root / rel
             if not path.is_file():
                 damaged.append(f"{rel}: 테스트 파일이 삭제됨")
                 continue
-            new_asserts = extract_assert_statements(
-                path.read_text(encoding="utf-8", errors="replace")
-            )
-            for stmt in set(old_asserts):
+            new_source = path.read_text(encoding="utf-8", errors="replace")
+            before = strip_methods(old_source, self._authorized)
+            after = strip_methods(new_source, self._authorized)
+            # 흐름: 테스트 메서드 단위 비교(보고용) → 파일 전체 비교(메서드 밖 헬퍼의 assert까지)
+            changes = compare_test_asserts(before, after)
+            if changes:
+                damaged.append(f"{rel}:\n{render_changes(changes)}")
+                continue
+            old_asserts = extract_assert_statements(before)
+            new_asserts = extract_assert_statements(after)
+            for stmt in dict.fromkeys(old_asserts):
                 if new_asserts.count(stmt) < old_asserts.count(stmt):
                     damaged.append(f"{rel}: 기존 assert 훼손 — {stmt[:120]}")
         if damaged:
@@ -91,7 +115,8 @@ class AssertIntegrityGate:
                 "기존 assert가 삭제·변경됐다(완화 의심). 사람 확인 필요:\n" + "\n".join(damaged),
             )
         total = sum(len(v) for v in self._baseline.asserts.values())
-        return GateResult(self.name, True, f"기존 assert {total}개 모두 보존됨")
+        note = f" (사람 허용 {len(self._authorized)}건 제외)" if self._authorized else ""
+        return GateResult(self.name, True, f"기존 assert {total}개 모두 보존됨{note}")
 
 
 class SkipAnnotationGate:
@@ -180,6 +205,8 @@ class CoverageGate:
         self._source_file = target_source_file
         self._target_lines = target_lines
         self._config = config
+        # 마지막 실측의 라인별 커버리지 — 확인 항목 충족(SC-001 [4/4]) 계산에 재사용
+        self.last_lines: dict[int, dict] = {}
 
     def check(self) -> GateResult:
         result = self._sandbox.run(
@@ -197,6 +224,7 @@ class CoverageGate:
             # 측정 불가 = 통과 근거 없음 → 보수적으로 탈락(사람 확인)
             return GateResult(self.name, False, "커버리지 측정 실패 — 실행 로그 확인 필요")
         lines = parse_source_lines(report.read_text(encoding="utf-8"), self._source_file)
+        self.last_lines = lines
         relevant = {n: c for n, c in lines.items() if n in self._target_lines}
         if not relevant:
             return GateResult(

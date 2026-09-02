@@ -61,9 +61,14 @@ def run_case(case_dir: Path, fast: bool) -> dict:
     print(f"\n=== 케이스 {case_dir.name} ({target}) ===")
     reset_bench()
     try:
+        # 벤치 의미 유지(ADR-0015 D5): 메서드별 별도 테스트 클래스라야 "생성 테스트만" 버그 버전에
+        # 돌려 검출 여부를 잴 수 있다 — 기존 테스트 클래스에 붙이면 기존 테스트가 잡은 것과 섞인다
+        class_name, method_name = target.split("#", 1)
+        per_method_class = f"{class_name}{method_name[:1].upper()}{method_name[1:]}Test"
         outcome = run_generation(
             project_path=str(BENCH),
             target=target,
+            test_class=per_method_class,
             fast=fast,
             ask_user=None,  # 하네스는 무인 실행 — 멈춤 지점은 자동 '계속'
         )

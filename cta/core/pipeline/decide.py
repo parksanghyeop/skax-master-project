@@ -14,6 +14,7 @@ from cta.core.pipeline.models import (
     INTENT_BUG_FIX,
     INTENT_NEW_FEATURE,
     INTENT_REFACTOR,
+    INTENT_TRIVIAL,
     INTENT_UNCLEAR,
     TESTS_FAIL,
     TESTS_NONE,
@@ -26,12 +27,12 @@ from cta.core.pipeline.models import (
 # 경로 규칙표 (v4 2.1의 표를 코드로 옮긴 것). (대분류, 기존 테스트 상태) → 조치.
 # "기대값을 자동으로 고친다"는 행은 여기 존재하지 않는다 — 추가 금지(R3).
 _TABLE: dict[tuple[str, str], tuple[str, str]] = {
-    (INTENT_BUG_FIX, TESTS_PASS): (ACTION_CREATE_TEST, "버그 수정 → 재발 방지 테스트 신규"),
-    (INTENT_BUG_FIX, TESTS_FAIL): (ACTION_CREATE_TEST, "버그 수정 → 재발 방지 테스트 신규"),
-    (INTENT_BUG_FIX, TESTS_NONE): (ACTION_CREATE_TEST, "버그 수정 → 재발 방지 테스트 신규"),
-    (INTENT_NEW_FEATURE, TESTS_PASS): (ACTION_CREATE_TEST, "새 기능 → 기능 테스트 신규"),
-    (INTENT_NEW_FEATURE, TESTS_FAIL): (ACTION_CREATE_TEST, "새 기능 → 기능 테스트 신규"),
-    (INTENT_NEW_FEATURE, TESTS_NONE): (ACTION_CREATE_TEST, "새 기능 → 기능 테스트 신규"),
+    (INTENT_BUG_FIX, TESTS_PASS): (ACTION_CREATE_TEST, "버그 수정 → 재발 방지 테스트 추가"),
+    (INTENT_BUG_FIX, TESTS_FAIL): (ACTION_CREATE_TEST, "버그 수정 → 재발 방지 테스트 추가"),
+    (INTENT_BUG_FIX, TESTS_NONE): (ACTION_CREATE_TEST, "버그 수정 → 재발 방지 테스트 추가"),
+    (INTENT_NEW_FEATURE, TESTS_PASS): (ACTION_CREATE_TEST, "새 기능 → 기능 테스트 추가"),
+    (INTENT_NEW_FEATURE, TESTS_FAIL): (ACTION_CREATE_TEST, "새 기능 → 기능 테스트 추가"),
+    (INTENT_NEW_FEATURE, TESTS_NONE): (ACTION_CREATE_TEST, "새 기능 → 기능 테스트 추가"),
     (INTENT_REFACTOR, TESTS_PASS): (
         ACTION_NO_ACTION,
         "리팩터링 + 테스트 통과 → 동작 보존 확인됨, 할 일 없음",
@@ -48,6 +49,11 @@ _TABLE: dict[tuple[str, str], tuple[str, str]] = {
         ACTION_ASK,
         "리팩터링인데 커버 테스트 없음 → 특성 테스트를 만들지 사람에게 물음",
     ),
+    # 의미 없는 변경(주석·공백만): 시험할 동작이 없다(ADR-0015 D2). 테스트가 깨져 있어도
+    # 이 변경 때문은 아니므로 손대지 않는다 — 원인은 다른 변경 건에서 잡힌다.
+    (INTENT_TRIVIAL, TESTS_PASS): (ACTION_NO_ACTION, "의미 없는 변경 → 할 일 없음"),
+    (INTENT_TRIVIAL, TESTS_FAIL): (ACTION_NO_ACTION, "의미 없는 변경 → 할 일 없음"),
+    (INTENT_TRIVIAL, TESTS_NONE): (ACTION_NO_ACTION, "의미 없는 변경 → 할 일 없음"),
 }
 
 
@@ -58,11 +64,7 @@ def decide(change: ChangedSymbol, intent: Intent, tests_status: str) -> ActionDe
       (TESTS_PASS/FAIL/NONE — 대상을 실측 커버하는 테스트의 실행 결과).
     출력: ActionDecision. 분류가 불확실(unclear)하면 표를 보기 전에 ASK다.
     """
-    if intent.category == INTENT_UNCLEAR or intent.category not in {
-        INTENT_BUG_FIX,
-        INTENT_REFACTOR,
-        INTENT_NEW_FEATURE,
-    }:
+    if intent.category == INTENT_UNCLEAR or (intent.category, tests_status) not in _TABLE:
         return ActionDecision(
             kind=ACTION_ASK,
             target=change.target,

@@ -19,10 +19,15 @@ class ChatMessage:
 
 @dataclass(frozen=True)
 class ChatResponse:
-    """모델 응답. PoC에서는 텍스트만 쓴다 — tool calling 지원 여부가 확정되면
-    (1주차 확인 3번) 필드를 늘린다."""
+    """모델 응답 텍스트 + 사용 토큰 수.
+
+    usage_tokens: 게이트웨이가 알려준 총 토큰(입력+출력). 모르면 0 — 재생 기록에
+    값이 없던 시절의 호환용 기본값. 소요 비용을 시나리오 출력("34,200 토큰")에
+    보여주기 위해 둔다(ADR-0015 D6).
+    """
 
     content: str
+    usage_tokens: int = 0
 
 
 class LlmClient(Protocol):

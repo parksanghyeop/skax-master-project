@@ -114,6 +114,57 @@
   리포 루트 기준 경로 상수 3곳(golden_case·eval_cmd — parents 깊이 +1)
 - 검증: 단위 126 passed, ruff 통과, pip install -e . 재설치 후 cta 실행 확인
 
+
+### 시나리오 정합 재작성 — 명령 체계·의도 분석 출력·저장 후 재개 (2026-09-03, ADR-0015)
+- 배경(사용자 요청): 에이전트가 시나리오수립.md(SC-001~004)대로 동작하는지 대조 → 원칙은
+  맞지만 사용자 면이 어긋남. 특히 **의도 분석 결과가 화면에 안 보였다**(전체 변경 묶음 1회
+  분류, 확신도·근거 없음). 예제(Calculator)도 재료 수집·리팩터링 실패 상황을 보여주기에 너무 단순
+- 구현:
+  - 명령: `cta maintain --diff`(구 run --base --execute 폐기), `cta resolve`(판단 전달 — 신설),
+    `cta generate --class <FQN> --max-methods N`(클래스당 테스트 하나, 기존 파일이면 메서드 추가)
+  - 의도 분류: **변경 건별** LLM 1회, JSON(category/confidence/evidence/analysis). 단서(커밋
+    메시지·이슈 번호·시그니처·접근 제어자·줄 수)는 일반 코드가 수집. 주석·공백만 변경은 LLM 없이
+    trivial(규칙표 행 추가). 화면: `① 대상 / 판단 (확신도) / 근거 · / 분석 / 기존 테스트 / 참고 / 할 일`
+  - 사람 개입: escalate/ask는 `.cta/escalations/<id>.json`에 저장하고 종료 코드 3 → `cta resolve
+    --intended|--test-issue|--proceed|--skip`이 결정 단계 이후부터 재개. 사람이 지정한 실패 테스트만
+    assert 변경 허용(게이트 허용 목록), 결정은 판단 메모(.cta/memos)로 다음 maintain의 "참고"에
+  - 게이트 ⑥ regression: 재발 방지 테스트를 **수정 전 코드**(git show)에 바꿔 끼워 실행 — 통과하면
+    탈락(버그를 못 잡는 테스트). try/finally 복구
+  - 재료 수집(materials): 확인 항목(분기·경계값·예외·null) 정규식 열거, 객체 생성법(builder/값 객체/
+    저장소 mock) 판단, 기존 테스트 파일 첨부. [4/4]에 확인 항목 충족(JaCoCo 라인)·검출력(PIT)·
+    기준 낮춤 여부·소요 시간·토큰(게이트웨이 usage 합산) 출력
+  - assert 게이트 보고를 테스트 메서드 단위 "바뀌기 전/후 (점수)"로(SC-004), 작성 루프 상한 8회/4회마다 질문
+  - 예제: Spring Boot 3.3 주문 CRUD(OrderService/Repository/Controller, PricingCalculator, Mockito
+    테스트)로 교체. SC-002/003용 커밋은 `scripts/demo_scenarios.py`가 임시 폴더에 독립 저장소로 만든다
+- 실측(gpt-5, Docker):
+  - SC-003(`cta maintain --diff HEAD~1`, 스트림 리팩터링 커밋): 파싱 폴백으로 PricingCalculatorTest
+    발견 → 실행 4건 중 1건 실패 → 판단 "리팩터링 (확신도 90%)" + 근거 3줄(커밋 메시지·시그니처 그대로·
+    빈 리스트 처리 변경 의심) → **사람 확인 상자**(실패 테스트 `calculate_emptyItems_returnsZero`
+    기대 0, 실제 null / 확인해 보실 곳 17행 / 선택지) → 종료 코드 3, 1,997 토큰. 기대값 자동 수정 0건
+  - SC-001(`cta generate --class …OrderService --max-methods 4`): 4개 메서드 선정, 확인 항목 25개,
+    1차 실행 실패(Mockito 오류 2건) → 2차 전체 통과 → 게이트 5종 통과(커버리지 100/100, 검출력 95%
+    = 22개 중 21개) → OrderServiceTest에 +16 테스트(총 20개), 7분 54초 · 18,896 토큰, 정상 완료
+  - SC-002(버그 수정 커밋): applyDiscount "버그 수정 98%"(근거: fix 메시지·> → >= ·시그니처 그대로),
+    total은 주석만 → "의미 없는 변경 100%"(LLM 미호출). 재발 방지 테스트 +7 → **regression 게이트
+    통과(수정 전 코드에서 실패함)**, 검출력 0% → 90%, 6분 27초, 정상 완료
+  - SC-003 재개(`cta resolve --intended`): 실패 테스트 1건만 기대값 수정("기존 assert 9개 보존
+    (사람 허용 1건 제외)"), 검출력 100%, 3분 52초 · 3,935 토큰, 판단 메모 저장
+  - Docker 통합(재생 시나리오 + 게이트 ④⑤ 불변식) 2건 통과(158초), 단위 168건 통과, ruff 통과
+- 발견·해결:
+  - **[이슈: 도구 연동] 게이트웨이 응답 대기 120초 초과** — gpt-5가 메서드 4개짜리 테스트 파일
+    (9,500자)을 만드는 데 100초+ 걸려 `TimeoutError`가 원문 스택으로 터짐. 상한 300초로 올리고
+    `CTA_GATEWAY_TIMEOUT`으로 조정, 소켓 시간 초과를 `GatewayCallError`로 감싸 안내 문구 출력
+  - **[이슈: 도구 연동] Neo4j 미기동 시 폴백이 질의 시점에 터짐** — 드라이버 생성은 접속 없이
+    성공한다. 생성 직후 탐색 질의로 접속을 확인해 파싱 폴백으로 넘어가게 수정
+  - **[이슈: 도구 연동] 생성자를 메서드로 오인** — 파서 정규식이 `public OrderService(…)`를 이름
+    "OrderService"인 메서드로 잡아 선정 후보에 들어옴. 이름이 클래스와 같으면 생성자로 보고 제외
+  - **[이슈: 프롬프트] 의도 분류가 "동작이 바뀐 것 같다"며 unclear로 도망감** — 리팩터링 커밋의
+    diff에서 모델이 빈 리스트 처리 누락을 알아채고 unclear(87%)를 골라 질문 상자로 감. 프롬프트를
+    "category는 작성자의 의도, 동작 보존 여부는 기존 테스트 실행이 판정한다 — 의심 지점은 evidence에
+    적어라"로 바꾸자 refactor(90%) + 근거에 의심 지점 → 규칙표 escalate(시나리오 흐름). 질문 상자도
+    테스트가 깨진 상태면 실패 상세·선택지를 같이 보여주도록 통일
+  - Git Bash heredoc이 긴 파이썬 패치를 잘라먹음(unexpected EOF) — 패치는 파일로 써서 실행
+
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010

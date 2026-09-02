@@ -37,8 +37,8 @@ from cta.core.tools import (
 from cta.core.tools.query_code_graph import QUERY_SIMILAR_TESTS
 
 # 반복 상한 — 그래프 상태의 숫자로 관리하고 사용자 허락 없이 초과하지 않는다(v4 2.2).
-ASK_EVERY_ATTEMPTS = 3  # 이 횟수 실패마다 사용자에게 묻는다 (v4 2.3 "한도 도달 → 멈추고 묻기")
-MAX_TOTAL_ATTEMPTS = 6  # PoC 하드 캡 — 자동 "계속" 스텁이 무한 루프가 되지 않게 하는 안전망
+ASK_EVERY_ATTEMPTS = 4  # 이 횟수 실패마다 사용자에게 묻는다 (v4 2.3 "한도 도달 → 멈추고 묻기")
+MAX_TOTAL_ATTEMPTS = 8  # 하드 캡 — SC-001 5단계 "최대 8번". 자동 "계속"의 무한 루프 방지
 
 # 실행 결과 문자열의 선두 표식. run_tests 도구의 출력 형식과 한 쌍이다.
 _PASSED_PREFIX = "통과"
@@ -82,6 +82,9 @@ class WriterState(TypedDict):
     quality: str  # 품질 확인 결과
     report: str  # 한계 보고 내용
     status: str  # working | passed | reported
+    # 아래 둘은 선택 항목 — 옛 호출부(초기 상태에 키 없음)와 호환되게 .get으로 읽는다.
+    extra_context: str  # 호출부가 미리 모아 준 재료(확인 항목·객체 생성법·기존 테스트)
+    history: list  # 시도별 기록 [{"attempt", "write_result", "run_result"}] — 회차 요약 출력용
 
 
 @dataclass
@@ -161,7 +164,11 @@ def build_writer_graph(ports: WriterPorts, checkpointer=None):
 
     def gather(state: WriterState) -> dict:
         ports.progress("정보 수집 — 대상 조사·비슷한 테스트 검색")
-        return {"context": gather_context(ports.inspector, ports.graph, state["target"])}
+        context = gather_context(ports.inspector, ports.graph, state["target"])
+        extra = state.get("extra_context") or ""
+        if extra:
+            context = f"{context}\n\n{extra}"
+        return {"context": context}
 
     def write(state: WriterState) -> dict:
         attempt = state.get("attempts", 0) + 1
@@ -187,9 +194,16 @@ def build_writer_graph(ports: WriterPorts, checkpointer=None):
         outcome = run_tests(ports.runner, state["selector"])
         first_line = outcome.splitlines()[0] if outcome else ""
         ports.progress(f"실행 끝 ({time.monotonic() - started:.0f}초) — {first_line}")
+        # 회차 기록: 상태 갱신은 덮어쓰기라 기존 목록에 항목을 더한 새 목록을 돌려준다
+        entry = {
+            "attempt": state.get("attempts", 0),
+            "write_result": state.get("write_result", ""),
+            "run_result": outcome,
+        }
         return {
             "last_run": outcome,
             "prev_run": state.get("last_run", ""),
+            "history": list(state.get("history") or []) + [entry],
         }
 
     def route_after_run(state: WriterState) -> str:

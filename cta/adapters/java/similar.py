@@ -7,7 +7,7 @@ v4 4.1 쿼리 "비슷한 모양의 테스트는?"의 PoC 구현. 좋은 본보�
 """
 
 from cta.adapters.java.maven import MavenProject
-from cta.adapters.java.parsing import extract_methods, find_class_file, parse_target
+from cta.adapters.java.parsing import extract_methods, find_class_file, parse_methods, parse_target
 
 # 프롬프트에 붙일 본보기 수. 많을수록 토큰만 늘고 효과가 줄어 2개로 제한(경험칙, 조정 가능).
 MAX_EXAMPLES = 2
@@ -41,14 +41,16 @@ class JavaSimilarTestFinder:
         self._project = project
 
     def find(self, target: str) -> str:
-        class_name, method_name = parse_target(target)
+        class_name, method_field = parse_target(target)
+        wanted = parse_methods(method_field)
         class_file = find_class_file(self._project, class_name)
-        if class_file is None or not method_name:
+        if class_file is None or not wanted:
             return f"대상 없음: {target!r} — 'Class#method' 형식이 필요하다"
+        # 메서드가 여럿이면 첫 메서드의 모양을 기준으로 본보기를 고른다(본보기는 스타일 참고용)
         target_methods = [
             m
             for m in extract_methods(class_file.read_text(encoding="utf-8"))
-            if m.name == method_name
+            if m.name == wanted[0]
         ]
         if not target_methods:
             return f"메서드 없음: {target!r}"

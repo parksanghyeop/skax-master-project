@@ -72,11 +72,11 @@ def mutation_command(target_class_fqcn: str, target_test_fqcn: str) -> list[str]
 
 
 def parse_mutations(
-    mutations_xml: str, method_name: str | None = None
+    mutations_xml: str, methods: set[str] | None = None
 ) -> tuple[int, int, list[str]]:
     """mutations.xml에서 (죽인 수, 전체 수, 살아남은 변형 설명)을 뽑는다.
 
-    method_name을 주면 그 메서드에 심긴 변형만 집계한다 — PIT는 클래스 단위로
+    methods를 주면 그 메서드들에 심긴 변형만 집계한다 — PIT는 클래스 단위로
     심는데, 판정 대상은 "생성 테스트가 노린 메서드"이기 때문이다. 다른 메서드의
     미커버 변형이 판정을 오염시키면 정당한 테스트가 억울하게 탈락한다.
     """
@@ -85,7 +85,7 @@ def parse_mutations(
     total = 0
     survived: list[str] = []
     for m in root.iter("mutation"):
-        if method_name and m.findtext("mutatedMethod", default="") != method_name:
+        if methods and m.findtext("mutatedMethod", default="") not in methods:
             continue
         total += 1
         status = m.get("status", "")
@@ -96,6 +96,38 @@ def parse_mutations(
             line = m.findtext("lineNumber", default="?")
             survived.append(f"{line}행: {desc}")
     return killed, total, survived
+
+
+def measure_mutation(
+    project: MavenProject,
+    sandbox: DockerSandbox,
+    m2_cache_dir,
+    target_class_fqcn: str,
+    target_test_fqcn: str,
+    methods: set[str] | None = None,
+) -> tuple[int, int, list[str]] | None:
+    """PIT를 한 번 돌려 (죽인 수, 전체 수, 살아남은 변형)을 돌려준다. 측정 불가면 None.
+
+    게이트 ⑤와 "버그 검출력 61% → 68%"(SC-002 전후 비교)가 같은 측정을 공유한다.
+    """
+    try:
+        write_overlay_pom(project)
+    except RuntimeError:
+        return None
+    sandbox.run(
+        image=MAVEN_IMAGE,
+        command=mutation_command(target_class_fqcn, target_test_fqcn),
+        mounts=[
+            Mount(str(project.root), CONTAINER_WORKDIR),
+            Mount(str(m2_cache_dir), CONTAINER_M2_REPO, read_only=True),
+        ],
+        workdir=CONTAINER_WORKDIR,
+        network_enabled=False,
+    )
+    report = project.root / MUTATIONS_XML
+    if not report.is_file():
+        return None
+    return parse_mutations(report.read_text(encoding="utf-8"), methods)
 
 
 class MutationGate:
@@ -111,7 +143,7 @@ class MutationGate:
         target_class_fqcn: str,
         target_test_fqcn: str,
         min_killed_ratio: float,
-        target_method: str | None = None,  # 지정 시 그 메서드의 변형만 판정
+        target_methods: set[str] | None = None,  # 지정 시 그 메서드들의 변형만 판정
     ) -> None:
         self._project = project
         self._sandbox = sandbox
@@ -119,33 +151,25 @@ class MutationGate:
         self._class_fqcn = target_class_fqcn
         self._test_fqcn = target_test_fqcn
         self._min_ratio = min_killed_ratio
-        self._target_method = target_method
+        self._target_methods = target_methods
+        # 마지막 측정값 — CLI가 "버그 검출력 n%"를 보여줄 때 재사용
+        self.last_score: tuple[int, int] | None = None
 
     def check(self) -> GateResult:
-        try:
-            write_overlay_pom(self._project)
-        except RuntimeError as e:
-            return GateResult(self.name, False, f"뮤테이션 준비 실패: {e}")
-        result = self._sandbox.run(
-            image=MAVEN_IMAGE,
-            command=mutation_command(self._class_fqcn, self._test_fqcn),
-            mounts=[
-                Mount(str(self._project.root), CONTAINER_WORKDIR),
-                Mount(str(self._m2_cache_dir), CONTAINER_M2_REPO, read_only=True),
-            ],
-            workdir=CONTAINER_WORKDIR,
-            network_enabled=False,
+        measured = measure_mutation(
+            self._project,
+            self._sandbox,
+            self._m2_cache_dir,
+            self._class_fqcn,
+            self._test_fqcn,
+            self._target_methods,
         )
-        report = self._project.root / MUTATIONS_XML
-        if not report.is_file():
+        if measured is None:
             return GateResult(
-                self.name,
-                False,
-                f"뮤테이션 리포트 없음(exit {result.exit_code}) — 측정 불가는 통과 근거가 아니다",
+                self.name, False, "뮤테이션 리포트 없음 — 측정 불가는 통과 근거가 아니다"
             )
-        killed, total, survived = parse_mutations(
-            report.read_text(encoding="utf-8"), self._target_method
-        )
+        killed, total, survived = measured
+        self.last_score = (killed, total)
         if total == 0:
             return GateResult(self.name, False, "심을 변형이 없음 — 대상 지정 확인 필요")
         ratio = killed / total

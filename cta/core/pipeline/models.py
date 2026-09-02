@@ -1,16 +1,24 @@
 """파이프라인 단계 사이를 흐르는 데이터 모델.
 
 시그니처를 바꾸면 docs/contracts.md를 같은 커밋에서 갱신한다.
+층: core — 언어·빌드 도구 이름이 등장하지 않는다(R1).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # 의도 대분류 — v4 2.1 규칙표의 행 이름이자 LLM 분류 출력의 허용값.
 INTENT_BUG_FIX = "bug_fix"
 INTENT_REFACTOR = "refactor"
 INTENT_NEW_FEATURE = "new_feature"
+INTENT_TRIVIAL = "trivial"  # 의미 없는 변경(주석·공백만) — 시험할 동작이 없다(ADR-0015 D2)
 INTENT_UNCLEAR = "unclear"  # 분류 불확실 — 추측하지 않고 사람에게 묻는다(R3)
-KNOWN_INTENTS = (INTENT_BUG_FIX, INTENT_REFACTOR, INTENT_NEW_FEATURE, INTENT_UNCLEAR)
+KNOWN_INTENTS = (
+    INTENT_BUG_FIX,
+    INTENT_REFACTOR,
+    INTENT_NEW_FEATURE,
+    INTENT_TRIVIAL,
+    INTENT_UNCLEAR,
+)
 
 # 기존 테스트 상태 — 조치 결정 규칙표의 열.
 TESTS_PASS = "pass"
@@ -26,10 +34,12 @@ ACTION_ASK = "ask"  # 사람에게 묻는다 (분류 불확실 등)
 
 @dataclass(frozen=True)
 class ChangedSymbol:
-    """변경 추출의 출력 한 건 — "어디가 바뀌었나".
+    """변경 추출의 출력 한 건 — "어디가 바뀌었나" + 판단 단서(v4 2.1 Step 1).
 
-    target: 대상 식별자("Class#method"). 시그니처 변경·증감 줄 수는 의도 분류의
-    단서로 쓰인다(v4 2.1 Step 1).
+    target: 대상 식별자("Class#method"). 나머지는 의도 분류의 단서이자 화면에 그대로
+    보여주는 근거 재료다(SC-002 2단계: 시그니처·접근 제어자·줄 수).
+    comment_only: 바뀐 줄이 전부 주석·공백이면 True — LLM 없이 trivial로 분류된다.
+    file_rel / change_line: "확인해 보실 곳"을 가리키는 파일 경로와 첫 변경 줄.
     """
 
     target: str
@@ -37,18 +47,35 @@ class ChangedSymbol:
     lines_removed: int
     signature_changed: bool
     diff_excerpt: str  # 이 심볼에 해당하는 diff 발췌 (분류 프롬프트 재료)
+    access_changed: bool = False  # public/private 등 접근 제어자가 바뀌었는가
+    comment_only: bool = False
+    file_rel: str = ""
+    change_line: int = 0
+
+
+@dataclass(frozen=True)
+class ChangeSet:
+    """변경 추출의 전체 출력 — 심볼 목록 + 변경 단위 공통 단서(커밋 메시지·이슈 번호)."""
+
+    symbols: list[ChangedSymbol]
+    commit_message: str = ""  # 비교 범위의 커밋 메시지들(미커밋 변경이면 빈 값)
+    issue_refs: tuple[str, ...] = ()  # 메시지에서 뽑은 이슈 참조 (예: "#4821")
 
 
 @dataclass(frozen=True)
 class Intent:
-    """의도 분류의 출력 — 대분류 하나 + 구체 분석 하나 (LLM 1회 호출, v4 2.1).
+    """의도 분류의 출력 — 대분류 + 확신도 + 근거 + 구체 분석 (LLM 1회 호출, v4 2.1).
 
     category: KNOWN_INTENTS 중 하나. 파싱 실패·모르는 값은 unclear로 다룬다.
+    confidence: 0.0~1.0. 사용자에게 "확신도 85%"로 보여준다(SC-002 기대 출력).
+    evidence: 판단 근거 목록 — 화면에 그대로 출력된다. 단서는 일반 코드가 모아 준다.
     analysis: 무엇이 어떻게 바뀌었고 어떤 상황을 시험해야 하는지 — 작업 지침서의 재료.
     """
 
     category: str
     analysis: str
+    confidence: float = 0.0
+    evidence: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

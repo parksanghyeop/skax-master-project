@@ -159,6 +159,43 @@ def read_package(source: str) -> str:
 
 
 def parse_target(target: str) -> tuple[str, str]:
-    """ "Class#method" 식별자를 (클래스, 메서드)로 나눈다. 메서드가 없으면 빈 문자열."""
-    class_name, _, method_name = target.partition("#")
-    return class_name.strip(), method_name.strip()
+    """ "Class#method" 식별자를 (클래스, 메서드)로 나눈다. 메서드가 없으면 빈 문자열.
+
+    클래스 자리는 패키지 포함 이름(com.example.OrderService)도 받는다 — 시나리오 SC-001의
+    `--class <FQN>` 입력. 파일 탐색은 단순 이름으로 하므로 마지막 마디만 남긴다.
+    메서드 자리는 쉼표 목록("m1,m2")일 수 있다 — 나누기는 parse_methods가 한다.
+    """
+    class_part, _, method_name = target.partition("#")
+    return class_part.strip().rsplit(".", 1)[-1], method_name.strip()
+
+
+def parse_methods(method_field: str) -> list[str]:
+    """parse_target의 메서드 자리("m1,m2")를 이름 목록으로 나눈다. 빈 값이면 빈 목록."""
+    return [m.strip() for m in method_field.split(",") if m.strip()]
+
+
+_ACCESS_MODIFIERS = ("public", "protected", "private")
+
+
+def access_modifier(signature_line: str) -> str:
+    """선언 줄의 접근 제어자를 돌려준다. 없으면 "package" (Java 기본 접근 수준)."""
+    words = signature_line.strip().split()
+    for word in words:
+        if word in _ACCESS_MODIFIERS:
+            return word
+    return "package"
+
+
+def strip_methods(source: str, names: set[str]) -> str:
+    """이름이 names에 있는 메서드의 본문(시그니처부터 닫는 중괄호까지)을 소스에서 지운다.
+
+    왜 필요한가: 사람이 "이 테스트는 고쳐도 된다"고 지정한 테스트 메서드를 assert 비교에서
+    제외하려면(ADR-0015 D3), 그 메서드를 뺀 나머지끼리 비교해야 한다.
+    """
+    if not names:
+        return source
+    result = source
+    for m in sorted(extract_methods(source), key=lambda m: -len(m.text)):
+        if m.name in names:
+            result = result.replace(m.text, "", 1)
+    return result

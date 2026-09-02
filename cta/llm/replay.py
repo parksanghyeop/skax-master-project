@@ -41,7 +41,10 @@ class RecordingClient:
     def chat(self, messages: list[ChatMessage], model: str) -> ChatResponse:
         response = self._inner.chat(messages, model)
         self._entries.append(
-            {"request": _request_key(messages, model), "response": {"content": response.content}}
+            {
+                "request": _request_key(messages, model),
+                "response": {"content": response.content, "usage_tokens": response.usage_tokens},
+            }
         )
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(
@@ -79,4 +82,8 @@ class ReplayClient:
                 f"실제={json.dumps(actual, ensure_ascii=False)[:200]}"
             )
         self._cursor += 1
-        return ChatResponse(content=entry["response"]["content"])
+        # usage_tokens는 나중에 추가된 항목 — 옛 기록에는 없으므로 0으로 읽는다
+        return ChatResponse(
+            content=entry["response"]["content"],
+            usage_tokens=int(entry["response"].get("usage_tokens", 0)),
+        )

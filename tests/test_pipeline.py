@@ -134,7 +134,7 @@ class TestGitChangeExtractor:
         _git(tmp_path, "commit", "-q", "-m", "v1")
         java.write_text(JAVA_V2, encoding="utf-8")
 
-        changes = GitChangeExtractor(detect_maven_project(tmp_path)).extract()
+        changes = GitChangeExtractor(detect_maven_project(tmp_path)).extract().symbols
 
         assert [c.target for c in changes] == ["Calc#divide"]
         assert changes[0].lines_added == 3
@@ -155,7 +155,7 @@ class TestGitChangeExtractor:
         _git(tmp_path, "commit", "-q", "-m", "v1")
         java.write_text(JAVA_V2, encoding="utf-8")
 
-        changes = GitChangeExtractor(detect_maven_project(project_dir)).extract()
+        changes = GitChangeExtractor(detect_maven_project(project_dir)).extract().symbols
         assert [c.target for c in changes] == ["Calc#divide"]
 
     def test_변경이_없으면_빈_목록이다(self, tmp_path):
@@ -164,4 +164,4 @@ class TestGitChangeExtractor:
         (tmp_path / "A.txt").write_text("x", encoding="utf-8")
         _git(tmp_path, "add", "-A")
         _git(tmp_path, "commit", "-q", "-m", "v1")
-        assert GitChangeExtractor(detect_maven_project(tmp_path)).extract() == []
+        assert GitChangeExtractor(detect_maven_project(tmp_path)).extract().symbols == []

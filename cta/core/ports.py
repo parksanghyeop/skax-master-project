@@ -125,22 +125,33 @@ class UserGate(Protocol):
 class ChangeExtractor(Protocol):
     """변경 추출 포트 — "어디가 바뀌었나" (v4 2.1, 일반 코드).
 
-    출력: 변경된 심볼 목록(core.pipeline.models.ChangedSymbol). 같은 변경을
-      넣으면 언제나 같은 목록이 나온다(결정적). 변경이 없으면 빈 목록.
+    출력: ChangeSet(변경 심볼 목록 + 커밋 메시지·이슈 번호 단서). 같은 변경을
+      넣으면 언제나 같은 결과가 나온다(결정적). 변경이 없으면 심볼 목록이 빈 값.
     """
 
-    def extract(self) -> list: ...
+    def extract(self) -> object: ...
 
 
 class IntentClassifier(Protocol):
-    """의도 분류 포트 — "왜 바꿨나" (v4 2.1, LLM 1회 호출 지점).
+    """의도 분류 포트 — "왜 바꿨나" (v4 2.1, 변경 한 건당 LLM 1회 호출 지점).
 
-    입력: change_summary 변경 요약(diff 발췌 + 단서: 커밋 메시지, 증감 줄 수 등).
-    출력: Intent(대분류 + 구체 분석). 판단이 안 되면 category="unclear"로 —
+    입력: change 변경 심볼 하나, change_set 변경 단위 공통 단서(커밋 메시지·이슈 번호),
+      memos 비슷한 과거 판단 사례 문자열(참고용 — 규칙표를 우회하지 못한다, v4 4.2).
+    출력: Intent(대분류 + 확신도 + 근거 + 구체 분석). 판단이 안 되면 category="unclear"로 —
       던지지 않는다. LLM 구현은 llm/intent.py, 테스트는 대본 구현으로 바꿔 끼운다.
     """
 
-    def classify(self, change_summary: str) -> object: ...
+    def classify(self, change: object, change_set: object, memos: str = "") -> object: ...
+
+
+class TestLocator(Protocol):
+    """대상을 검증하는 기존 테스트를 찾는 포트 (v4 2.1 "기존 테스트 상태"의 앞단).
+
+    입력: target 대상 식별자. 출력: 테스트 selector 목록(없으면 빈 목록).
+    구현: 그래프 COVERS 실측(정확) 또는 소스 참조 파싱(폴백) — 어느 쪽이든 결정적이다.
+    """
+
+    def find(self, target: str) -> list[str]: ...
 
 
 class TestCodeGenerator(Protocol):

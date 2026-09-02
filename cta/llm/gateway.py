@@ -20,8 +20,10 @@ ENV_API_VERSION = "CTA_GATEWAY_API_VERSION"  # 생략 시 기본값 사용
 # API 버전은 스펙 문자열이라 비밀이 아니다 — 게이트웨이 안내 기준(2026-09 확인).
 DEFAULT_API_VERSION = "2024-12-01-preview"
 
-# 게이트웨이 무응답으로 파이프라인이 잠기지 않게 하는 상한. 임시값(운영값은 측정 후 조정).
-REQUEST_TIMEOUT_SECONDS = 120
+# 게이트웨이 무응답으로 파이프라인이 잠기지 않게 하는 상한. gpt-5가 메서드 4개짜리 테스트
+# 파일을 만드는 데 120초를 넘긴 실측(2026-09-03)이 있어 300초로 올렸다. 조정: CTA_GATEWAY_TIMEOUT
+REQUEST_TIMEOUT_SECONDS = 300
+ENV_TIMEOUT = "CTA_GATEWAY_TIMEOUT"
 
 
 class GatewayConfigError(RuntimeError):
@@ -66,6 +68,10 @@ class GatewayClient:
         self._base_url = base_url
         self._api_key = api_key
         self._api_version = os.environ.get(ENV_API_VERSION) or DEFAULT_API_VERSION
+        try:
+            self._timeout = int(os.environ.get(ENV_TIMEOUT, "") or REQUEST_TIMEOUT_SECONDS)
+        except ValueError:
+            self._timeout = REQUEST_TIMEOUT_SECONDS
 
     def chat(self, messages: list[ChatMessage], model: str) -> ChatResponse:
         body = json.dumps(build_payload(messages)).encode("utf-8")
@@ -80,13 +86,25 @@ class GatewayClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+            with urllib.request.urlopen(request, timeout=self._timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except URLError as e:
             # 키가 오류 문구에 섞여 나가지 않도록 원인만 요약한다(시크릿 가림, v4 6.6)
             raise GatewayCallError(f"게이트웨이 호출 실패 (deployment={model}): {e.reason}") from e
+        except (TimeoutError, OSError) as e:
+            # 응답 읽기 도중 시간 초과는 URLError가 아니라 소켓 예외로 온다
+            raise GatewayCallError(
+                f"게이트웨이 응답 대기 초과 (deployment={model}, {self._timeout}초): {e} — "
+                f"{ENV_TIMEOUT}로 상한을 늘릴 수 있다"
+            ) from e
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
             raise GatewayCallError(f"응답 형식 이상: 최상위 키 {sorted(data)[:10]}") from e
-        return ChatResponse(content=content or "")
+        # usage는 선택 항목 — 없어도 응답은 유효하다(토큰 수만 0으로 남는다)
+        usage = data.get("usage") or {}
+        try:
+            tokens = int(usage.get("total_tokens", 0))
+        except (TypeError, ValueError):
+            tokens = 0
+        return ChatResponse(content=content or "", usage_tokens=tokens)

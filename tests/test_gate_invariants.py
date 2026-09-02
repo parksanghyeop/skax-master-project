@@ -199,7 +199,7 @@ class TestMutationPieces:
 
     def test_대상_메서드의_변형만_집계할_수_있다(self):
         # 다른 메서드(add)의 미커버 변형이 divide 판정을 오염시키면 안 된다
-        killed, total, survived = parse_mutations(MUTATIONS_XML, method_name="divide")
+        killed, total, survived = parse_mutations(MUTATIONS_XML, methods={"divide"})
         assert (killed, total) == (1, 2)
         assert all("반환값" not in s for s in survived)
 
