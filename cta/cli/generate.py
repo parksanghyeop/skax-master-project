@@ -29,6 +29,7 @@ from cta.adapters.java.materials import (
     KINDS,
     check_item_satisfaction,
     collect_materials,
+    locate_test_file,
     render_materials,
     select_methods,
 )
@@ -157,7 +158,7 @@ def run_generation(
     test_class = test_class or default_test_class(class_name)
     materials = collect_materials(project, class_file, methods, skipped, test_class)
     package = materials.package
-    test_path = project.test_source_dir.joinpath(*package.split("."), f"{test_class}.java")
+    test_path = locate_test_file(project, package, test_class)
     test_rel = test_path.relative_to(project.root).as_posix()
     fq = f"{package}.{{}}" if package else "{}"
 
@@ -309,6 +310,11 @@ def run_generation(
             max_retries=config.max_retries,
             progress=progress,
         )
+    except BaseException:
+        # 도중에 죽어도(게이트웨이 시간 초과, Ctrl+C, Docker 오류) 생성물이 소스 트리에 남으면
+        # 안 된다 — 기존 파일은 원문으로, 새 파일은 삭제로 되돌린다(v4 Step 3: 반영은 apply만)
+        _restore_test_file(test_path, materials.existing_test_code)
+        raise
     finally:
         if graph_store is not None:
             graph_store.close()
@@ -404,6 +410,14 @@ def run_generation(
         "mutation_before": mutation_before,
         "mutation_after": mutation_after,
     }
+
+
+def _restore_test_file(test_path: Path, original: str) -> None:
+    """생성 도중 바뀐 테스트 파일을 원래대로 — 원문이 있으면 되돌리고, 새 파일이면 지운다."""
+    if original:
+        test_path.write_text(original, encoding="utf-8")
+    else:
+        test_path.unlink(missing_ok=True)
 
 
 def _error(message: str) -> dict:

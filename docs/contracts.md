@@ -54,6 +54,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `select_methods` (materials) | `(project, class_file, max_methods, only=None, include_all=False) -> (list[MethodPlan], skipped)` | 공개·미참조 메서드를 확인 항목 많은 순으로 N개. only는 지정 실행 |
 | `enumerate_check_items` (materials) | `(method_text, start_line) -> tuple[CheckItem]` | 분기·경계값·예외·null 항목을 정규식으로 열거(결정적) |
 | `describe_construction` (materials) | `(project, type_name) -> ConstructionHint` | 직접 생성(표준/builder/값 객체/record/enum) 또는 mock(인터페이스·저장소) |
+| `locate_test_file` (materials) | `(project, package, test_class) -> Path` | 테스트 트리에서 이름으로 먼저 찾고, 없으면 대상 패키지 아래 새 경로 (다른 패키지의 기존 테스트에 추가 가능) |
 | `collect_materials` / `render_materials` | `-> Materials` / `-> str` | 재료 묶음 = 메서드·확인 항목·생성법·기존 테스트 파일·대상 라인. render는 writer의 `extra_context` |
 | `check_item_satisfaction` (materials) | `(items, line_coverage) -> int` | 항목 줄 실행(분기는 전부 실행) 기준의 충족 수 — 근사 |
 | `parse_failed_tests` / `count_tests_run` / `describe_attempt` (failures) | 실행 출력 → `FailedTest(name, test_class, expected, actual, message)` / 합계 / 회차 한 줄 요약 | 화면 문구의 원천 — LLM 없음 |

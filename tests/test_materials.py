@@ -168,3 +168,17 @@ class TestMaterials:
             12: {"ci": 0, "mb": 0, "cb": 0},  # 미실행 → 미충족
         }
         assert check_item_satisfaction(items, coverage) == 1
+
+
+def test_기존_테스트_파일은_다른_패키지에_있어도_이름으로_찾는다(tmp_path):
+    # maintain이 그래프에서 찾아 준 검증 테스트 클래스가 대상과 다른 패키지에 있는 경우 —
+    # 패키지로만 경로를 만들면 같은 이름의 새 파일이 생겨 "기존 파일에 추가"가 조용히 실패한다
+    from cta.adapters.java.materials import locate_test_file
+
+    project, _ = _project(tmp_path)
+    other = project.test_source_dir / "com" / "other"
+    other.mkdir(parents=True)
+    (other / "SharedTest.java").write_text("class SharedTest {}", encoding="utf-8")
+    assert locate_test_file(project, "com.example", "SharedTest") == other / "SharedTest.java"
+    fresh = locate_test_file(project, "com.example", "BrandNewTest")
+    assert fresh == project.test_source_dir / "com" / "example" / "BrandNewTest.java"

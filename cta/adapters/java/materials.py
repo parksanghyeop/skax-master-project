@@ -252,6 +252,20 @@ def describe_construction(project: MavenProject, type_name: str) -> Construction
     return ConstructionHint(type_name, "직접 생성", "값만 담는 객체")
 
 
+def locate_test_file(project: MavenProject, package: str, test_class: str) -> Path:
+    """테스트 클래스 파일의 경로를 정한다 — 이미 있으면 그 파일, 없으면 대상 패키지 아래 새 경로.
+
+    왜 이름으로 먼저 찾나: maintain은 그래프가 찾아 준 검증 테스트 클래스(예: OrderServiceTest)에
+    메서드를 추가하는데, 그 파일이 대상 클래스와 다른 패키지에 있을 수 있다. 패키지로만 경로를
+    만들면 같은 이름의 새 파일이 다른 곳에 생겨 "기존 파일에 추가"가 조용히 실패한다.
+    """
+    if project.test_source_dir.is_dir():
+        hits = sorted(project.test_source_dir.rglob(f"{test_class}.java"))
+        if hits:
+            return hits[0]
+    return project.test_source_dir.joinpath(*package.split("."), f"{test_class}.java")
+
+
 def collect_materials(
     project: MavenProject,
     class_file: Path,
@@ -274,7 +288,7 @@ def collect_materials(
             types.append(t)
     constructions = [describe_construction(project, t) for t in types if t != class_file.stem]
 
-    test_path = project.test_source_dir.joinpath(*package.split("."), f"{test_class}.java")
+    test_path = locate_test_file(project, package, test_class)
     existing = (
         test_path.read_text(encoding="utf-8", errors="replace") if test_path.is_file() else ""
     )
