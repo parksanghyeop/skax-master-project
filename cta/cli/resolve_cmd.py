@@ -9,6 +9,7 @@
 결정은 판단 메모(.cta/memos)로 남아 다음 maintain의 참고 자료가 된다. 층: cli (ADR-0015 D3).
 """
 
+import argparse
 from datetime import datetime
 
 from cta.adapters.java.maven import detect_maven_project
@@ -47,7 +48,7 @@ def _decision(args) -> str | None:
     return None
 
 
-def run_resolve(args) -> int:
+def run_resolve(args: argparse.Namespace) -> int:
     load_dotenv_into_env()
     project = detect_maven_project(args.project)
     escalation = _pick(project, args.id)

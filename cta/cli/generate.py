@@ -11,6 +11,7 @@
 
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -31,7 +32,7 @@ from cta.adapters.java.materials import (
     render_materials,
     select_methods,
 )
-from cta.adapters.java.maven import detect_maven_project, find_existing_test_class
+from cta.adapters.java.maven import MavenProject, detect_maven_project, find_existing_test_class
 from cta.adapters.java.mutation import MutationGate, measure_mutation
 from cta.adapters.java.parsing import find_class_file, parse_methods, parse_target
 from cta.adapters.java.quality import AssertCountChecker
@@ -94,7 +95,7 @@ def ask_on_terminal(question: str) -> UserReply:
 
 
 def ensure_prepared(
-    project, runner: JavaTestRunner, cache_dir: Path, warmup_test: str | None
+    project: MavenProject, runner: JavaTestRunner, cache_dir: Path, warmup_test: str | None
 ) -> str | None:
     """의존성 캐시가 없으면 준비 단계(최초 1회)를 돌린다. 실패하면 사유, 성공·불필요면 None."""
     if cache_dir.is_dir():
@@ -117,7 +118,7 @@ def run_generation(
     model_override: str | None = None,
     warmup_test: str | None = None,
     fast: bool = False,
-    ask_user=None,
+    ask_user: Callable[[str], UserReply] | None = None,
     max_methods: int | None = DEFAULT_MAX_METHODS,
     include_all: bool = False,
     regression_sources: dict[str, str | None] | None = None,

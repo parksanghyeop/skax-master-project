@@ -101,7 +101,7 @@ def parse_mutations(
 def measure_mutation(
     project: MavenProject,
     sandbox: DockerSandbox,
-    m2_cache_dir,
+    m2_cache_dir: str | Path,
     target_class_fqcn: str,
     target_test_fqcn: str,
     methods: set[str] | None = None,

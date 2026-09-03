@@ -18,6 +18,8 @@ MAX_SHOWN = 3  # 참고 사례는 많아야 3건 — 화면·프롬프트 모두
 
 @dataclass(frozen=True)
 class Memo:
+    """판단 메모 한 건 — 어떤 대상에 대해 사람이 무엇을 왜 결정했나."""
+
     target: str  # "Class#method"
     category: str  # 그때의 의도 분류
     decision: str  # 사람의 결정 (intended / test-issue / proceed / skip)

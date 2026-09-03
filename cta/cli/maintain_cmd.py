@@ -5,9 +5,11 @@
 경로(결과는 제안), escalate/ask는 저장 후 멈춤(cta resolve로 재개). 층: cli(조립).
 """
 
+import argparse
+
 from cta.adapters.java.changes import GitChangeExtractor, ReferencingTestLocator
 from cta.adapters.java.failures import parse_failed_tests
-from cta.adapters.java.maven import detect_maven_project
+from cta.adapters.java.maven import MavenProject, detect_maven_project
 from cta.adapters.java.runner import JavaTestRunner
 from cta.cli.escalations import Escalation, make_id, save_escalation
 from cta.cli.generate import CACHE_DIR_NAME, ask_on_terminal, ensure_prepared, run_generation
@@ -56,7 +58,7 @@ class GraphTestLocator:
         self._store.close()
 
 
-def _make_locator(project):
+def _make_locator(project: MavenProject):
     """그래프가 있으면 실측, 없으면 소스 참조 파싱 폴백 — 어느 쪽인지 화면에 알린다."""
     store = try_open_store(str(project.root))
     if store is None:
@@ -64,7 +66,7 @@ def _make_locator(project):
     return GraphTestLocator(store, str(project.root)), GRAPH_NOTE
 
 
-def run_maintain(args) -> int:
+def run_maintain(args: argparse.Namespace) -> int:
     load_dotenv_into_env()
     project = detect_maven_project(args.project)
     extractor = GitChangeExtractor(project, args.diff)

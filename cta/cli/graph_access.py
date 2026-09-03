@@ -10,16 +10,15 @@ from cta.adapters.java.similar import JavaSimilarTestFinder, ParsingCodeGraph
 from cta.core.ports import CodeGraph
 from cta.graph.answers import GraphCodeGraph
 from cta.graph.model import EDGE_COVERS
+from cta.graph.neo4j_store import Neo4jGraphStore
 
 GRAPH_NOTE = "코드 그래프(Neo4j 실측)"
 FALLBACK_NOTE = "소스 파싱 폴백 (그래프 미접속 — cta graph --coverage로 정확도 향상)"
 
 
-def try_open_store(project_key: str):
+def try_open_store(project_key: str) -> Neo4jGraphStore | None:
     """접속 가능한 Neo4jGraphStore를 돌려준다. 설정 없음·서버 미가동이면 None(폴백 신호)."""
     try:
-        from cta.graph.neo4j_store import Neo4jGraphStore
-
         store = Neo4jGraphStore()
         store.neighbors(project_key, "__probe__", EDGE_COVERS, "in")  # 접속 확인용 질의
         return store
@@ -27,7 +26,7 @@ def try_open_store(project_key: str):
         return None
 
 
-def choose_code_graph(project: MavenProject) -> tuple[CodeGraph, str, object | None]:
+def choose_code_graph(project: MavenProject) -> tuple[CodeGraph, str, Neo4jGraphStore | None]:
     """(CodeGraph 구현, 화면 안내 문구, 닫아야 할 저장소 또는 None)."""
     key = str(project.root)
     store = try_open_store(key)
