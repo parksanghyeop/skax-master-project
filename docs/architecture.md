@@ -105,6 +105,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 | `cli/graph_cmd.py`·`eval_cmd.py`·`demo_cmd.py` | graph/eval/demo 서브커맨드 | CLI화 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_scenarios.py` | SC-002/SC-003 재현용 임시 저장소 생성 (버그 수정 커밋 / 리팩터링 커밋) | ADR-0015 |
+| `scripts/render_capture.py` · `render_diagram.py` | 산출물 이미지 재생성 — 실행 로그 → 터미널 모양 PNG / mermaid → PNG(로컬 Chrome 헤드리스) | 산출물 |
 
 ## 구조 결정 (v4 원문 대조 완료 — 충돌 없음)
 

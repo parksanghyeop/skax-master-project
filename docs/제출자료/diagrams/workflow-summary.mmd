@@ -1,0 +1,27 @@
+flowchart TD
+    IN["입력<br/>git diff (maintain) 또는 대상 클래스 (generate)"] --> CLS["① 의도 분류 — 변경 건별 LLM 1회<br/>판단 · 확신도 · 근거를 화면에 출력"]
+    CLS --> DEC{"② 규칙표<br/>의도 × 기존 테스트 상태<br/>(LLM 관여 불가)"}
+    DEC -->|"리팩터링 + 테스트 통과<br/>주석만 변경"| NA["할 일 없음"]
+    DEC -->|"리팩터링 + 테스트 실패<br/>판단 불확실"| HU["사람 확인 — 저장 후 멈춤<br/>(종료 코드 3)"]
+    DEC -->|"버그 수정 · 새 기능"| MAT
+    HU -->|"cta resolve"| MAT
+
+    subgraph LOOP["③ 테스트 작성 루프 (LangGraph)"]
+        direction TB
+        MAT["재료 수집 (일반 코드)<br/>확인 항목 · 객체 생성법 · 코드 그래프 검색"] --> GEN["코드 생성 — LLM"]
+        GEN --> RUN["Docker 샌드박스 실행<br/>방금 만든 테스트만"]
+        RUN -->|"실패 → 실패 로그 + 직전 코드로 재시도<br/>(최대 8회, 같은 실패 반복 시 사용자 질문)"| GEN
+    end
+
+    RUN -->|"통과"| GATE["④ 품질 게이트 6종 (일반 코드)<br/>assert · skip · scope · coverage · mutation · regression"]
+    GATE -->|"탈락 → 사유를 지침서에 붙여 재생성<br/>(최대 3회, 소진 시 '품질 미달')"| GEN
+    GATE -->|"통과"| OUT["⑤ 제안 보관 .cta/proposals/<br/>cta diff 검토 → cta apply 반영"]
+
+    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
+    classDef human fill:#fde8d5,stroke:#f59e0b,stroke-width:2px
+    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef plain fill:#eef2ff,stroke:#6366f1
+    class CLS,GEN llm
+    class HU,OUT human
+    class DEC,GATE,MAT safe
+    class IN,NA,RUN plain

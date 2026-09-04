@@ -6,6 +6,7 @@ Claude Code로 3단계(PoC → 테스트·고도화 → E2E) 구현을 진행하
 > (설치, `.env` 설정, `cta generate` / `cta maintain` / `cta resolve`로 내 Maven 프로젝트에 테스트 생성·유지보수)
 > 시나리오(SC-001~004)와 명령의 대응·재현 방법: [docs/제출자료/시나리오수립.md](docs/제출자료/시나리오수립.md),
 > [examples/demo/README.md](examples/demo/README.md)
+> 구현 방식(의도 분류 기법, 소스 파싱·코드 그래프 저장, 게이트)을 자세히 보려면 → [docs/제출자료/핵심구현.md](docs/제출자료/핵심구현.md)
 
 ## 구성
 
