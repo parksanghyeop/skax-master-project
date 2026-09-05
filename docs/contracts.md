@@ -147,6 +147,25 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
 | `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False) -> dict` | generate/maintain/resolve/eval 공용. 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
 
+## MCP 층 (mcp/ — ADR-0018)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `handlers.generate` | `(project, target, max_methods=4, fast=False) -> str` | `cli/main._cmd_generate`를 Namespace로 호출(non_interactive·quiet 고정). 반환 = 화면 출력 + `"종료 코드: N"` |
+| `handlers.maintain` | `(project, diff="HEAD", plan_only=False, fast=False) -> str` | `run_maintain` 호출 |
+| `handlers.resolve` | `(project, decision, escalation_id="", hint="", fast=False) -> str` | decision ∈ intended/test-issue/proceed/skip, 아니면 종료 코드 1 문구 |
+| `handlers.list_proposals` / `handlers.apply` | `(project, name="")` / `(project, name="", all=False)` | `_cmd_diff` / `_cmd_apply` |
+| `server.build_server` | `() -> MCPServer` | `mcp>=2` 없으면 ImportError. 도구 = `handlers.TOOLS` 순서. `main()`은 stdio |
+| 불변식 | — | stdout은 전부 캡처(프로토콜 채널 보호). 시크릿은 인자로 받지 않는다. 에이전트 내부 도구 6개(R4)와 별개 |
+
+## 결함 세트 (evals/defects — ADR-0014, v2)
+
+| 항목 | 계약 |
+|---|---|
+| `case.toml` | `target`("Class#method"), `class_rel`, `bug`(한 줄), `probe`(자바 식), `expected`(고친 버전의 probe 출력 문자열. 예외는 `"throws <이름>"`) |
+| `Buggy.java` | 고친 소스에 치환 1회를 적용한 전체 파일. `scripts/check_defects.py`가 컴파일·probe로 고친 버전과 다름을 확인(동치 변이 금지) |
+| `DATASET_VERSION` | `cli/eval_cmd.py` — 케이스 추가·수정 시 올린다(v2 = 12건) |
+
 ## 코드 그래프 (graph/ — M4)
 
 | 항목 | 시그니처 | 계약 |

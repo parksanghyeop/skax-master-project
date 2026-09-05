@@ -14,15 +14,21 @@ dependencies = [
     "neo4j>=5",
 ]
 
+[project.optional-dependencies]
+# MCP 서버(ADR-0018)는 선택 — `pip install code-test-agent[mcp]`. CLI 사용자에게 SDK를 강제하지 않는다
+mcp = ["mcp>=2"]
+
 [project.scripts]
 # 설치(pip install -e .) 후 어디서든 `cta <명령>`으로 실행되는 CLI 진입점
 cta = "cta.cli.main:main"
+# MCP 서버(stdio) — Claude Code 등록: claude mcp add cta -- cta-mcp
+cta-mcp = "cta.mcp.server:main"
 
 [tool.setuptools]
 # 제품 코드는 전부 cta/ 아래 — 층 패키지들을 명시한다 (디렉터리 정리, 2026-09-02)
 packages = ["cta", "cta.core", "cta.core.tools", "cta.core.pipeline",
             "cta.adapters", "cta.adapters.java", "cta.adapters.java.skills",
-            "cta.graph", "cta.llm", "cta.sandbox", "cta.cli", "cta.evals"]
+            "cta.graph", "cta.llm", "cta.sandbox", "cta.cli", "cta.evals", "cta.mcp"]
 
 [tool.setuptools.package-data]
 # 프롬프트 파일은 코드가 아니라 데이터 — 일반(비-편집) 설치에도 함께 담는다

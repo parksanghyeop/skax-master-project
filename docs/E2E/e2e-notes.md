@@ -42,6 +42,22 @@
 - **하지 않은 것**: 전/후 측정(B-1 5번), 결함 세트 확장(B-2), 경계값 실험(B-3), MCP(B-4) — 전부 Docker·게이트웨이가
   필요하거나(측정·`cta eval`) 사용자 결정(`mcp` 의존성)이 필요하다
 
+### 3주차 M8-b 확장 — B-2 결함 세트 v2 · B-4 MCP 서버 (2026-09-06)
+
+- **B-2 결함 세트 6건 → 12건(`local-defects-v2`)**: 추가 유형 — 하한 누락(clamp-lowerbound), 반복 경계(fib-loop-offbyone),
+  컬렉션 순서 의존(median-unsorted, 새 메서드 `MathUtil.median`), 예외 누락(percent-exception-type, 새 메서드
+  `MathUtil.percent`), 대소문자(palindrome-case), 앞 공백(countwords-leading-space). 모든 case.toml에 `probe`/`expected`.
+  **`scripts/check_defects.py`** — 로컬 JDK로 버그 버전 컴파일 + probe 비교(동치 변이 탐지). 12/12 통과(이 PC JDK 23).
+  CI check 잡에 setup-java + 실행 추가. Buggy.java는 고친 소스에 치환 1회를 적용해 생성(일관성)
+- **[발견] v1 truncate-boundary는 동치 변이였다**: `length() <= max`를 `< max`로 바꿔도 길이==max에서 `substring(0, max)`가
+  같은 문자열을 돌려줘 **관찰 불가**. 베이스라인 "5/6 미검출 1건"은 테스트가 못 잡은 게 아니라 잡을 수 없는 결함이었다 —
+  실질 5/5. v2에서는 `substring(0, max - 1)`(한 글자 더 잘림)로 교체해 관찰 가능하게 했다. 자기 검사가 이런 케이스를 막는다
+- **B-4 MCP 서버(ADR-0018)**: `cta/mcp/handlers.py`(cli 함수를 Namespace로 호출 + stdout 캡처, 반환 = 화면 + "종료 코드: N")
+  + `server.py`(`MCPServer`에 도구 5개 등록, `cta-mcp` stdio). SDK `mcp>=2`는 선택 의존성 `[mcp]`. 도구 5개 = 명령 5개
+  (generate/maintain/resolve/list_proposals/apply), 에이전트 내부 도구 6개(R4)와 별개. in-process `call_tool`로
+  `list_proposals` 왕복 확인. Claude Code 등록·실호출은 측정 환경에서
+- **하지 않은 것**: `cta eval` v2 베이스라인 실측(Docker·게이트웨이), B-3 경계값 실험(수치 필요)
+
 ## 검증 기록
 
 - 2026-09-06 착수 전 기준선: `pytest -q` 171 passed, 1 failed(memos 덮어쓰기), 4 deselected. ruff 통과
@@ -54,6 +70,8 @@
 - 미검증: `--quiet`가 실제 생성 진행 줄을 끄는지(Docker·게이트웨이 필요), 토큰 예산 초과 시 되돌림 경로의 실호출 재현
 - 2026-09-06 2주차(B-1·B-5): ruff 통과 · `pytest -q` **216 passed**(신규 12: skills 10, 메모 불변식 2) ·
   `uv build --wheel`로 `cta/adapters/java/skills/*/SKILL.md` 포함 확인. 스킬이 실제 프롬프트에 들어간 실호출·전/후 수치는 미측정
+- 2026-09-06 3주차(B-2·B-4): ruff 통과 · `pytest -q` **222 passed**(신규 6: mcp 핸들러 5 + 서버 1) ·
+  `python scripts/check_defects.py` **12/12 통과** · MCP SDK 2.x in-process 도구 5개 등록·호출 확인
 
 ## 문제·리서치 로그
 
