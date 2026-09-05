@@ -36,7 +36,7 @@ public class MathUtil {
             throw new IllegalArgumentException("음수 불가");
         }
         if (n < 2) {
-            return 1;
+            return n;
         }
         long a = 0;
         long b = 1;
@@ -64,9 +64,6 @@ public class MathUtil {
 
     /** part가 total의 몇 퍼센트인지 정수로 반올림. total이 0 이하면 IllegalArgumentException. */
     public int percent(int part, int total) {
-        if (total <= 0) {
-            throw new IllegalArgumentException("total은 양수여야 한다");
-        }
         return (int) Math.round(part * 100.0 / total);
     }
 }

@@ -13,9 +13,6 @@ public class MathUtil {
         if (min > max) {
             throw new IllegalArgumentException("min이 max보다 크다");
         }
-        if (value < min) {
-            return min;
-        }
         return Math.min(value, max);
     }
 
@@ -36,7 +33,7 @@ public class MathUtil {
             throw new IllegalArgumentException("음수 불가");
         }
         if (n < 2) {
-            return 1;
+            return n;
         }
         long a = 0;
         long b = 1;

@@ -8,6 +8,9 @@ public class TextUtil {
 
     /** 앞뒤 공백 제거 후 최대 max 글자로 자른다. max가 0 이하면 빈 문자열. */
     public String truncate(String text, int max) {
+        if (text == null) {
+            return "";
+        }
         String trimmed = text.trim();
         if (max <= 0) {
             return "";
@@ -20,7 +23,7 @@ public class TextUtil {
         if (text == null || text.isEmpty()) {
             return false;
         }
-        String s = text.toLowerCase();
+        String s = text;
         int i = 0;
         int j = s.length() - 1;
         while (i < j) {

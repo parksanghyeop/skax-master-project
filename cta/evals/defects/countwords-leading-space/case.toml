@@ -1,0 +1,7 @@
+# 결함 케이스: 앞 공백 처리 누락 — split이 빈 첫 토큰을 만들어 단어 수가 1 많다
+target = "TextUtil#countWords"
+class_rel = "src/main/java/com/example/bench/TextUtil.java"
+bug = 'trim 삭제 — "  a b"가 3'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new TextUtil().countWords("  a b")'
+expected = "2"

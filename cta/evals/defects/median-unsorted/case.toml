@@ -1,0 +1,7 @@
+# 결함 케이스: 컬렉션 순서 의존 — 정렬 없이 가운데 원소를 집는다
+target = "MathUtil#median"
+class_rel = "src/main/java/com/example/bench/MathUtil.java"
+bug = 'Arrays.sort 삭제 — 입력 순서에 따라 결과가 달라진다'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new MathUtil().median(new int[] {3, 1, 2})'
+expected = "2.0"

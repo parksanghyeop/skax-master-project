@@ -1,0 +1,7 @@
+# 결함 케이스: 예외 누락 — total이 0이면 IllegalArgumentException이어야 하는데 조용히 이상한 값을 돌려준다
+target = "MathUtil#percent"
+class_rel = "src/main/java/com/example/bench/MathUtil.java"
+bug = 'total <= 0 검사 삭제 — 0으로 나눈 double이 Infinity, (int) 캐스트로 -1'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new MathUtil().percent(1, 0)'
+expected = "throws IllegalArgumentException"

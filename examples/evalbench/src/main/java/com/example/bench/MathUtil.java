@@ -1,5 +1,7 @@
 package com.example.bench;
 
+import java.util.Arrays;
+
 /**
  * 수 계산 유틸 — 평가 하네스의 대상 클래스 2 (고친 버전).
  * 각 메서드는 evals/defects/의 버그 버전과 짝을 이룬다.
@@ -44,5 +46,27 @@ public class MathUtil {
             b = next;
         }
         return b;
+    }
+
+    /** 중앙값. 입력 순서와 무관하다(정렬 후 계산). 짝수 개면 가운데 두 값의 평균. null·빈 배열은 IllegalArgumentException. */
+    public double median(int[] values) {
+        if (values == null || values.length == 0) {
+            throw new IllegalArgumentException("값이 없다");
+        }
+        int[] sorted = values.clone();
+        Arrays.sort(sorted);
+        int mid = sorted.length / 2;
+        if (sorted.length % 2 == 1) {
+            return sorted[mid];
+        }
+        return (sorted[mid - 1] + sorted[mid]) / 2.0;
+    }
+
+    /** part가 total의 몇 퍼센트인지 정수로 반올림. total이 0 이하면 IllegalArgumentException. */
+    public int percent(int part, int total) {
+        if (total <= 0) {
+            throw new IllegalArgumentException("total은 양수여야 한다");
+        }
+        return (int) Math.round(part * 100.0 / total);
     }
 }

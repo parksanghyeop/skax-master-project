@@ -1,0 +1,7 @@
+# 결함 케이스: 대소문자 처리 누락 — 사양은 구분하지 않는데 구분한다
+target = "TextUtil#isPalindrome"
+class_rel = "src/main/java/com/example/bench/TextUtil.java"
+bug = 'toLowerCase 삭제 — "Abba"가 false'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new TextUtil().isPalindrome("Abba")'
+expected = "true"

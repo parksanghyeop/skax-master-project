@@ -29,6 +29,12 @@ jobs:
       - name: Unit tests (replay mode, no LLM / Docker / Neo4j)
         # 게이트웨이 키를 넣지 않는다 — 실호출이 시도되면 GatewayConfigError로 실패해야 정상
         run: pytest -q
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Defect set self-check (buggy compiles, observably differs from fixed)
+        run: python scripts/check_defects.py
 
   integration:
     if: github.event_name == 'workflow_dispatch'

@@ -36,7 +36,7 @@ public class MathUtil {
             throw new IllegalArgumentException("음수 불가");
         }
         if (n < 2) {
-            return 1;
+            return n;
         }
         long a = 0;
         long b = 1;
@@ -54,7 +54,6 @@ public class MathUtil {
             throw new IllegalArgumentException("값이 없다");
         }
         int[] sorted = values.clone();
-        Arrays.sort(sorted);
         int mid = sorted.length / 2;
         if (sorted.length % 2 == 1) {
             return sorted[mid];

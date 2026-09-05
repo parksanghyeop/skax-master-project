@@ -26,7 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]  # cta/cli/ → 리포 루트
 BENCH = REPO_ROOT / "examples" / "evalbench"
 DEFECTS_DIR = REPO_ROOT / "cta" / "evals" / "defects"
 RESULTS_DIR = REPO_ROOT / "cta" / "evals" / "results"
-DATASET_VERSION = "local-defects-v1"  # 케이스를 추가·수정하면 반드시 올린다
+# 케이스를 추가·수정하면 반드시 올린다. v2(2026-09-06): 6건 → 12건, truncate-boundary를
+# 관찰 가능한 결함으로 교체, 각 케이스에 probe/expected 추가(scripts/check_defects.py 자기 검사)
+DATASET_VERSION = "local-defects-v2"
 
 
 def prompt_hash() -> str:

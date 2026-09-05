@@ -1,4 +1,7 @@
-# 결함 케이스: 경계 off-by-one — 길이가 정확히 max일 때 불필요하게 잘린다
+# 결함 케이스: 경계 off-by-one — max보다 길 때 한 글자를 더 잘라낸다
 target = "TextUtil#truncate"
 class_rel = "src/main/java/com/example/bench/TextUtil.java"
-bug = "trimmed.length() <= max 를 < max 로 — 경계값(길이==max)에서 오동작"
+bug = 'substring(0, max)를 substring(0, max - 1)로 — 잘린 결과가 max-1 글자'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new TextUtil().truncate("abcdef", 5)'
+expected = "abcde"

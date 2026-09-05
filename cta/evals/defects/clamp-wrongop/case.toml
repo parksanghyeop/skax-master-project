@@ -1,4 +1,7 @@
 # 결함 케이스: 잘못된 연산자 — 상한 고정이 min/max를 뒤바꿔 동작
 target = "MathUtil#clamp"
 class_rel = "src/main/java/com/example/bench/MathUtil.java"
-bug = "Math.min(value, max)를 Math.max(value, max)로 — 상한을 넘겨도 안 잘림"
+bug = 'Math.min(value, max)를 Math.max(value, max)로 — 상한을 넘겨도 안 잘림'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new MathUtil().clamp(15, 0, 10)'
+expected = "10"

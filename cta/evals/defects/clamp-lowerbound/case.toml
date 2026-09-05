@@ -1,0 +1,7 @@
+# 결함 케이스: 하한 처리 누락 — min보다 작은 값이 그대로 나온다
+target = "MathUtil#clamp"
+class_rel = "src/main/java/com/example/bench/MathUtil.java"
+bug = 'value < min 분기 삭제 — 하한 미적용'
+# 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
+probe = 'new MathUtil().clamp(-5, 0, 10)'
+expected = "0"

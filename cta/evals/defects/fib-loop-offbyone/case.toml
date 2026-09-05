@@ -1,7 +1,7 @@
-# 결함 케이스: 기저 조건 오류 — fibonacci(0)이 0이 아니라 1을 반환
+# 결함 케이스: 반복 경계 off-by-one — n>=2에서 한 항 앞의 값을 돌려준다
 target = "MathUtil#fibonacci"
 class_rel = "src/main/java/com/example/bench/MathUtil.java"
-bug = 'n < 2에서 n 대신 1 반환 — 0번째 값이 틀린다'
+bug = 'i <= n을 i < n으로 — fibonacci(5)가 3'
 # 자기 검사(scripts/check_defects.py): 고친 버전은 expected, 버그 버전은 그와 다른 값이어야 한다
-probe = 'new MathUtil().fibonacci(0)'
-expected = "0"
+probe = 'new MathUtil().fibonacci(5)'
+expected = "5"

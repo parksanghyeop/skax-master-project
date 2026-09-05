@@ -36,11 +36,11 @@ public class MathUtil {
             throw new IllegalArgumentException("음수 불가");
         }
         if (n < 2) {
-            return 1;
+            return n;
         }
         long a = 0;
         long b = 1;
-        for (int i = 2; i <= n; i++) {
+        for (int i = 2; i < n; i++) {
             long next = a + b;
             a = b;
             b = next;
