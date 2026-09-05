@@ -39,6 +39,7 @@ from cta.adapters.java.parsing import find_class_file, parse_methods, parse_targ
 from cta.adapters.java.quality import AssertCountChecker
 from cta.adapters.java.regression import BugReproductionGate
 from cta.adapters.java.runner import JavaTestRunner
+from cta.adapters.java.skills.select import render_skills, select_skills, signals_from
 from cta.adapters.java.writer import JavaTestWriter
 from cta.cli.graph_access import choose_code_graph
 from cta.cli.proposals import STATUS_ACCEPTED, STATUS_NEEDS_REVIEW, save_proposal
@@ -70,6 +71,10 @@ CACHE_DIR_NAME = ".cta/m2repo"
 
 # --max-methods 기본값 — 시나리오 SC-001의 입력 예시(4). 한 번의 생성이 너무 길어지지 않게.
 DEFAULT_MAX_METHODS = 4
+
+# 작성 프롬프트 [프로젝트 관례]의 기본 문장. 스킬(ADR-0017)이 선택되면 그 뒤에 본문이 붙는다.
+# 이 문장은 저장된 LLM 호출 기록과 맞물려 있다 — 바꾸면 기록을 다시 만든다.
+BASE_STYLE_NOTE = "프로젝트의 기존 테스트 스타일(이름 규칙, import 방식, mock 사용법)을 따른다."
 
 # SubmitResult.status → 화면의 결과 상태
 _STATUS_LABEL = {
@@ -192,6 +197,11 @@ def run_generation(
             f"{INDENT}      기존 테스트 파일 있음 → {test_class}에 메서드 추가 "
             f"(기존 {existing_tests}개 유지)"
         )
+    # 스킬 선택(ADR-0017) — 재료·실행 종류라는 이미 결정된 신호로 규칙표 조회. 어떤 신호가 어떤
+    # 스킬을 붙였는지 화면에 남긴다(산출물 "스킬 선택 로그")
+    skills = select_skills(signals_from(materials, regression_sources, authorized_tests))
+    skill_names = [s.name for s in skills]
+    print(f"{INDENT}      적용 스킬: {', '.join(skill_names) if skill_names else '없음'}")
 
     sandbox = DockerSandbox()
     cache_dir = project.root / CACHE_DIR_NAME
@@ -276,7 +286,7 @@ def run_generation(
             model,
             "Java",
             "JUnit 5",
-            "프로젝트의 기존 테스트 스타일(이름 규칙, import 방식, mock 사용법)을 따른다.",
+            "\n\n".join([BASE_STYLE_NOTE, render_skills(skills)]) if skills else BASE_STYLE_NOTE,
         ),
         progress=progress,
     )
@@ -421,6 +431,7 @@ def run_generation(
         "check_satisfied": check_satisfied,
         "mutation_before": mutation_before,
         "mutation_after": mutation_after,
+        "skills": skill_names,
     }
 
 

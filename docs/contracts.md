@@ -62,6 +62,16 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `compare_test_asserts` / `render_changes` (assert_report) | `(before_src, after_src) -> list[AssertChange]` / `-> str` | 테스트 메서드 단위 전/후 + 엄격함 점수(같음 4 > 참/거짓 3 > null 2 > null 아님 1) |
 | `GitChangeExtractor.old_source` / `old_main_sources` | `(file_rel) -> str \| None` / `(change_set) -> dict` | base 시점 소스(git show). 재발 방지 게이트 입력 |
 
+## 테스트 작성 스킬 (adapters/java/skills — ADR-0017)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `Skill` | `name, description, when, body` | `<이름>/SKILL.md` = frontmatter(`---` 사이 `key: value`) + 본문. `load_skills(root) -> dict[name, Skill]` |
+| `SkillSignals` | `uses_mock, regression, resume_with_authorized` (전부 bool) | `signals_from(materials, regression_sources, authorized_tests)` — 이미 결정된 값에서만. LLM 없음 |
+| `select_skills` | `(signals, skills=None) -> list[Skill]` | 규칙표 `_RULES`(이름 → 조건) 순서대로. junit5-mockito ← uses_mock, regression-test ← regression |
+| `render_skills` | `(selected) -> str` | `[스킬: 이름 — 설명]\n본문` 묶음. `run_generation`이 `BASE_STYLE_NOTE` 뒤에 붙여 `PromptedGenerator.style_notes`로 |
+| 불변식 | — | 스킬 본문에 `@Disabled`·`@Ignore`·`assume*` 없음(`tests/test_skills.py`). core는 스킬을 모른다. 도구 6개 유지(R4) |
+
 ## llm 계층 (R7 — 모든 LLM 호출의 유일한 통로)
 
 | 항목 | 시그니처 | 계약 |
@@ -135,7 +145,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 결과 상태 `render.py` | 정상 완료 0 / 사람 확인 필요 3 / 품질 미달 2 / 실패 1 (`EXIT_CODES`) |
 | 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
-| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False) -> dict` | generate/maintain/resolve/eval 공용. 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`) |
+| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False) -> dict` | generate/maintain/resolve/eval 공용. 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
 
 ## 코드 그래프 (graph/ — M4)
 

@@ -91,6 +91,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 | `core/config.py` | cta.toml 전체 설정 — 게이트·반복 상한·시간 초과·모델·토큰 예산. 우선순위 환경변수 > .env > cta.toml | 3단계 A-2 |
 | `llm/masking.py` | 시크릿 가림 — 키 값·키 모양을 `****`로, CLI 출력 직전 2차 방어 | 3단계 A-3 |
 | `cli/hints.py` | 오류 안내 표 — 예외·문구 → "왜 / 할 일 / 명령" 세 줄. `main()`의 유일한 예외 출구 | 3단계 A-5 |
+| `adapters/java/skills/` | 테스트 작성 스킬 — `<이름>/SKILL.md` 2개(junit5-mockito·regression-test) + `select.py`(규칙표 선택·렌더링). core 무관, 도구 추가 없음 | ADR-0017 |
 | `.github/workflows/ci.yml` | CI — check(ruff·pytest 재생 모드, py 3.11/3.12) + integration(수동: docker·neo4j) | 3단계 A-1 |
 | `core/submit.py` | 생성→게이트 재시도 루프 (탈락 사유 반환, 소진 시 사람 확인) | M6 |
 | `adapters/java/gates.py` | 게이트 ①assert(메서드 단위·허용 목록) ②스킵 ③범위 ④커버리지 구현 + 기준선 스냅샷 | M6 |
