@@ -1,7 +1,7 @@
 # Code Test Agent — CLAUDE.md
 
 Java 소스 변경에 맞춰 테스트 코드를 자동 생성·유지보수하는 LLM 에이전트.
-Python + LangGraph, 사내 LLM 게이트웨이(Kimi/Qwen/GLM), Neo4j 코드 그래프, Docker 샌드박스.
+Python + LangGraph, 사내 LLM 게이트웨이(Azure OpenAI 호환, 기본 deployment gpt-5 — ADR-0011·0013), Neo4j 코드 그래프, Docker 샌드박스.
 
 ## 진실의 원천
 
