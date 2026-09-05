@@ -75,8 +75,8 @@ class DockerSandbox:
     무엇을 하나: 이미지·명령·마운트를 받아 1회용 컨테이너(--rm)에서 돌리고
       종료 코드와 출력을 돌려준다.
     실패 시 동작: 명령 실패는 exit_code로 전달(예외 아님). 시간 초과는
-      TIMEOUT_EXIT_CODE로 전달. docker CLI 자체가 없으면 FileNotFoundError가
-      그대로 올라온다 — 환경 문제는 숨기지 않는다.
+      TIMEOUT_EXIT_CODE로 전달. docker CLI 자체가 없으면 'docker'를 담은 FileNotFoundError를
+      던진다 — 환경 문제는 숨기지 않고, 오류 안내가 알아볼 수 있게 한다.
     """
 
     def run(
@@ -107,4 +107,10 @@ class DockerSandbox:
                 exit_code=TIMEOUT_EXIT_CODE,
                 output=f"{partial}\n[샌드박스 시간 초과: {timeout_seconds}초]",
             )
+        except FileNotFoundError as e:
+            # Windows 원문("[WinError 2] 지정된 파일을 찾을 수 없습니다")에는 'docker'가 없어
+            # 오류 안내(cli/hints)가 Docker 문제로 알아보지 못한다 — 무엇을 못 찾았는지 담는다
+            raise FileNotFoundError(
+                f"docker 실행 파일을 찾을 수 없다 — Docker가 설치돼 있고 PATH에 있는가 ({e})"
+            ) from e
         return SandboxResult(exit_code=proc.returncode, output=proc.stdout + proc.stderr)

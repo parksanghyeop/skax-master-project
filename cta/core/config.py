@@ -5,8 +5,8 @@
 시크릿(게이트웨이 주소·API 키)은 이 파일로 받지 않는다 — .env·환경변수만(ADR-0011).
 
 우선순위(높은 쪽이 이긴다): 환경변수 > .env > cta.toml > 코드 기본값.
-cta.toml 값은 cli가 `make_llm_client(model_default=…, timeout_default=…)`로 넘겨 환경변수의
-기본값 자리에 놓는다 — 그래서 환경변수·.env가 이미 있으면 그쪽이 그대로 이긴다.
+cta.toml 값은 cli가 `make_llm_client(model_default=…, timeout_default=…)`로 넘기고, 환경변수·.env에
+값이 없을 때만 쓰인다. 환경변수에 써넣지 않는다(오래 사는 프로세스가 프로젝트를 바꿔도 오염 없음).
 
 형식 예 (대상 프로젝트 루트의 cta.toml):
     [gates]

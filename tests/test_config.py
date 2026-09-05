@@ -62,16 +62,24 @@ class TestPrecedence:
         self.no_dotenv = tmp_path / "없는.env"
 
     def test_환경변수가_없으면_cta_toml_값이_쓰인다(self):
-        _, model = make_llm_client(self.no_dotenv, model_default="gpt-5", timeout_default=600)
+        client, model = make_llm_client(self.no_dotenv, model_default="gpt-5", timeout_default=600)
         assert model == "gpt-5"
-        assert os.environ["CTA_GATEWAY_TIMEOUT"] == "600"
+        assert client.timeout == 600
 
     def test_환경변수가_있으면_cta_toml_값을_덮지_않는다(self, monkeypatch):
         monkeypatch.setenv("CTA_LLM_MODEL", "gpt-4.1-mini")
         monkeypatch.setenv("CTA_GATEWAY_TIMEOUT", "120")
-        _, model = make_llm_client(self.no_dotenv, model_default="gpt-5", timeout_default=600)
+        client, model = make_llm_client(self.no_dotenv, model_default="gpt-5", timeout_default=600)
         assert model == "gpt-4.1-mini"
-        assert os.environ["CTA_GATEWAY_TIMEOUT"] == "120"
+        assert client.timeout == 120
+
+    def test_cta_toml_값은_환경변수에_남지_않는다(self):
+        # 오래 사는 프로세스(MCP 서버)가 다음 프로젝트를 다룰 때 이전 프로젝트 설정이 이기면 안 된다
+        make_llm_client(self.no_dotenv, model_default="gpt-5", timeout_default=600)
+        assert "CTA_LLM_MODEL" not in os.environ
+        assert "CTA_GATEWAY_TIMEOUT" not in os.environ
+        client, model = make_llm_client(self.no_dotenv, model_default="gpt-4.1", timeout_default=90)
+        assert (model, client.timeout) == ("gpt-4.1", 90)
 
     def test_dotenv가_있으면_cta_toml보다_이긴다(self, tmp_path):
         dotenv = tmp_path / ".env"

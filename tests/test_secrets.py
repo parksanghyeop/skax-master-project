@@ -90,3 +90,18 @@ class TestTokenBudget:
         for _ in range(5):
             client.chat([ChatMessage("user", "x")], "m")
         assert client.total_tokens == 500
+
+
+class TestDockerMissing:
+    def test_docker_실행_파일이_없으면_메시지에_docker가_들어간다(self, monkeypatch):
+        # Windows 원문 "[WinError 2] 지정된 파일을 찾을 수 없습니다"에는 docker가 없다 —
+        # 그대로 올라오면 오류 안내(cli/hints)가 Docker 문제로 알아보지 못한다
+        import cta.sandbox.docker_sandbox as sandbox_module
+        from cta.sandbox.docker_sandbox import DockerSandbox
+
+        def missing(*_args, **_kwargs):
+            raise FileNotFoundError(2, "지정된 파일을 찾을 수 없습니다")
+
+        monkeypatch.setattr(sandbox_module.subprocess, "run", missing)
+        with pytest.raises(FileNotFoundError, match="docker"):
+            DockerSandbox().run("img", ["true"], [], "/work")

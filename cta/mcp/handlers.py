@@ -10,6 +10,7 @@ stdout 캡처가 필수인 이유: MCP stdio 전송은 표준 출력을 프로�
 
 import argparse
 import io
+import threading
 from collections.abc import Callable
 from contextlib import redirect_stdout
 
@@ -20,11 +21,15 @@ from cta.cli.resolve_cmd import run_resolve
 
 EXIT_LINE = "종료 코드"
 
+# redirect_stdout은 프로세스 전역(sys.stdout)을 바꾼다. 서버가 도구 호출을 동시에 처리하면
+# 두 호출의 화면이 섞이므로 한 번에 하나만 실행한다 — 샌드박스·게이트웨이 호출도 직렬이 안전하다.
+_ONE_AT_A_TIME = threading.Lock()
+
 
 def _run(func: Callable[[argparse.Namespace], int], args: argparse.Namespace) -> str:
     """서브커맨드를 실행해 화면 출력 + 종료 코드 한 줄을 돌려준다. 예외도 안내 문구로 담는다."""
     buffer = io.StringIO()
-    with redirect_stdout(buffer):
+    with _ONE_AT_A_TIME, redirect_stdout(buffer):
         try:
             code = func(args)
         except Exception as e:  # noqa: BLE001 — 도구 결과로 원인·다음 행동을 돌려준다(main()과 같은 정책)

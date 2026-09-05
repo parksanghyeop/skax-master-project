@@ -57,7 +57,13 @@ class GatewayClient:
     호출 실패·응답 형식 이상 → GatewayCallError.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, timeout_default: int | None = None) -> None:
+        """timeout_default: 환경변수 CTA_GATEWAY_TIMEOUT이 없을 때 쓸 값(cta.toml [gateway]).
+
+        환경변수를 고쳐 넣지 않고 인자로 받는 이유: MCP 서버처럼 오래 사는 프로세스가 여러
+        프로젝트를 차례로 다룰 때 첫 프로젝트의 설정이 환경변수에 남아 다음 프로젝트를
+        오염시키면 안 된다.
+        """
         base_url = os.environ.get(ENV_BASE_URL)
         api_key = os.environ.get(ENV_API_KEY)
         if not base_url or not api_key:
@@ -68,10 +74,18 @@ class GatewayClient:
         self._base_url = base_url
         self._api_key = api_key
         self._api_version = os.environ.get(ENV_API_VERSION) or DEFAULT_API_VERSION
+        configured = os.environ.get(ENV_TIMEOUT, "").strip()
         try:
-            self._timeout = int(os.environ.get(ENV_TIMEOUT, "") or REQUEST_TIMEOUT_SECONDS)
+            self._timeout = int(configured) if configured else REQUEST_TIMEOUT_SECONDS
         except ValueError:
             self._timeout = REQUEST_TIMEOUT_SECONDS
+        if not configured and timeout_default is not None:
+            self._timeout = timeout_default
+
+    @property
+    def timeout(self) -> int:
+        """실제 적용된 응답 대기 상한(초) — 설정 우선순위 테스트와 안내 문구가 읽는다."""
+        return self._timeout
 
     def chat(self, messages: list[ChatMessage], model: str) -> ChatResponse:
         body = json.dumps(build_payload(messages)).encode("utf-8")

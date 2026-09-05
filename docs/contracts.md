@@ -83,7 +83,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `RecordingClient` | `(inner, cassette_path)` | 호출마다 기록(JSON) 갱신. 시크릿은 기록에 미포함. 응답에 usage_tokens 포함 |
 | `ReplayClient` | `(cassette_path)` | 순서대로 재생 + 요청 대조. 기록 없음·소진·불일치 → `CassetteError`. **실호출 폴백 없음** |
 | `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_API_KEY` 필수, `CTA_GATEWAY_API_VERSION`·`CTA_GATEWAY_TIMEOUT`(기본 300초) 선택 | Azure OpenAI 호환(ADR-0011): `/openai/deployments/{model}/chat/completions?api-version=...`, 인증 `api-key` 헤더. 없으면 `GatewayConfigError`. 오류 문구에 키를 넣지 않는다 |
-| `make_llm_client` | `(dotenv_path=None, *, model_default=None, timeout_default=None) -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` > cta.toml(`*_default` 인자, setdefault) > 코드 기본값 |
+| `make_llm_client` | `(dotenv_path=None, *, model_default=None, timeout_default=None) -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` > cta.toml(`*_default` 인자) > 코드 기본값. `*_default`는 환경변수에 써넣지 않는다(장수 프로세스 오염 방지). `GatewayClient(timeout_default).timeout`으로 적용값 확인 |
 | `mask_secrets` (masking) | `(text) -> str` | 환경변수의 키 값과 키 모양(`atl-…`)을 `****`로. CLI가 출력 직전에 적용(`cli/hints.render_error`) |
 
 기록 형식: `[{"request": {"model", "messages"}, "response": {"content", "usage_tokens"}}]` JSON 배열.
@@ -121,7 +121,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|---|
 | `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
 | `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
-| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)`의 setdefault로만 들어간다 — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않는다 |
+| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, MCP 서버가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
 
 절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model / `[budget]` max_tokens_per_run.
 | `Gate` (포트) | `name; check() -> GateResult(name, passed, reason)` | 예외 없이 판정. 측정 불가 = 탈락(보수적) |
@@ -156,7 +156,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `handlers.resolve` | `(project, decision, escalation_id="", hint="", fast=False) -> str` | decision ∈ intended/test-issue/proceed/skip, 아니면 종료 코드 1 문구 |
 | `handlers.list_proposals` / `handlers.apply` | `(project, name="")` / `(project, name="", all=False)` | `_cmd_diff` / `_cmd_apply` |
 | `server.build_server` | `() -> MCPServer` | `mcp>=2` 없으면 ImportError. 도구 = `handlers.TOOLS` 순서. `main()`은 stdio |
-| 불변식 | — | stdout은 전부 캡처(프로토콜 채널 보호). 시크릿은 인자로 받지 않는다. 에이전트 내부 도구 6개(R4)와 별개 |
+| 불변식 | — | stdout은 전부 캡처(프로토콜 채널 보호)하고 도구 실행은 한 번에 하나(`threading.Lock` — 전역 stdout 교체가 섞이지 않게). 시크릿은 인자로 받지 않는다. 에이전트 내부 도구 6개(R4)와 별개 |
 
 ## 결함 세트 (evals/defects — ADR-0014, v2)
 
