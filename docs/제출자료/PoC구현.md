@@ -5,6 +5,17 @@ LLM은 두 곳(변경 의도 판단, 테스트 코드 작성)에만 쓰고, 안�
 명령은 `시나리오수립.md`의 기능 이름과 1:1로 대응하고, 모든 실측은 Neo4j 코드 그래프·Docker 샌드박스·
 gpt-5(사내 게이트웨이)를 실제로 연결해 얻었다.
 
+## 한눈에 보기
+
+- **구현한 핵심 모듈**: 5단계 파이프라인(변경 추출 → 건별 의도 분류 → 규칙표 → LangGraph 작성 루프 → 게이트 6종 → 제안 보관) ·
+  경량 Java 파서(정규식 + 중괄호 짝맞춤) · Neo4j 코드 그래프(DECLARES/CREATES/COVERS, 파싱 폴백) · 사람 개입 저장·재개(`cta resolve`) · LLM 호출 기록·재생
+- **실제로 검증한 시나리오** (2026-09-03, gpt-5 + Docker + Neo4j 실연결, 실행 로그 원문은 [§4](#4-핵심-동작-검증)):
+  SC-001 테스트 생성(1차 통과, +4) · SC-002 버그 수정 → 재발 방지 테스트(1차 실패 → 2차 통과, 수정 전 코드에서 실패 확인) ·
+  SC-003 리팩터링인데 테스트 깨짐 → 사람 확인(종료 코드 3) → `resolve`로 재개(assert 9개 보존) · SC-004 assert 완화 차단 · 재생 시연(0 토큰)
+- **확인된 한계**: 파서가 정규식 근사(제네릭·중첩 클래스) · COVERS는 테스트 클래스 단위 · CALLS 관계 없음 · 확신도는 표시용(분기 안 함) · 저장된 호출 기록이 예제 트리에 묶임
+- **다음 Task 확장 범위**: 워크플로우에 상황별 스킬(테스트 작성 지식 묶음) 붙이기 → 전/후 수치 비교 · MCP 서버(같은 core) · 판단 메모 검색 · 멀티모듈 Maven
+- **구현 범위 구분**(동작 확인 완료 / 제한적 동작 / 향후 확장)은 [§5](#5-구현-범위--동작-확인-완료--제한적-동작--향후-확장) 표, 모듈 간 데이터 계약은 [§2.0](#20-이-poc의-최소-계약)
+
 | 항목 | 값 |
 |---|---|
 | 대상 | Java · Maven 단일 모듈 · JUnit 5 |
@@ -21,10 +32,10 @@ gpt-5(사내 게이트웨이)를 실제로 연결해 얻었다.
 
 1. [개요 — 무엇을 하나](#1-개요--무엇을-하나)
 2. [핵심 구현 내용](#2-핵심-구현-내용) — 요약. 상세는 별도 문서 [핵심구현.md](핵심구현.md)
-   2.1 에이전트 워크플로우 · 2.2 도구 및 함수 연동 · 2.3 데이터 및 컨텍스트
+   2.0 이 PoC의 최소 계약 · 2.1 에이전트 워크플로우 · 2.2 도구 및 함수 연동 · 2.3 데이터 및 컨텍스트
 3. [주요 문제 해결 및 기술 리서치](#3-주요-문제-해결-및-기술-리서치)
-4. [핵심 동작 검증](#4-핵심-동작-검증)
-5. [한계와 다음 단계](#5-한계와-다음-단계)
+4. [핵심 동작 검증](#4-핵심-동작-검증) — 실행 로그 원문 포함
+5. [구현 범위 — 동작 확인 완료 / 제한적 동작 / 향후 확장](#5-구현-범위--동작-확인-완료--제한적-동작--향후-확장)
 6. [문서 지도 · 재현 명령](#6-문서-지도--재현-명령)
 
 ---
@@ -81,6 +92,27 @@ llm       LLM 호출의 유일한 통로        프롬프트 파일, 게이트�
 graph     코드 그래프 모델·저장소       Neo4j / 인메모리, 질의 → 답 문장
 sandbox   Docker 실행 래퍼              네트워크 차단, 마운트 통제
 ```
+
+### 2.0 이 PoC의 최소 계약
+
+모듈 경계를 건너는 데이터만 모았다. 이 표가 맞으면 E2E 단계의 MCP 서버도 같은 입출력으로 설계할 수 있다.
+전체 정의는 [`docs/contracts.md`](../contracts.md), 필드명은 2026-09-06 코드 기준이다.
+
+| 계약 | 핵심 필드 | 만드는 곳 → 쓰는 곳 | 정의 파일 |
+|---|---|---|---|
+| `ChangedSymbol` | `target`("Class#method") · `lines_added/removed` · `signature_changed` · `access_changed` · `comment_only` · `diff_excerpt` · `file_rel` · `change_line` | 변경 추출(git diff) → 의도 분류·화면 | `core/pipeline/models.py` |
+| `ChangeSet` | `symbols: list[ChangedSymbol]` · `commit_message` · `issue_refs` | 변경 추출 → 의도 분류 단서 | 같음 |
+| `Intent` | `category`(bug_fix / refactor / new_feature / trivial / unclear) · `confidence` 0~1 · `evidence` 목록 · `analysis` | LLM 1회(건별) → 규칙표·지침서·화면 | 같음 |
+| `ActionDecision` | `kind`(create_test / no_action / escalate / ask) · `target` · `briefing`(작업 지침서) · `reason`(걸린 규칙표 행) | 규칙표 `(category, tests_status) → kind` → 작성 루프 또는 저장 | `core/pipeline/decide.py` |
+| `WriterState` (LangGraph 상태) | `instruction` · `target` · `test_path` · `selector` · `context` · `extra_context` · `test_code` · `write_result` · `last_run` · `prev_run` · `attempts` · `quality` · `report` · `status`(working / passed / reported) · `history` | 조치 결정이 앞 5개를 채움 → 노드들이 갱신 → 게이트·보관소 | `core/writer_graph.py` |
+| `RunResult` | `passed: bool` · `summary: str`(모델에게 그대로 보여줄 요약) | `TestRunner.run(selector)` → 도구 `run_tests` 문장 | `core/ports.py` |
+| `GateResult` / `GateReport` | `name` · `passed` · `reason` / `results` 목록. 기준치 `GateConfig`(라인 0.80 · 분기 0.70 · 재시도 3 · 뮤테이션 0.5, `cta.toml`로 덮어씀) | 게이트 6종 → 탈락 사유를 지침서에 붙여 재생성, 통과면 제안 | `core/gates.py` |
+| 코드 그래프 | 노드 `GraphNode{kind: Class \| Method, key, props}` · 엣지 `GraphEdge{kind: DECLARES \| CREATES \| COVERS, src, dst}`. Neo4j 저장은 단일 라벨 `CodeNode` + 관계 `REL{kind}` | `cta graph` 빌드 → 질의 3종(`verifying_tests` · `how_to_create` · `similar_tests`) → 문장(800토큰 상한) | `graph/model.py` · `graph/neo4j_store.py` |
+| 도구 6종 | `inspect_target(target)` · `query_code_graph(query, target)` · `write_test(path, code)` · `run_tests(selector)` · `check_quality(path)` · `report_finding(finding)` — 전부 `-> str`(4,000자 상한), 예외 대신 문장 | 작성 루프 노드 → 포트(어댑터) | `core/tools/*.py` (1도구 1파일) |
+| 저장 항목 `Escalation` | `id` · `kind`(escalate / ask) · `target` · `category` · `confidence` · `evidence` · `analysis` · `reason` · `briefing` · `tests` · `failed_tests[{name, expected, actual, message}]` · `diff_excerpt` · `base` · `status` | `maintain`이 멈출 때 저장 → `cta resolve`가 읽어 재개 | `cli/escalations.py` |
+| 저장 항목 `Proposal` | `name` · `target` · `test_rel` · `status` · `gate_summary`(게이트별 한 줄) · `created_at` | 작성 루프 통과 → `cta diff` / `cta apply` | `cli/proposals.py` |
+
+경계 규칙 두 줄. `core`는 `target`·`selector`를 불투명 문자열로만 다루고 문법 해석은 어댑터가 한다. LLM은 `TestCodeGenerator.generate(instruction, context, current_code, last_failure)`와 `IntentClassifier.classify(change, change_set, memos)` 두 포트 뒤에만 있다.
 
 ### 2.1 에이전트 워크플로우 (Agent Workflow)
 
@@ -204,7 +236,63 @@ sandbox   Docker 실행 래퍼              네트워크 차단, 마운트 통�
   5. 게이트 5종 통과 (커버리지 100/100, 검출력 4/4)
 * **최종 결과:** +4 테스트(총 24), 정상 완료(종료 코드 0), 5분 13초 · 8,874 토큰. 제안은 `.cta/proposals/`에 저장, `cta diff`로 확인
 
+실행 로그 원문 (가운데 건너뜀 목록만 줄임):
+
+```text
+$ cta generate --class com.example.demo.order.OrderService --max-methods 2
+
+대상: com.example.demo.order.OrderService
+
+[1/4] 재료 수집
+      건너뜀 OrderService.create — 기존 테스트가 이미 참조 (강제 생성: --all)
+      건너뜀 OrderService.findById — 기존 테스트가 이미 참조 (강제 생성: --all)
+      … (같은 사유 5건) …
+      건너뜀 OrderService.findAll — --max-methods 2 초과 — 다음 실행에서
+      테스트 만들 메서드 2개 선정: delete, total
+      확인해야 할 항목 4개 (분기 3, 경계값 0, 예외 1, null 0)
+
+[2/4] 파라미터 객체 만드는 법 확인
+      Long            → 직접 생성 (표준 타입)
+      List            → 직접 생성 (표준 타입)
+      OrderRepository → mock 사용 (DB에 접근하는 인터페이스)
+      기존 테스트 파일 있음 → OrderServiceTest에 메서드 추가 (기존 20개 유지)
+      유사 테스트 검색: 코드 그래프(Neo4j 실측)
+
+[3/4] 테스트 작성 (모델: gpt-5, 결과: src/test/java/com/example/demo/order/OrderServiceTest.java)
+      [   1초] 정보 수집 — 대상 조사·비슷한 테스트 검색
+      [   1초] 코드 생성 중 — LLM 호출 (1번째 시도, 수십 초 걸릴 수 있다)
+      [  65초] 생성 완료 (10884자, 64초) → 파일 쓰기
+      [  99초] 샌드박스 실행 중 — OrderServiceTest
+      [ 149초] 실행 끝 (49초) — 통과
+      [ 149초] 테스트 통과 — 품질 게이트 검사 시작
+      [ 149초] 게이트[assert] 통과 (0초)
+      [ 149초] 게이트[skip] 통과 (0초)
+      [ 149초] 게이트[scope] 통과 (0초)
+      [ 211초] 게이트[coverage] 통과 (62초)
+      [ 313초] 게이트[mutation] 통과 (102초)
+      1차   전체 통과
+
+[4/4] 품질 확인
+      확인 항목 충족   4 / 4  (100%)
+      버그 검출력      100%
+      기준 낮춤 여부   없음
+      게이트[assert] 통과 — 기존 assert 27개 모두 보존됨
+      게이트[skip] 통과 — 새 스킵 어노테이션 없음
+      게이트[scope] 통과 — 변경이 허용 목록(1개) 안에 있음
+      게이트[coverage] 통과 — 라인 100%, 분기 100% (기준 충족)
+      게이트[mutation] 통과 — 심은 버그 4개 중 4개 검출(100%)
+
+수정됨    src/test/java/com/example/demo/order/OrderServiceTest.java  (+4 테스트, 제안 'OrderServiceTest')
+테스트    24개 / 전체 통과
+소요      5분 13초 · 8,874 토큰
+
+결과 상태: 정상 완료
+```
+
+<details><summary>캡처 이미지</summary>
+
 ![SC-001 실행](images/sc001-generate.png)
+</details>
 
 같은 명령을 `--max-methods 4`로 돌린 실측: 확인 항목 25개, 1차 실행 실패 → 실패 로그+직전 코드로 2차 통과, +16 테스트, 검출력 95%, 7분 54초 · 18,896 토큰.
 
@@ -219,7 +307,100 @@ sandbox   Docker 실행 래퍼              네트워크 차단, 마운트 통�
   5. 작성 루프 — 1차 Mockito 오류 → 2차 통과 → 게이트 6종. **regression: 수정 전 코드에서 실패함 → 통과**
 * **최종 결과:** 재발 방지 테스트 +9(확인 항목 12/12), 버그 검출력 0% → 100%, 정상 완료, 9분 30초 · 16,704 토큰(생성) + 1,112(분류)
 
+실행 로그 원문. 읽는 순서는 `①② 의도 분류(LLM JSON을 화면 형식으로)` → `할 일`(규칙표 행 `bug_fix × none → create_test`) → `[3/4]` 1차 실패·2차 통과 → `[4/4]` 게이트 6종 → 종료:
+
+```text
+$ cta maintain --diff HEAD~1
+
+변경 2건 확인 (비교 기준: HEAD~1, 커밋 메시지: "fix: 할인 임계금액 경계 조건 오류 수정 (#4821)")
+기존 테스트 찾기: 코드 그래프(Neo4j 실측)
+
+      … 의도 분류 중 — OrderService#applyDiscount
+① OrderService.applyDiscount
+   판단    버그 수정            (확신도 98%)
+   근거    · 커밋 메시지: fix: 할인 임계금액 경계 조건 오류 수정 (#4821)
+           · 조건문 비교 연산자 변경: amount.compareTo(THRESHOLD) > 0 → >= 0
+           · 메서드 시그니처와 접근제어자 불변, 변경 라인 수 +1/-1로 경계 조건만 조정
+   분석    GOLD 등급 고객의 할인 적용 조건에서 임계값 비교를 초과(>)에서 이상(>=)으로 수정하여
+           임계값과 정확히 같은 금액도 할인이 적용되도록 했다. … 테스트는 GOLD 고객에서
+           amount == THRESHOLD일 때 할인 적용 여부가 참인지 확인하고, amount < THRESHOLD는 미적용,
+           > THRESHOLD는 적용되는 것을 검증해야 한다. …
+   기존 테스트   없음  → 없음
+   참고    비슷한 과거 사례 없음
+   할 일   재발 방지 테스트 추가
+
+② OrderService.total
+   판단    의미 없는 변경        (확신도 100%)
+   근거    · 주석만 수정됨 (코드 줄 변경 0)
+   참고    비슷한 과거 사례 없음
+   할 일   없음
+
+① 처리 — OrderService.applyDiscount
+
+대상: com.example.demo.order.OrderService
+
+[1/4] 재료 수집
+      테스트 만들 메서드 1개 선정: applyDiscount
+      확인해야 할 항목 12개 (분기 5, 경계값 2, 예외 3, null 2)
+
+[2/4] 파라미터 객체 만드는 법 확인
+      Order           → 직접 생성 (Order.builder() 사용)
+      Customer        → 직접 생성 (값만 담는 객체)
+      boolean         → 직접 생성 (표준 타입)
+      OrderRepository → mock 사용 (DB에 접근하는 인터페이스)
+      기존 테스트 파일 있음 → OrderServiceTest에 메서드 추가 (기존 4개 유지)
+
+      기존 테스트의 버그 검출력 측정 중 (전후 비교용)...
+      유사 테스트 검색: 코드 그래프(Neo4j 실측)
+
+[3/4] 테스트 작성 (모델: gpt-5, 결과: src/test/java/com/example/demo/order/OrderServiceTest.java)
+      [ 113초] 정보 수집 — 대상 조사·비슷한 테스트 검색
+      [ 113초] 코드 생성 중 — LLM 호출 (1번째 시도, 수십 초 걸릴 수 있다)
+      [ 185초] 생성 완료 (5911자, 72초) → 파일 쓰기
+      [ 219초] 샌드박스 실행 중 — OrderServiceTest
+      [ 263초] 실행 끝 (45초) — 실패
+      [ 263초] 코드 생성 중 — LLM 호출 (2번째 시도, 수십 초 걸릴 수 있다)
+      [ 310초] 생성 완료 (5853자, 47초) → 파일 쓰기
+      [ 342초] 샌드박스 실행 중 — OrderServiceTest
+      [ 383초] 실행 끝 (42초) — 통과
+      [ 383초] 테스트 통과 — 품질 게이트 검사 시작
+      1차   실행 실패 — 13개 중 실패 0건, 오류 1건
+      2차   전체 통과
+
+[4/4] 품질 확인
+      확인 항목 충족   12 / 12  (100%)
+      버그 검출력      0% → 100%
+      기준 낮춤 여부   없음
+      게이트[assert] 통과 — 기존 assert 9개 모두 보존됨
+      게이트[skip] 통과 — 새 스킵 어노테이션 없음
+      게이트[scope] 통과 — 변경이 허용 목록(1개) 안에 있음
+      게이트[regression] 통과 — 수정 전 코드에서 실패함 (정상 — 버그를 잡는 테스트)
+      게이트[coverage] 통과 — 라인 100%, 분기 100% (기준 충족)
+      게이트[mutation] 통과 — 심은 버그 10개 중 10개 검출(100%)
+
+수정됨    src/test/java/com/example/demo/order/OrderServiceTest.java  (+9 테스트, 제안 'OrderServiceTest')
+테스트    13개 / 전체 통과
+소요      9분 30초 · 16,704 토큰
+
+결과 상태: 정상 완료
+   확인: 수정 전 코드에서 실패하는가? → 실패함 (정상)
+
+품질 확인
+   기존 테스트 조건 느슨해짐   없음
+   버그 검출력                 0% → 100%
+
+수정됨      OrderServiceTest.java (+9)  → 제안 'OrderServiceTest': cta diff / cta apply
+손대지 않음 1건
+사람 확인   0건
+소요 토큰   1,112
+
+결과 상태: 정상 완료
+```
+
+<details><summary>캡처 이미지</summary>
+
 ![SC-002 실행](images/sc002-maintain.png)
+</details>
 
 **[검증 3 — SC-003 리팩터링인데 테스트가 깨짐 → 사람 확인]**
 
@@ -232,7 +413,82 @@ sandbox   Docker 실행 래퍼              네트워크 차단, 마운트 통�
   5. 사람 확인 상자 출력 — 실패 테스트 `calculate_emptyItems_returnsZero`(기대 0, 실제 null), 확인해 보실 곳 17행, 선택지. "참고" 줄에 직전 `resolve`의 판단 메모
 * **최종 결과:** 상태를 `.cta/escalations/`에 저장하고 멈춤, 종료 코드 3
 
+실행 로그 원문. 규칙표 행은 `refactor × fail → escalate`이고 화면에는 `할 일  사람 확인 (자동으로 고치지 않음)`으로 나온다:
+
+```text
+$ cta maintain --diff HEAD~1
+
+변경 1건 확인 (비교 기준: HEAD~1, 커밋 메시지: "refactor: calculate를 스트림으로 정리")
+기존 테스트 찾기: 코드 그래프(Neo4j 실측)
+
+      … 의도 분류 중 — PricingCalculator#calculate
+      … 기존 테스트 실행 중 — PricingCalculatorTest
+① PricingCalculator.calculate
+   판단    리팩터링 (동작 안 바뀜)    (확신도 86%)
+   근거    · 커밋 메시지에 'refactor: calculate를 스트림으로 정리'라고 명시
+           · 메서드 시그니처·접근자는 그대로
+           · null/빈 목록 처리 변경: 기존은 null 또는 empty면 BigDecimal.ZERO 반환, 변경 후는
+             items.stream()으로 NPE 가능하고 empty면 Optional.empty → orElse(null)로 null 반환
+   분석    for-루프를 스트림 파이프라인으로 치환하고 합계를 Optional.reduce로 계산하도록 바꿨다.
+           다만 기존에는 items가 null/빈 경우 BigDecimal.ZERO를 반환했으나, 변경 후에는 null에서
+           NPE가 날 수 있고 빈 컬렉션이면 null을 반환하게 되어 관찰 가능한 동작이 달라질 소지가 있다. …
+   기존 테스트   PricingCalculatorTest  → 실패
+   참고    2026-09-03 PricingCalculator.calculate: refactor → intended (일부러 동작을 바꾼 것으로 확인 —
+           기대값을 새 기준으로 수정)
+   할 일   사람 확인 (자동으로 고치지 않음)
+
+영향 테스트 실행 → 4건 중 1건 실패
+
+┌──────────────────────────────────────────────┐
+│  사람 확인 필요 — 자동으로 고치지 않았습니다  │
+└──────────────────────────────────────────────┘
+
+동작이 안 바뀌어야 하는 변경인데 테스트가 깨졌습니다.
+
+  (A) 이번 수정에 진짜 버그가 있다        ← 가능성 높음
+  (B) 테스트가 내부 구현에 너무 붙어 있다
+
+실패한 테스트
+  · calculate_emptyItems_returnsZero        기대 0, 실제 null
+
+확인해 보실 곳
+  PricingCalculator.java 17행 부근
+    바뀌기 전 : if (items == null || items.isEmpty()) {
+                    return BigDecimal.ZERO;
+                }
+                BigDecimal subtotal = BigDecimal.ZERO;
+                for (LineItem item : items) {
+                … 외 5줄
+    바뀐 후   : return items.stream()
+                .peek(item -> {
+                    if (item.quantity() <= 0) {
+                        throw new IllegalArgumentException("quantity must be positive");
+                … 외 4줄
+
+수정한 테스트    0건 (일부러 안 함)
+사람 확인 필요   1건
+
+판단을 알려주시면 이어서 진행합니다
+  · 일부러 동작을 바꾼 게 맞다  → cta resolve 20260903-011327-PricingCalculator-calculate --intended
+  · 테스트 쪽 문제다            → cta resolve 20260903-011327-PricingCalculator-calculate --test-issue
+  · 코드를 직접 고쳤다          → 다시 cta maintain
+  · 이번엔 건너뛴다             → cta resolve 20260903-011327-PricingCalculator-calculate --skip
+
+품질 확인
+   기존 테스트 조건 느슨해짐   없음
+
+손대지 않음  0건
+사람 확인    1건
+판단 전달    cta resolve 20260903-011327-PricingCalculator-calculate --intended | --test-issue | --proceed | --skip
+소요 토큰    1,737
+
+결과 상태: 사람 확인 필요
+```
+
+<details><summary>캡처 이미지</summary>
+
 ![SC-003 실행](images/sc003-maintain.png)
+</details>
 
 **[검증 4 — SC-003 8단계 판단 전달 후 재개]**
 
@@ -244,7 +500,60 @@ sandbox   Docker 실행 래퍼              네트워크 차단, 마운트 통�
   4. 결정을 판단 메모(`.cta/memos/`)로 기록
 * **최종 결과:** 제안 저장, 4분 0초 · 4,516 토큰. `--intended`로 재개한 실측도 같은 형태(기대값 1건만 수정)였다
 
+실행 로그 원문 (게이트 진행 줄 일부 줄임):
+
+```text
+$ cta resolve --test-issue
+
+사람 확인 항목이 1건이라 자동 선택: 20260903-011327-PricingCalculator-calculate
+
+  재개: PricingCalculator.calculate — 테스트 쪽 문제로 확인 — 실패 테스트를 동작 기준으로 재작성
+
+  대상: com.example.demo.pricing.PricingCalculator
+
+  [1/4] 재료 수집
+        테스트 만들 메서드 1개 선정: calculate
+        확인해야 할 항목 4개 (분기 1, 경계값 1, 예외 1, null 1)
+
+  [2/4] 파라미터 객체 만드는 법 확인
+        List            → 직접 생성 (표준 타입)
+        BigDecimal      → 직접 생성 (표준 타입)
+        기존 테스트 파일 있음 → PricingCalculatorTest에 메서드 추가 (기존 4개 유지)
+        유사 테스트 검색: 코드 그래프(Neo4j 실측)
+
+  [3/4] 테스트 작성 (모델: gpt-5, 결과: src/test/java/com/example/demo/pricing/PricingCalculatorTest.java)
+        [   1초] 코드 생성 중 — LLM 호출 (1번째 시도, 수십 초 걸릴 수 있다)
+        [  41초] 생성 완료 (1696자, 41초) → 파일 쓰기
+        [  83초] 샌드박스 실행 중 — PricingCalculatorTest
+        [ 120초] 실행 끝 (37초) — 통과
+        [ 120초] 테스트 통과 — 품질 게이트 검사 시작
+        … 게이트[assert]·[skip]·[scope] 통과 (각 0초) …
+        [ 162초] 게이트[coverage] 통과 (42초)
+        [ 240초] 게이트[mutation] 통과 (78초)
+        1차   전체 통과
+
+  [4/4] 품질 확인
+        확인 항목 충족   4 / 4  (100%)
+        버그 검출력      100%
+        기준 낮춤 여부   없음
+        게이트[assert] 통과 — 기존 assert 9개 모두 보존됨 (사람 허용 1건 제외)
+        게이트[skip] 통과 — 새 스킵 어노테이션 없음
+        게이트[scope] 통과 — 변경이 허용 목록(1개) 안에 있음
+        게이트[coverage] 통과 — 라인 100%, 분기 100% (기준 충족)
+        게이트[mutation] 통과 — 심은 버그 1개 중 1개 검출(100%)
+
+  수정됨    src/test/java/com/example/demo/pricing/PricingCalculatorTest.java  (+1 테스트, 제안 'PricingCalculatorTest')
+  테스트    5개 / 전체 통과
+  소요      4분 0초 · 4,516 토큰
+
+  결과 상태: 정상 완료
+  다음: cta diff → 검토, cta apply PricingCalculatorTest → 반영
+```
+
+<details><summary>캡처 이미지</summary>
+
 ![SC-003 재개](images/sc003-resolve.png)
+</details>
 
 **[검증 5 — SC-004 assert 완화 차단]** (단위 불변식 테스트, Fake)
 
@@ -270,14 +579,51 @@ applyDiscount_negativeAmount_throws
 
 ---
 
-## 5. 한계와 다음 단계
+## 5. 구현 범위 — 동작 확인 완료 / 제한적 동작 / 향후 확장
 
-- 확인 항목·객체 생성법은 정규식 기반 근사다. 제네릭·중첩 클래스가 많은 코드에서는 빗나갈 수 있다
-- COVERS는 테스트 클래스 단위 실측이다. 테스트 메서드 단위로 연결하는 것은 비용이 커서 미룬 상태
-- CALLS 관계(호출하는 곳)는 그래프에 없다 — 정적으로 100% 확정되지 않아 후순위
-- 확신도는 모델이 매긴 값이라 보정된 확률이 아니다. 코드는 이 값으로 분기하지 않는다
-- 저장된 호출 기록은 예제 트리에 묶여 있어 예제를 바꾸면 다시 만들어야 한다
-- 다음: MCP 서버(같은 core 재사용), 판단 메모 임베딩 검색, 멀티모듈 Maven
+"완료"는 §4의 실측 번호나 자동 테스트 파일을 근거로 댈 수 있는 것만 넣었다. 근거가 없으면 "제한적"으로 내렸다.
+
+**동작 확인 완료** — 실측 또는 자동 테스트로 확인됨
+
+| 항목 | 근거 |
+|---|---|
+| 5단계 파이프라인 (변경 추출 → 건별 의도 분류 → 규칙표 → 작성 루프 → 게이트 → 제안) | 검증 2·3, `tests/test_pipeline.py`, `test_maintain_core.py` |
+| 의도 분류 — 변경 건당 LLM 1회, JSON(판단·확신도·근거·분석), 주석만 변경은 LLM 없이 trivial | 검증 2(98% / 100%), 검증 3(86%) |
+| 규칙표 — "기대값 자동 갱신" 행 없음, unclear는 표 조회 전 ask | 검증 2·3, `test_pipeline.py` |
+| LangGraph 작성 루프 — 직전 코드+실패 재주입, 소프트 4회·하드 8회 상한, 실패 분류 3종 | 검증 1'·2(1차 실패 → 2차 통과), `test_writer_graph.py` |
+| interrupt 저장 → `cta resolve` 재개, 사람이 지정한 실패 테스트 1건만 assert 변경 허용 | 검증 3·4, `test_submit_and_interrupt.py`, `test_escalation_flow.py` |
+| 게이트 6종 (assert 메서드 단위 전/후 · skip · scope · coverage 80/70 · mutation · regression) | 검증 1·2·4·5, `test_gate_invariants.py`, `pytest -m docker` |
+| Neo4j 코드 그래프 DECLARES/CREATES/COVERS(JaCoCo 실측) + 질의 3종 + 접속 실패 시 파싱 폴백 | 검증 1~4(Neo4j 실측 경로), `test_graph.py`, `test_graph_neo4j.py`, `test_graph_access.py` |
+| 제안 보관 → `cta diff` / `cta apply`, apply 전 소스 트리 불변, 예외 시 생성물 되돌림 | `test_proposals.py`, `test_file_mode.py` |
+| LLM 호출 기록·재생 (기록 없으면 실패, 실호출 폴백 없음) | 검증 6(0 토큰), `test_llm_replay.py` |
+| Docker 샌드박스 네트워크 차단, 빈 selector 거부(전체 실행 금지) | `test_fake_adapters.py`, `test_java_adapter_docker.py` |
+| `core/`에 언어 문자열 없음 | `test_layering.py` |
+
+**제한적으로 동작** — 돌아가지만 근사·폴백·조건부
+
+| 항목 | 한계 |
+|---|---|
+| 경량 Java 파서 (정규식 + 중괄호 짝맞춤) | 제네릭·중첩 클래스·어노테이션 많은 코드에서 메서드 경계를 놓칠 수 있다. AST 파서 전환은 후순위 |
+| 확인 항목·객체 생성법 추정 | 같은 파서 위의 근사. 확인 항목 수는 재료일 뿐 정확한 분기 수가 아니다 |
+| COVERS 엣지 | 테스트 **클래스** 단위 실측. 메서드 단위 연결은 비용이 커서 미룸 |
+| 그래프 질의 | 6종 이름 중 3종(`verifying_tests` · `how_to_create` · `similar_tests`)만 답한다. 나머지는 안내 문장 |
+| 파싱 폴백 | `similar_tests`만 파싱으로 답하고, 검증 테스트 찾기는 "클래스명 + `메서드(` 호출 모양"의 근사 |
+| 확신도 | 모델이 매긴 값. 보정된 확률이 아니라 화면 표시용이고 코드는 이 값으로 분기하지 않는다 |
+| 저장된 LLM 호출 기록 | 요청 전문 대조라 예제 트리를 바꾸면 기록을 다시 만들어야 한다 |
+| 게이트웨이 응답 시간 | 큰 파일은 100초+. 상한 300초(`CTA_GATEWAY_TIMEOUT`)로 막지만 근본 해결은 아니다 |
+| 뮤테이션 기준치 0.5 | 임시값. 평가 하네스 수치로 보정 예정 |
+| 프로젝트 형태 | Maven 단일 모듈만. 멀티모듈·Gradle 미지원 |
+
+**향후 확장 예정** — 다음 Task 후보
+
+| 항목 | 왜 |
+|---|---|
+| 워크플로우에 상황별 스킬 붙이기 (Mockito·회귀 테스트 등 지식 묶음을 규칙으로 선택해 프롬프트에 주입) | 현재 프롬프트는 고정 2파일. 1차 실패(검증 1'·2)를 줄일 수 있는지 전/후 수치로 확인 |
+| CALLS 관계 | 정적으로 100% 확정되지 않아 confidence를 붙여야 한다 |
+| 메서드 단위 COVERS | 검증 테스트를 더 좁게 고를 수 있다 |
+| MCP 서버 | 같은 core를 CLI와 공유. Claude Code 등에서 도구로 호출 |
+| 판단 메모 임베딩 검색 | 지금은 같은 메서드·클래스 이름 일치만. 참고용 불변식(규칙표 우회 불가)은 유지 |
+| 멀티모듈 Maven, 대화 압축, 설정 파일 확장 | 3단계 범위 |
 
 ---
 
