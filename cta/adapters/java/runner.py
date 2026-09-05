@@ -11,7 +11,7 @@ from pathlib import Path
 from cta.adapters.java.maven import MavenProject
 from cta.core.ports import EmptySelectorError, RunResult
 from cta.core.textlimit import clip
-from cta.sandbox.docker_sandbox import DockerSandbox, Mount, SandboxResult
+from cta.sandbox.docker_sandbox import Mount, Sandbox, SandboxResult
 
 # Maven+JDK 공식 이미지. JDK 21: 예제 프로젝트의 컴파일 대상과 일치시킨 선택.
 MAVEN_IMAGE = "maven:3.9-eclipse-temurin-21"
@@ -57,9 +57,7 @@ class JavaTestRunner:
       예외가 아니라 passed=False 결과다.
     """
 
-    def __init__(
-        self, project: MavenProject, sandbox: DockerSandbox, m2_cache_dir: str | Path
-    ) -> None:
+    def __init__(self, project: MavenProject, sandbox: Sandbox, m2_cache_dir: str | Path) -> None:
         self._project = project
         self._sandbox = sandbox
         self._m2_cache_dir = Path(m2_cache_dir)

@@ -64,7 +64,7 @@ from cta.core.writer_graph import (
 from cta.llm.config import make_llm_client
 from cta.llm.generation import PromptedGenerator
 from cta.llm.metering import MeteredClient
-from cta.sandbox.docker_sandbox import DockerSandbox
+from cta.sandbox.factory import LOCAL_MODE_WARNING, RUNNER_DOCKER, RUNNER_LOCAL, make_sandbox
 
 # 준비 단계에서 만드는 의존성 캐시 위치 — 대상 프로젝트 밑에 두어 지우기 쉽게 한다.
 CACHE_DIR_NAME = ".cta/m2repo"
@@ -131,6 +131,7 @@ def run_generation(
     authorized_tests: set[str] | None = None,
     measure_before: bool = False,
     quiet: bool = False,
+    runner_kind: str = RUNNER_DOCKER,
 ) -> dict:
     """재료 수집→생성→게이트→제안 저장까지 수행한다. generate/maintain/resolve/eval 공용 진입점.
 
@@ -139,6 +140,7 @@ def run_generation(
       authorized_tests — 사람이 고쳐도 된다고 지정한 테스트 메서드(assert 게이트 제외 목록).
       measure_before — 생성 전 기존 테스트의 버그 검출력을 먼저 재서 전후 비교(SC-002).
       quiet — 경과 시간이 붙는 진행 줄(`[ 113초] …`)을 끈다. CI 로그용(--quiet).
+      runner_kind — "docker"(격리, 기본) 또는 "local"(이 PC의 Maven·JDK, 준비 단계 없음, ADR-0019).
     설정: 프로젝트 루트의 cta.toml(core/config.py) — 게이트 기준치·반복 상한·시간 초과·모델·예산.
     출력 dict: status(accepted/human_review/not_passed/error), status_label, proposal, attempts,
       writer_attempts, elapsed, tokens, test_rel, test_class, gate_results, failure_reasons,
@@ -203,12 +205,16 @@ def run_generation(
     skill_names = [s.name for s in skills]
     print(f"{INDENT}      적용 스킬: {', '.join(skill_names) if skill_names else '없음'}")
 
-    sandbox = DockerSandbox()
+    sandbox = make_sandbox(runner_kind)
     cache_dir = project.root / CACHE_DIR_NAME
     runner = JavaTestRunner(project, sandbox, cache_dir)
-    problem = ensure_prepared(project, runner, cache_dir, warmup_test)
-    if problem:
-        return _error(problem)
+    if runner_kind == RUNNER_LOCAL:
+        # 로컬 모드는 준비 단계(의존성 캐시·예열)가 없다 — 사용자의 ~/.m2를 그대로 쓴다
+        print(f"{INDENT}      [!] {LOCAL_MODE_WARNING}")
+    else:
+        problem = ensure_prepared(project, runner, cache_dir, warmup_test)
+        if problem:
+            return _error(problem)
 
     baseline = snapshot_baseline(project)  # 게이트 기준선 — 생성 시작 전에 뜬다
     method_names = {m.name for m in methods}
@@ -322,7 +328,7 @@ def run_generation(
             "history": [],
         }
 
-    print(f"\n{INDENT}[3/4] 테스트 작성  (모델: {model}, 결과: {test_rel})")
+    print(f"\n{INDENT}[3/4] 테스트 작성  (모델: {model}, 실행: {runner_kind}, 결과: {test_rel})")
     try:
         result = generate_with_gates(
             run_writer=run_writer,
@@ -432,6 +438,7 @@ def run_generation(
         "mutation_before": mutation_before,
         "mutation_after": mutation_after,
         "skills": skill_names,
+        "runner": runner_kind,
     }
 
 

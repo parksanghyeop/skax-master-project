@@ -17,7 +17,7 @@ from cta.adapters.java.maven import MavenProject
 from cta.adapters.java.parsing import extract_assert_statements, strip_methods
 from cta.adapters.java.runner import CONTAINER_M2_REPO, CONTAINER_WORKDIR, MAVEN_IMAGE
 from cta.core.gates import GateConfig, GateResult
-from cta.sandbox.docker_sandbox import DockerSandbox, Mount
+from cta.sandbox.docker_sandbox import Mount, Sandbox
 
 # 스킵 어노테이션 — 새로 붙으면 탈락(v4 2.4 ②). 코드에서 그대로 읽힌다.
 # 패키지 전체 경로(@org.junit.jupiter.api.Disabled)로 우회하는 것도 잡는다.
@@ -191,7 +191,7 @@ class CoverageGate:
     def __init__(
         self,
         project: MavenProject,
-        sandbox: DockerSandbox,
+        sandbox: Sandbox,
         m2_cache_dir,
         selector: str,
         target_source_file: str,  # 예: "Calculator.java"

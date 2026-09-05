@@ -12,7 +12,7 @@ from pathlib import Path
 from cta.adapters.java.maven import MavenProject
 from cta.adapters.java.runner import CONTAINER_M2_REPO, CONTAINER_WORKDIR, MAVEN_IMAGE
 from cta.core.gates import GateResult
-from cta.sandbox.docker_sandbox import DockerSandbox, Mount
+from cta.sandbox.docker_sandbox import Mount, Sandbox
 
 # PIT 버전 쌍 — junit5 플러그인과의 호환 조합. 바꾸면 캐시 재준비 필요.
 PIT_PLUGIN = "org.pitest:pitest-maven:1.15.8"
@@ -100,7 +100,7 @@ def parse_mutations(
 
 def measure_mutation(
     project: MavenProject,
-    sandbox: DockerSandbox,
+    sandbox: Sandbox,
     m2_cache_dir: str | Path,
     target_class_fqcn: str,
     target_test_fqcn: str,
@@ -138,7 +138,7 @@ class MutationGate:
     def __init__(
         self,
         project: MavenProject,
-        sandbox: DockerSandbox,
+        sandbox: Sandbox,
         m2_cache_dir,
         target_class_fqcn: str,
         target_test_fqcn: str,

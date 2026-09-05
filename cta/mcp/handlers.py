@@ -42,7 +42,8 @@ def generate(project: str, target: str, max_methods: int = 4, fast: bool = False
     """테스트 생성 — 클래스의 테스트 없는 메서드에 JUnit 테스트를 만들어 제안으로 보관한다.
 
     project: Maven 프로젝트 루트(pom.xml 위치). target: 클래스 이름(FQN 허용) 또는 "Class#m1,m2".
-    max_methods: 한 번에 만들 메서드 수 상한. fast: 커버리지·뮤테이션 게이트 생략.
+    max_methods: 한 번에 만들 메서드 수 상한. fast: Docker 없이 이 PC의 Maven으로 실행(격리 없음)
+      + 커버리지·뮤테이션 게이트 생략(ADR-0019).
     반환: 화면 출력 전체 + "종료 코드: N" (0 정상 / 2 품질 미달 / 3 사람 확인 / 1 오류).
     수 분 걸릴 수 있다.
     """

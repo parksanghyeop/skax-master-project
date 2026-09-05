@@ -84,6 +84,19 @@
 `skills-flow`(신호 → 규칙표 → 스킬 → 프롬프트), `mcp-path`(Claude Code → cta-mcp → 핸들러 → cli 함수), `config-precedence`(설정 4단계 우선순위와 행선지),
 `ci-and-defects`(CI 두 잡 + 결함 세트 자기 검사), `e2e-status`(작업 항목별 완료/대기). 기존 `workflow-summary`에 스킬 선택 단계를 추가해 재렌더.
 
+### 5주차 — 로컬 실행 모드 `--fast` (2026-09-06, 사용자 요청: Docker가 너무 오래 걸린다)
+
+- **ADR-0019**: `--fast` = Docker 대신 이 PC의 Maven·JDK로 실행 + 커버리지·뮤테이션 게이트 생략. `--runner docker|local`로
+  분리 제어(`--fast --runner docker` = 격리 유지 + 게이트만 생략). R6은 "사용자가 명시한 경우에만 로컬" 예외를 두는 것으로
+  CLAUDE.md를 갱신. 코드가 스스로 로컬로 폴백하는 경로는 만들지 않았다
+- **구현**: `sandbox/local_sandbox.py` `LocalSandbox`(같은 `run()` 시그니처 — `Sandbox` 프로토콜 신설, 어댑터 5개는 타입 힌트만
+  변경), `sandbox/factory.py` `choose_runner`·`make_sandbox`·`LOCAL_MODE_WARNING`. 컨테이너 경로 → 호스트 경로 번역, `-o`·
+  `-Dmaven.repo.local=` 제거(사용자 `~/.m2` 사용, 준비 단계 생략). generate/maintain/resolve/eval에 `runner_kind` 배선,
+  `[3/4]`에 `실행: local`, 결과 `runner`. `hints.py`에 mvn 없음 안내
+- **실기동(이 PC, Docker 없음, Maven 3.9.11 스크래치 설치 + JDK 23)**: evalbench `TextUtilTest` 로컬 실행 **통과 6초**,
+  컴파일 검사 **2초**, 빈 selector 거부 유지(R5). Docker 경로는 같은 작업이 첫 실행 3~5분
+- **미검증**: `cta generate --fast` 전체(게이트웨이 필요), `--runner local` 단독(커버리지·뮤테이션 게이트를 로컬 Maven으로)
+
 ## 검증 기록
 
 - 2026-09-06 착수 전 기준선: `pytest -q` 171 passed, 1 failed(memos 덮어쓰기), 4 deselected. ruff 통과
@@ -98,6 +111,7 @@
   `uv build --wheel`로 `cta/adapters/java/skills/*/SKILL.md` 포함 확인. 스킬이 실제 프롬프트에 들어간 실호출·전/후 수치는 미측정
 - 2026-09-06 3주차(B-2·B-4): ruff 통과 · `pytest -q` **222 passed**(신규 6: mcp 핸들러 5 + 서버 1) ·
   `python scripts/check_defects.py` **12/12 통과** · MCP SDK 2.x in-process 도구 5개 등록·호출 확인
+- 2026-09-06 4주차(검토)·5주차(로컬 모드): ruff 통과 · `pytest -q` **232 passed**(검토 2 + 로컬 샌드박스 8) · 로컬 모드 실기동 6초/2초
 
 ## 문제·리서치 로그
 

@@ -6,6 +6,7 @@
 
 import subprocess
 from dataclasses import dataclass
+from typing import Protocol
 
 # 왜 상한이 있나: LLM이 만든 테스트가 무한 루프여도 세션이 잠기지 않게.
 # 값 근거: 의존성 내려받기(준비 단계)가 수 분 걸릴 수 있어 넉넉히 10분.
@@ -34,6 +35,23 @@ class SandboxResult:
 
     exit_code: int
     output: str
+
+
+class Sandbox(Protocol):
+    """실행 장치 포트 — DockerSandbox(격리, 기본)와 LocalSandbox(격리 없음, --fast)가 같은 모양이다.
+
+    어댑터(runner·writer·coverage·mutation·gates)는 이 프로토콜만 보고 둘 중 무엇이 왔는지 모른다.
+    """
+
+    def run(
+        self,
+        image: str,
+        command: list[str],
+        mounts: list[Mount],
+        workdir: str,
+        network_enabled: bool = False,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    ) -> SandboxResult: ...
 
 
 def build_run_args(

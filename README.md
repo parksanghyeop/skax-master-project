@@ -44,7 +44,7 @@ cta apply                                         # 반영
 | `cta demo` | 저장된 LLM 호출 기록으로 대표 시나리오 재생 (비용 0) | 0/1 |
 
 종료 코드: 0 정상 완료 · 3 사람 확인 필요(실패가 아니다) · 2 품질 미달 · 1 오류. CI에서 쓰는 법은 사용가이드 §13.
-공통 옵션 `--non-interactive`(질문 없이) · `--quiet`(진행 줄 생략) · `--fast`(커버리지·뮤테이션 게이트 생략).
+공통 옵션 `--non-interactive`(질문 없이) · `--quiet`(진행 줄 생략) · `--fast`(Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략. 격리 없음, 자기 PC용) · `--runner docker|local`.
 프로젝트 설정은 `cta.toml`(게이트 기준치·반복 상한·시간 초과·모델·토큰 예산), 시크릿은 `.env`만.
 
 ## Claude Code에서 쓰기

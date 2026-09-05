@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from cta.adapters.java.maven import MavenProject
 from cta.adapters.java.runner import CONTAINER_M2_REPO, CONTAINER_WORKDIR, MAVEN_IMAGE
 from cta.graph.model import EDGE_COVERS, GraphEdge
-from cta.sandbox.docker_sandbox import DockerSandbox, Mount
+from cta.sandbox.docker_sandbox import Mount, Sandbox
 
 # JaCoCo 플러그인 좌표. 준비 단계(runner.prepare)가 이 버전을 캐시에 채운다 —
 # 버전을 바꾸면 기존 캐시로는 오프라인 실행이 실패하므로 재준비가 필요하다.
@@ -67,7 +67,7 @@ def parse_covered_methods(jacoco_xml: str) -> set[str]:
 class JacocoCoverageCollector:
     """테스트 클래스별로 커버리지를 실측해 COVERS 엣지를 만든다."""
 
-    def __init__(self, project: MavenProject, sandbox: DockerSandbox, m2_cache_dir) -> None:
+    def __init__(self, project: MavenProject, sandbox: Sandbox, m2_cache_dir) -> None:
         self._project = project
         self._sandbox = sandbox
         self._m2_cache_dir = m2_cache_dir

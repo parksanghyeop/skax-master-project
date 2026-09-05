@@ -9,7 +9,7 @@ from pathlib import Path
 
 from cta.adapters.java.maven import MavenProject
 from cta.adapters.java.runner import CONTAINER_M2_REPO, CONTAINER_WORKDIR, MAVEN_IMAGE
-from cta.sandbox.docker_sandbox import DockerSandbox, Mount
+from cta.sandbox.docker_sandbox import Mount, Sandbox
 
 # 컴파일 오류는 대개 출력 끝에 모여 있다 — 요약에 남길 꼬리 줄 수.
 COMPILE_TAIL_LINES = 25
@@ -18,9 +18,7 @@ COMPILE_TAIL_LINES = 25
 class JavaTestWriter:
     """테스트 파일을 쓰고 mvn test-compile(오프라인)로 검사한다 (TestWriter 포트 구현)."""
 
-    def __init__(
-        self, project: MavenProject, sandbox: DockerSandbox, m2_cache_dir: str | Path
-    ) -> None:
+    def __init__(self, project: MavenProject, sandbox: Sandbox, m2_cache_dir: str | Path) -> None:
         self._project = project
         self._sandbox = sandbox
         self._m2_cache_dir = Path(m2_cache_dir)

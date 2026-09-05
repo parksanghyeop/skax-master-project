@@ -41,7 +41,7 @@ from cta.graph.model import EDGE_COVERS
 from cta.llm.config import load_dotenv_into_env, make_llm_client
 from cta.llm.intent import PromptedIntentClassifier
 from cta.llm.metering import MeteredClient
-from cta.sandbox.docker_sandbox import DockerSandbox
+from cta.sandbox.factory import LOCAL_MODE_WARNING, RUNNER_LOCAL, choose_runner, make_sandbox
 
 
 class GraphTestLocator:
@@ -92,13 +92,17 @@ def run_maintain(args: argparse.Namespace) -> int:
     classifier = PromptedIntentClassifier(client, model)
     locator, locator_note = _make_locator(project)
     print(f"{INDENT}기존 테스트 찾기: {locator_note}\n")
-    sandbox = DockerSandbox()
+    runner_kind = choose_runner(getattr(args, "runner", None), args.fast)
+    sandbox = make_sandbox(runner_kind)
     cache_dir = project.root / CACHE_DIR_NAME
     runner = JavaTestRunner(project, sandbox, cache_dir)
-    problem = ensure_prepared(project, runner, cache_dir, None)
-    if problem:
-        print(f"오류: {problem}")
-        return 1
+    if runner_kind == RUNNER_LOCAL:
+        print(f"{INDENT}[!] {LOCAL_MODE_WARNING}")
+    else:
+        problem = ensure_prepared(project, runner, cache_dir, None)
+        if problem:
+            print(f"오류: {problem}")
+            return 1
 
     def memo_lookup(target: str) -> str:
         return render_memos(find_similar(project, target))
@@ -194,6 +198,7 @@ def _create_test(project, extractor, change_set, analysis: ChangeAnalysis, args)
         regression_sources=regression,
         measure_before=not args.fast,
         quiet=getattr(args, "quiet", False),
+        runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
     )
     if outcome.get("status") == "error":
         print(f"{INDENT}   오류: {outcome.get('report')}")

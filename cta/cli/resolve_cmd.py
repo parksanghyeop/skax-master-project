@@ -23,6 +23,7 @@ from cta.cli.generate import ask_on_terminal, run_generation
 from cta.cli.memos import Memo, save_memo
 from cta.cli.render import EXIT_CODES, INDENT, STATUS_OK, display_target, render_result_status
 from cta.llm.config import load_dotenv_into_env
+from cta.sandbox.factory import choose_runner
 
 
 def _pick(project, escalation_id: str | None) -> Escalation | None:
@@ -109,6 +110,7 @@ def run_resolve(args: argparse.Namespace) -> int:
         ask_user=None if args.non_interactive else ask_on_terminal,
         authorized_tests=set(failed_names) if decision in ("intended", "test-issue") else None,
         quiet=getattr(args, "quiet", False),
+        runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
     )
     if outcome.get("status") == "error":
         print(f"오류: {outcome.get('report')}")

@@ -22,6 +22,7 @@ from cta.cli.proposals import (
     select_names,
 )
 from cta.cli.render import EXIT_CODES
+from cta.sandbox.factory import choose_runner
 
 # 전체 추적(traceback)을 보고 싶을 때 — 기본은 원인 한 줄 + 안내 세 줄만 낸다(cli/hints.py)
 ENV_DEBUG = "CTA_DEBUG"
@@ -64,6 +65,7 @@ def _cmd_generate(args) -> int:
         max_methods=args.max_methods if args.max_methods else DEFAULT_MAX_METHODS,
         include_all=args.all,
         quiet=args.quiet,
+        runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
     )
     if outcome["status"] == "error":
         print(render_error(outcome["report"]))
@@ -171,7 +173,16 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--instruction", default="", help="지침에 덧붙일 요구사항")
     g.add_argument("--model", help="이번 실행만 다른 모델")
     g.add_argument("--warmup-test", help="준비 단계 예열용 기존 테스트")
-    g.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
+    g.add_argument(
+        "--fast",
+        action="store_true",
+        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+    )
+    g.add_argument(
+        "--runner",
+        choices=["docker", "local"],
+        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+    )
     g.add_argument("--non-interactive", action="store_true", help="질문 없이 자동 진행")
     g.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
     g.set_defaults(func=_cmd_generate)
@@ -186,7 +197,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     m.add_argument("--project", help="Maven 프로젝트 루트 (생략 시 현재 위치에서 자동 인식)")
     m.add_argument("--plan-only", action="store_true", help="판단만 출력하고 처리하지 않음")
-    m.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
+    m.add_argument(
+        "--fast",
+        action="store_true",
+        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+    )
+    m.add_argument(
+        "--runner",
+        choices=["docker", "local"],
+        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+    )
     m.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행 (CI)")
     m.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
 
@@ -213,7 +233,16 @@ def build_parser() -> argparse.ArgumentParser:
     rs.add_argument("--skip", action="store_true", help="이번엔 건너뜀 (기록만)")
     rs.add_argument("--hint", default="", help="에이전트에 전달할 지시")
     rs.add_argument("--project", help="생략 시 현재 위치에서 자동 인식")
-    rs.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
+    rs.add_argument(
+        "--fast",
+        action="store_true",
+        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+    )
+    rs.add_argument(
+        "--runner",
+        choices=["docker", "local"],
+        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+    )
     rs.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행")
     rs.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
 
@@ -253,7 +282,16 @@ def build_parser() -> argparse.ArgumentParser:
     gr.set_defaults(func=_with_project(_graph))
 
     e = sub.add_parser("eval", help="결함 세트로 검출률 실측 (개발용)")
-    e.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
+    e.add_argument(
+        "--fast",
+        action="store_true",
+        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+    )
+    e.add_argument(
+        "--runner",
+        choices=["docker", "local"],
+        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+    )
     e.add_argument("--cases", help="쉼표로 구분한 케이스 id (기본: 전체)")
 
     def _eval(args):

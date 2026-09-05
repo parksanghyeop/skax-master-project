@@ -20,7 +20,7 @@ from cta.adapters.java.maven import detect_maven_project
 from cta.adapters.java.runner import JavaTestRunner
 from cta.cli.generate import run_generation
 from cta.cli.proposals import apply_proposal
-from cta.sandbox.docker_sandbox import DockerSandbox
+from cta.sandbox.factory import choose_runner, make_sandbox
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # cta/cli/ → 리포 루트
 BENCH = REPO_ROOT / "examples" / "evalbench"
@@ -54,7 +54,7 @@ def reset_bench() -> None:
     shutil.rmtree(BENCH / "target", ignore_errors=True)
 
 
-def run_case(case_dir: Path, fast: bool) -> dict:
+def run_case(case_dir: Path, fast: bool, runner_kind: str) -> dict:
     """케이스 하나: 생성(고친 버전)→제안 반영 → 버그 버전에서 검출 확인 → 복구."""
     meta = tomllib.loads((case_dir / "case.toml").read_text(encoding="utf-8"))
     target = meta["target"]
@@ -72,6 +72,7 @@ def run_case(case_dir: Path, fast: bool) -> dict:
             target=target,
             test_class=per_method_class,
             fast=fast,
+            runner_kind=runner_kind,
             ask_user=None,  # 하네스는 무인 실행 — 멈춤 지점은 자동 '계속'
         )
         row.update(
@@ -92,7 +93,7 @@ def run_case(case_dir: Path, fast: bool) -> dict:
         (BENCH / class_rel).write_text(
             (case_dir / "Buggy.java").read_text(encoding="utf-8"), encoding="utf-8"
         )
-        runner = JavaTestRunner(project, DockerSandbox(), BENCH / ".cta" / "m2repo")
+        runner = JavaTestRunner(project, make_sandbox(runner_kind), BENCH / ".cta" / "m2repo")
         result = runner.run(outcome["proposal"])
         row["detected"] = not result.passed
         print(
@@ -117,7 +118,8 @@ def run_eval(args) -> int:
         return 1
 
     started = time.monotonic()
-    rows = [run_case(d, args.fast) for d in case_dirs]
+    runner_kind = choose_runner(getattr(args, "runner", None), args.fast)
+    rows = [run_case(d, args.fast, runner_kind) for d in case_dirs]
     total_elapsed = time.monotonic() - started
 
     accepted = [r for r in rows if r.get("status") == "accepted"]
@@ -139,6 +141,7 @@ def run_eval(args) -> int:
         "model": make_llm_client()[1],
         "prompt_hash": prompt_hash(),
         "gates": "fast(3종)" if args.fast else "full(5종)",
+        "runner": runner_kind,
         "ran_at": datetime.now().isoformat(timespec="seconds"),
         "summary": summary,
         "rows": rows,

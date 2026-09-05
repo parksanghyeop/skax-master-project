@@ -92,6 +92,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 | `llm/masking.py` | 시크릿 가림 — 키 값·키 모양을 `****`로, CLI 출력 직전 2차 방어 | 3단계 A-3 |
 | `cli/hints.py` | 오류 안내 표 — 예외·문구 → "왜 / 할 일 / 명령" 세 줄. `main()`의 유일한 예외 출구 | 3단계 A-5 |
 | `adapters/java/skills/` | 테스트 작성 스킬 — `<이름>/SKILL.md` 2개(junit5-mockito·regression-test) + `select.py`(규칙표 선택·렌더링). core 무관, 도구 추가 없음 | ADR-0017 |
+| `sandbox/local_sandbox.py` · `sandbox/factory.py` | 로컬 실행 모드(`--fast` / `--runner local`) — Docker 없이 호스트 Maven·JDK, 같은 `Sandbox` 프로토콜. 선택 규칙 + 경고 문구 | ADR-0019 |
 | `mcp/handlers.py` · `mcp/server.py` | MCP 층(cli 위) — 도구 5개(generate·maintain·resolve·list_proposals·apply)는 cli 함수를 그대로 호출 + stdout 캡처. SDK는 선택 의존성, 진입점 `cta-mcp` | ADR-0018 |
 | `scripts/check_defects.py` | 결함 세트 자기 검사 — 로컬 JDK로 버그 버전 컴파일 + probe 비교(동치 변이 탐지). CI check 잡 | 3단계 B-2 |
 | `.github/workflows/ci.yml` | CI — check(ruff·pytest 재생 모드, py 3.11/3.12) + integration(수동: docker·neo4j) | 3단계 A-1 |
