@@ -154,13 +154,24 @@ def invoke_with_interrupts(
     return result
 
 
-def build_writer_graph(ports: WriterPorts, checkpointer=None):
+def build_writer_graph(
+    ports: WriterPorts,
+    checkpointer=None,
+    ask_every: int = ASK_EVERY_ATTEMPTS,
+    max_total: int = MAX_TOTAL_ATTEMPTS,
+):
     """포트를 닫아 넣은(클로저) 노드들로 서브그래프를 조립해 컴파일한다.
 
     출력: invoke(초기 상태)로 실행 가능한 LangGraph 앱.
     checkpointer: InterruptUserGate(실사용자 개입)를 쓰려면 필수 — 정지 지점의
       상태 저장·재개가 여기 담긴다. 없으면 스텁 게이트 전용(테스트·재생).
+    ask_every / max_total: 반복 상한. 기본값은 v4 그대로이고 cta.toml [retry]로
+      조정한다(core/config.py) — 상한은 사용자 허락 없이 넘지 않는다(v4 2.2).
     """
+    if ask_every < 1 or max_total < 1:
+        raise ValueError(
+            f"반복 상한은 1 이상이어야 한다: ask_every={ask_every}, max_total={max_total}"
+        )
 
     def gather(state: WriterState) -> dict:
         ports.progress("정보 수집 — 대상 조사·비슷한 테스트 검색")
@@ -212,9 +223,9 @@ def build_writer_graph(ports: WriterPorts, checkpointer=None):
         failure = classify_failure(state["last_run"], state.get("prev_run", ""))
         if failure == FAILURE_IMPOSSIBLE:
             return "report"  # 통과 불가능이 명백 → 한계 보고 (v4 2.3)
-        if state["attempts"] >= MAX_TOTAL_ATTEMPTS:
+        if state["attempts"] >= max_total:
             return "report"  # 하드 캡 — 게이트가 계속을 반복해도 여기서 끝난다
-        if failure == FAILURE_ASK or state["attempts"] % ASK_EVERY_ATTEMPTS == 0:
+        if failure == FAILURE_ASK or state["attempts"] % ask_every == 0:
             return "ask"  # 판단 필요(같은 실패 반복) 또는 소프트 한도 도달
         return "write"
 

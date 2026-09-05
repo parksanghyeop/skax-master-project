@@ -65,15 +65,28 @@ def load_dotenv_into_env(path: str | Path | None = None) -> None:
             os.environ.setdefault(key, value)
 
 
-def make_llm_client(dotenv_path: str | Path | None = None) -> tuple[LlmClient, str]:
+def make_llm_client(
+    dotenv_path: str | Path | None = None,
+    *,
+    model_default: str | None = None,
+    timeout_default: int | None = None,
+) -> tuple[LlmClient, str]:
     """(게이트웨이 클라이언트, deployment 이름)을 만든다.
 
     dotenv_path: 기본은 탐색 규칙(default_dotenv_paths). 테스트는 임시 경로를
       넘겨 로컬 설정과 격리한다 — 개발자의 .env가 테스트 결과를 바꾸면 안 된다.
+    model_default / timeout_default: 프로젝트 설정(cta.toml)이 준 기본값. .env까지 주입한
+      **뒤에** setdefault로 넣으므로 환경변수·.env가 있으면 그쪽이 이긴다
+      (우선순위: 환경변수 > .env > cta.toml > 코드 기본값 — core/config.py).
     실패 시 동작: 주소·키 미설정은 GatewayClient가 GatewayConfigError로 알린다.
     """
     load_dotenv_into_env(dotenv_path)
-    from cta.llm.gateway import GatewayClient
+    from cta.llm.gateway import ENV_TIMEOUT, GatewayClient
+
+    if model_default:
+        os.environ.setdefault(ENV_MODEL, model_default)
+    if timeout_default is not None:
+        os.environ.setdefault(ENV_TIMEOUT, str(timeout_default))
 
     model = os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
     return GatewayClient(), model

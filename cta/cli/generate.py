@@ -51,7 +51,7 @@ from cta.cli.render import (
     format_duration,
     format_tokens,
 )
-from cta.core.gates import load_gate_config
+from cta.core.config import load_config
 from cta.core.ports import UserReply
 from cta.core.submit import generate_with_gates
 from cta.core.writer_graph import (
@@ -125,6 +125,7 @@ def run_generation(
     regression_sources: dict[str, str | None] | None = None,
     authorized_tests: set[str] | None = None,
     measure_before: bool = False,
+    quiet: bool = False,
 ) -> dict:
     """재료 수집→생성→게이트→제안 저장까지 수행한다. generate/maintain/resolve/eval 공용 진입점.
 
@@ -132,17 +133,22 @@ def run_generation(
       regression_sources — bug_fix일 때 수정 전 소스({상대경로: 내용}) → 게이트 ⑥ 부착.
       authorized_tests — 사람이 고쳐도 된다고 지정한 테스트 메서드(assert 게이트 제외 목록).
       measure_before — 생성 전 기존 테스트의 버그 검출력을 먼저 재서 전후 비교(SC-002).
+      quiet — 경과 시간이 붙는 진행 줄(`[ 113초] …`)을 끈다. CI 로그용(--quiet).
+    설정: 프로젝트 루트의 cta.toml(core/config.py) — 게이트 기준치·반복 상한·시간 초과·모델·예산.
     출력 dict: status(accepted/human_review/not_passed/error), status_label, proposal, attempts,
       writer_attempts, elapsed, tokens, test_rel, test_class, gate_results, failure_reasons,
       report, model, tests_run, new_tests, check_total, check_satisfied, mutation_before/after.
     """
     started = time.monotonic()
-    raw_client, model = make_llm_client()
-    client = MeteredClient(raw_client)
+    project = detect_maven_project(project_path)
+    config = load_config(project.root)
+    raw_client, model = make_llm_client(
+        model_default=config.model, timeout_default=config.gateway_timeout_sec
+    )
+    client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
     if model_override:
         model = model_override
 
-    project = detect_maven_project(project_path)
     class_name, method_field = parse_target(target)
     class_file = find_class_file(project, class_name)
     if class_file is None:
@@ -194,7 +200,6 @@ def run_generation(
     if problem:
         return _error(problem)
 
-    config = load_gate_config(project.root)
     baseline = snapshot_baseline(project)  # 게이트 기준선 — 생성 시작 전에 뜬다
     method_names = {m.name for m in methods}
 
@@ -227,7 +232,7 @@ def run_generation(
             test_class,
             f"{class_name}.java",
             materials.target_lines,
-            config,
+            config.gates,
         )
         mutation = MutationGate(
             project,
@@ -235,7 +240,7 @@ def run_generation(
             cache_dir,
             fq.format(class_name),
             fq.format(test_class),
-            config.mutation_min,
+            config.gates.mutation_min,
             target_methods=method_names,
         )
         last_gates["coverage"] = coverage
@@ -252,7 +257,9 @@ def run_generation(
         instruction += f"\n추가 지침: {instruction_extra}"
 
     def progress(message: str) -> None:
-        """진행 한 줄 출력 — 경과 시간을 붙여 어디서 오래 걸리는지 보이게 한다."""
+        """진행 한 줄 출력 — 경과 시간을 붙여 어디서 오래 걸리는지 보이게 한다. --quiet면 무음."""
+        if quiet:
+            return
         print(f"{INDENT}      [{time.monotonic() - started:4.0f}초] {message}", flush=True)
 
     code_graph, graph_note, graph_store = choose_code_graph(project)
@@ -273,7 +280,12 @@ def run_generation(
         ),
         progress=progress,
     )
-    app = build_writer_graph(ports, checkpointer=MemorySaver())
+    app = build_writer_graph(
+        ports,
+        checkpointer=MemorySaver(),
+        ask_every=config.retry.ask_every,
+        max_total=config.retry.max_total,
+    )
     ask = ask_user or (lambda q: UserReply(action="continue"))
     extra_context = render_materials(materials)
     graph_target = f"{class_name}#{','.join(m.name for m in methods)}"
@@ -307,7 +319,7 @@ def run_generation(
             make_state=make_state,
             make_gates=make_gates,
             base_instruction=instruction,
-            max_retries=config.max_retries,
+            max_retries=config.gates.max_retries,
             progress=progress,
         )
     except BaseException:

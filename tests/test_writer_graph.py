@@ -138,3 +138,37 @@ class TestFailureClassification:
         assert final["status"] == "reported"
         assert final["attempts"] == 1  # 재시도해도 소용없는 실패는 즉시 끝낸다
         assert gate.questions == []
+
+
+class TestConfigurableLimits:
+    """반복 상한은 cta.toml [retry]로 조정된다 — build_writer_graph 인자로 들어온다 (3단계 A-2)."""
+
+    def test_max_total을_줄이면_그_횟수에서_한계_보고한다(self):
+        ports = make_ports(distinct_fails(5))
+        final = build_writer_graph(ports, max_total=2).invoke(initial_state())
+        assert final["status"] == "reported"
+        assert final["attempts"] == 2
+
+    def test_ask_every를_줄이면_더_일찍_묻는다(self):
+        gate = ScriptedUserGate([UserReply(action="stop")])
+        ports = make_ports(distinct_fails(5), gate)
+        final = build_writer_graph(ports, ask_every=1).invoke(initial_state())
+        assert final["attempts"] == 1 and len(gate.questions) == 1
+
+    def test_상한이_1_미만이면_조립_시점에_거부한다(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            build_writer_graph(make_ports([PASS]), max_total=0)
+
+
+class TestPromptDoesNotAccumulate:
+    """대화 압축이 필요 없는 이유(ADR-0016): 매 시도의 프롬프트에는 직전 실패 하나만 들어간다."""
+
+    def test_세_번째_시도의_실패_재료는_직전_실패_하나뿐이다(self):
+        ports = make_ports(distinct_fails(2) + [PASS])
+        build_writer_graph(ports).invoke(initial_state())
+        calls = ports.generator.calls
+        assert len(calls) == 3
+        assert "실패 유형 1" in calls[2]["last_failure"]
+        assert "실패 유형 0" not in calls[2]["last_failure"]  # 옛 실패는 누적되지 않는다

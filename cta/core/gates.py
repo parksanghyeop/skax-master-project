@@ -44,7 +44,14 @@ def load_gate_config(project_root: str | Path) -> GateConfig:
     path = Path(project_root) / CONFIG_FILE_NAME
     if not path.is_file():
         return GateConfig()
-    data = tomllib.loads(path.read_text(encoding="utf-8")).get("gates", {})
+    return gate_config_from_toml(tomllib.loads(path.read_text(encoding="utf-8")).get("gates", {}))
+
+
+def gate_config_from_toml(data: dict) -> GateConfig:
+    """[gates] 절(dict)을 GateConfig로. 안 적은 값은 기본값.
+
+    core/config.py(설정 파일 전체를 읽는 쪽)와 load_gate_config가 같은 해석을 쓰기 위해 분리했다.
+    """
     return GateConfig(
         line_min=float(data.get("line_min", DEFAULT_LINE_MIN)),
         branch_min=float(data.get("branch_min", DEFAULT_BRANCH_MIN)),

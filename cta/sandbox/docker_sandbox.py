@@ -36,6 +36,31 @@ class SandboxResult:
     output: str
 
 
+def build_run_args(
+    image: str,
+    command: list[str],
+    mounts: list[Mount],
+    workdir: str,
+    network_enabled: bool = False,
+) -> list[str]:
+    """`docker run` 인자 목록을 만든다 — 순수 함수라 Docker 없이 검사할 수 있다.
+
+    안전장치 두 가지가 여기서 보장된다(테스트 tests/test_secrets.py가 고정):
+    - 네트워크는 기본 차단(`--network none`). 준비 단계(의존성 내려받기)만 명시적으로 켠다(v4 6.3)
+    - 호스트 환경변수를 넘기는 `-e`/`--env`/`--env-file`을 쓰지 않는다 — 게이트웨이 키가
+      컨테이너(LLM이 만든 코드가 실행되는 곳)로 들어갈 경로를 애초에 두지 않는다(v4 6.6)
+    """
+    args = ["docker", "run", "--rm"]
+    if not network_enabled:
+        args += ["--network", "none"]
+    for m in mounts:
+        spec = f"{m.host_path}:{m.container_path}"
+        if m.read_only:
+            spec += ":ro"
+        args += ["-v", spec]
+    return args + ["-w", workdir, image] + command
+
+
 def _to_text(data: bytes | str | None) -> str:
     if data is None:
         return ""
@@ -63,17 +88,7 @@ class DockerSandbox:
         network_enabled: bool = False,
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
     ) -> SandboxResult:
-        args = ["docker", "run", "--rm"]
-        # 왜 기본 차단인가: 생성된 코드가 바깥세상에 닿지 못하게(v4 6.3).
-        # 네트워크는 준비 단계(의존성 내려받기)에서만 명시적으로 켠다.
-        if not network_enabled:
-            args += ["--network", "none"]
-        for m in mounts:
-            spec = f"{m.host_path}:{m.container_path}"
-            if m.read_only:
-                spec += ":ro"
-            args += ["-v", spec]
-        args += ["-w", workdir, image] + command
+        args = build_run_args(image, command, mounts, workdir, network_enabled)
 
         try:
             proc = subprocess.run(

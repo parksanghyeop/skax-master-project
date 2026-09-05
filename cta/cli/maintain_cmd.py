@@ -28,6 +28,7 @@ from cta.cli.render import (
     render_diff_excerpt,
     render_result_status,
 )
+from cta.core.config import load_config
 from cta.core.pipeline.maintain import ChangeAnalysis, analyze_changes
 from cta.core.pipeline.models import (
     ACTION_ASK,
@@ -83,8 +84,11 @@ def run_maintain(args: argparse.Namespace) -> int:
     print(f"\n{INDENT}{header}")
 
     # 2~4단계: 건별 의도 분류(LLM) → 기존 테스트 실행 → 규칙표
-    raw_client, model = make_llm_client()
-    client = MeteredClient(raw_client)
+    config = load_config(project.root)
+    raw_client, model = make_llm_client(
+        model_default=config.model, timeout_default=config.gateway_timeout_sec
+    )
+    client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
     classifier = PromptedIntentClassifier(client, model)
     locator, locator_note = _make_locator(project)
     print(f"{INDENT}기존 테스트 찾기: {locator_note}\n")
@@ -100,6 +104,8 @@ def run_maintain(args: argparse.Namespace) -> int:
         return render_memos(find_similar(project, target))
 
     def progress(msg: str) -> None:
+        if getattr(args, "quiet", False):
+            return
         print(f"{INDENT}      … {msg}", flush=True)
 
     try:
@@ -187,6 +193,7 @@ def _create_test(project, extractor, change_set, analysis: ChangeAnalysis, args)
         ask_user=None if args.non_interactive else ask_on_terminal,
         regression_sources=regression,
         measure_before=not args.fast,
+        quiet=getattr(args, "quiet", False),
     )
     if outcome.get("status") == "error":
         print(f"{INDENT}   오류: {outcome.get('report')}")
