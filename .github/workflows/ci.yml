@@ -1,0 +1,57 @@
+# CI — 재생 모드로 그린이어야 한다(R7: 저장된 LLM 호출 기록이 없으면 실패, 실호출 폴백 없음).
+# check: 모든 push·PR. integration: 수동 실행(Docker·Neo4j가 필요하고 수 분 걸린다).
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest ruff
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Unit tests (replay mode, no LLM / Docker / Neo4j)
+        # 게이트웨이 키를 넣지 않는다 — 실호출이 시도되면 GatewayConfigError로 실패해야 정상
+        run: pytest -q
+
+  integration:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/ci-only-password
+        ports:
+          - 7687:7687
+    env:
+      CTA_NEO4J_URI: bolt://localhost:7687
+      CTA_NEO4J_USER: neo4j
+      CTA_NEO4J_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e . pytest
+      - name: Docker integration (gates invariants, replay demo)
+        run: pytest -q -m docker
+      - name: Neo4j integration
+        run: pytest -q -m neo4j
