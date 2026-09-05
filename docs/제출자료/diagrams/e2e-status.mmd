@@ -1,0 +1,48 @@
+flowchart TB
+    subgraph C["M8-c 릴리스 — 닫기"]
+        direction LR
+        C1["C-1 데모 2개 3회 연속 [Docker 대기]"]
+        C2["C-2 제품 README"]
+        C3["C-3 설치 테스트 1명 [사람 대기]"]
+        C4["C-4 문서 정합 — ADR 색인 · CLAUDE.md · contracts"]
+        C5["C-5 지원 범위와 한계 절"]
+        C6["C-6 E2E 산출물 — 초안 (전/후 표는 측정 대기)"]
+        C7["C-7 Linux 실행 [환경 대기]"]
+    end
+
+    subgraph B["M8-b 확장 — 기술 어필"]
+        direction LR
+        B1["B-1 워크플로우 스킬 2개 — ADR-0017"]
+        B1m["B-1 전/후 측정 [측정 대기]"]
+        B2["B-2 결함 세트 v2 12건 + 자기 검사 12/12"]
+        B2m["B-2 cta eval v2 베이스라인 [측정 대기]"]
+        B3["B-3 경계값 실험 [측정 대기 — 수치 필요]"]
+        B4["B-4 MCP 서버 도구 5개 — ADR-0018"]
+        B4m["B-4 Claude Code 실호출 [측정 대기]"]
+        B5["B-5 판단 메모 불변식"]
+    end
+
+    subgraph A["M8-a 마감 — 남이 돌릴 수 있게"]
+        direction LR
+        A1["A-1 CI<br/>check 그린 (GitHub Actions)"]
+        A2["A-2 cta.toml 단일 설정<br/>gates · retry · gateway · llm · budget"]
+        A3["A-3 시크릿 3 테스트<br/>환경변수만 · 샌드박스 미전달 · 마스킹"]
+        A4["A-4 --quiet · 종료 코드 CI 사용법"]
+        A5["A-5 오류 안내 9상황<br/>왜 / 할 일 / 명령"]
+        A6["A-6 대화 압축 불필요 — ADR-0016"]
+    end
+
+    subgraph Z["착수 전"]
+        direction LR
+        FIX0["결함 수정<br/>memos 덮어쓰기 — Windows 시계 해상도"]
+        LEGEND["범례<br/>초록 = 완료(이 PC에서 검증)<br/>노랑 점선 = Docker·게이트웨이·사람 대기<br/>파랑 = 부분 완료"]
+    end
+
+    classDef done fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef wait fill:#fff3c4,stroke:#d97706,stroke-width:2px,stroke-dasharray: 4 4
+    classDef partial fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
+    classDef dim fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 4
+    class FIX0,A1,A2,A3,A4,A5,A6,B1,B2,B4,B5,C2,C4,C5 done
+    class B1m,B2m,B3,B4m,C1,C3,C7 wait
+    class C6 partial
+    class LEGEND dim

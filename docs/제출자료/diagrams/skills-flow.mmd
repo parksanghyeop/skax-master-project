@@ -1,0 +1,44 @@
+flowchart LR
+    subgraph SIG["신호 — 이미 결정된 값에서만 (LLM 없음)"]
+        direction TB
+        S1["재료 수집<br/>의존 객체가 'mock 사용'인가"]
+        S2["실행 종류<br/>버그 수정 → 테스트 추가<br/>(regression 게이트가 붙는 실행)"]
+        S3["resolve 재개<br/>사람이 허용한 실패 테스트 있음"]
+    end
+
+    RULE{"규칙표 _RULES<br/>스킬 이름 → 조건<br/>(select.py)"}
+
+    subgraph SKILLS["adapters/java/skills/&lt;이름&gt;/SKILL.md"]
+        direction TB
+        K1["junit5-mockito<br/>@ExtendWith · strict stubs · matcher 혼용 금지<br/>값 객체는 mock 금지"]
+        K2["regression-test<br/>경계 세 케이스 · 수정 전 코드에서 실패해야 함<br/>assertNotNull 금지 · 기존 assert 불변"]
+        K3["(후보) boundary-values · spring-slice-test · refactor-preserve<br/>전/후 수치를 본 뒤"]
+    end
+
+    PROMPT["작성 프롬프트 write_test.md<br/>[프로젝트 관례] = 기본 문장 + 선택된 스킬 본문"]
+    LLM["LLM 코드 생성<br/>(gpt-5)"]
+    LOG["화면 [2/4]<br/>적용 스킬: junit5-mockito, regression-test<br/>→ 산출물의 스킬 선택 로그"]
+
+    S1 -->|uses_mock| RULE
+    S2 -->|regression| RULE
+    S3 -->|resume_with_authorized| RULE
+    RULE -->|"uses_mock"| K1
+    RULE -->|"regression"| K2
+    RULE -.->|"아직 규칙 없음"| K3
+    K1 --> PROMPT
+    K2 --> PROMPT
+    PROMPT --> LLM
+    RULE --> LOG
+
+    NOTE["지키는 것<br/>· core 무변경 (R1) · 도구 6개 그대로 (R4)<br/>· 선택이 결정적이라 재생 가능 (R2)<br/>· 스킬은 '어떻게 잘 쓰나'만 — 스킵·assert 완화 유도 문구 금지(테스트로 고정)"]
+
+    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
+    classDef new fill:#fff3c4,stroke:#d97706,stroke-width:2px
+    classDef plain fill:#eef2ff,stroke:#6366f1
+    classDef dim fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 4
+    class RULE safe
+    class LLM llm
+    class K1,K2,PROMPT new
+    class S1,S2,S3,LOG plain
+    class K3,NOTE dim

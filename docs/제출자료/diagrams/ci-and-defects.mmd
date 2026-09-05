@@ -1,0 +1,48 @@
+flowchart TB
+    subgraph CI["CI — .github/workflows/ci.yml"]
+        direction LR
+        subgraph CHECK["check 잡 — 모든 push·PR, Python 3.11 / 3.12"]
+            direction TB
+            L["ruff check · ruff format --check"]
+            P["pytest -q (재생 모드)<br/>게이트웨이 키 없음 — 실호출 시도 = 실패 (R7)"]
+            J["setup-java 21 →<br/>python scripts/check_defects.py"]
+            L --> P --> J
+        end
+        subgraph INT["integration 잡 — 수동 실행"]
+            direction TB
+            D["pytest -m docker<br/>게이트 불변식 · 재생 통합"]
+            N["pytest -m neo4j<br/>서비스 컨테이너 neo4j:5"]
+        end
+    end
+
+    subgraph DEF["결함 세트 자기 검사 — 동치 변이를 막는다"]
+        direction LR
+        FIX["고친 소스<br/>examples/evalbench<br/>TextUtil · MathUtil"]
+        BUG["cta/evals/defects/&lt;케이스&gt;/Buggy.java<br/>고친 소스에 치환 1회"]
+        TOML["case.toml<br/>target · class_rel · bug<br/>probe(자바 식) · expected"]
+        JC["javac (로컬 JDK)<br/>Check.java: System.out.print(String.valueOf(probe))<br/>예외 → 'throws 이름'"]
+        CMP{"고친 출력 == expected<br/>AND<br/>버그 출력 != expected ?"}
+        OK["통과 — 관찰 가능한 결함"]
+        NG["실패 — 동치 변이 / 컴파일 오류 / expected 오류"]
+    end
+
+    FIX --> JC
+    BUG --> JC
+    TOML --> JC
+    JC --> CMP
+    CMP -->|예| OK
+    CMP -->|아니오| NG
+    J -.->|"12/12"| DEF
+
+    FOUND["발견(2026-09-06): v1 truncate-boundary는 동치 변이였다<br/>length() &lt;= max → &lt; max 는 길이==max에서 같은 문자열<br/>→ 베이스라인 미검출 1건은 잡을 수 없는 결함 (실질 5/5)<br/>v2: substring(0, max-1)로 교체, 6건 → 12건"]
+
+    classDef new fill:#fff3c4,stroke:#d97706,stroke-width:2px
+    classDef plain fill:#eef2ff,stroke:#6366f1
+    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef bad fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+    classDef dim fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 4
+    class J,BUG,TOML,JC new
+    class L,P,D,N,FIX plain
+    class OK,CMP safe
+    class NG bad
+    class FOUND dim

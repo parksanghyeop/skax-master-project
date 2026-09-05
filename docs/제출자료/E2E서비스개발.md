@@ -27,6 +27,10 @@ PoC(1단계)·테스트 및 고도화(2단계)에서 만든 에이전트를 **�
 
 ---
 
+**작업 항목별 상태** — 초록 완료 / 노랑 점선 대기 / 파랑 부분
+
+![E2E 작업 상태](images/e2e-status.png)
+
 ## 1. 목표와 판정
 
 3단계 스킬의 목표는 "개발자(나 아닌 사람)가 설치 가이드만 보고 자기 프로젝트에 돌릴 수 있는 상태"다.
@@ -50,7 +54,19 @@ PoC구현.md §2.0의 계약에 더해진 것만 적는다. 전체는 `docs/cont
 
 ## 3. 핵심 구현 내용
 
+**3단계 신설 모듈이 층 구조의 어디에 붙었나** — 주황 = 3단계 신설, 초록 = 일반 코드 안전장치, 보라 = LLM 경로
+
+![3단계 아키텍처](images/e2e-architecture.png)
+
 ### 3.1 마감 — 남이 돌릴 수 있게 (M8-a)
+
+**설정 우선순위와 행선지** — 환경변수 > .env > cta.toml > 코드 기본값
+
+![설정 우선순위](images/config-precedence.png)
+
+**CI 두 잡과 결함 세트 자기 검사**
+
+![CI와 결함 세트 자기 검사](images/ci-and-defects.png)
 
 - **CI** `.github/workflows/ci.yml`: `check`(Python 3.11/3.12 · ruff · `pytest -q` 재생 모드 · 결함 세트 자기 검사) 모든 push,
   `integration`(Docker · Neo4j 서비스 컨테이너) 수동. 게이트웨이 키 없이 돈다 — 실호출이 시도되면 실패해야 정상(R7)
@@ -61,6 +77,14 @@ PoC구현.md §2.0의 계약에 더해진 것만 적는다. 전체는 `docs/cont
 - **CI 사용법**: 종료 코드 0/3/2/1의 뜻과 GitHub Actions 예시(3은 실패가 아니라 리뷰 요청). `--quiet`로 진행 줄 생략
 
 ### 3.2 확장 — 기술 어필 (M8-b)
+
+**스킬 선택 흐름** — 신호(이미 결정된 값) → 규칙표 → SKILL.md → 프롬프트
+
+![스킬 선택 흐름](images/skills-flow.png)
+
+**MCP 호출 경로** — Claude Code → cta-mcp → 핸들러(인자 변환·출력 캡처) → CLI와 같은 함수
+
+![MCP 호출 경로](images/mcp-path.png)
 
 - **워크플로우 스킬(ADR-0017)**: `adapters/java/skills/<이름>/SKILL.md` 2개(junit5-mockito · regression-test). 선택은 규칙표 —
   신호는 재료 수집의 mock 판정, 재발 방지 게이트가 붙는 실행, resolve 재개처럼 **이미 결정된 값**에서만 나온다(LLM 없음, 재생 가능).
@@ -90,6 +114,7 @@ ADR 색인(0001~0009 미반입 표기), CLAUDE.md 백엔드 표기 정정, PoC �
 | **규칙 검사** | R1 검사(`test_layering`)가 새 `core/config.py`의 **주석** "java·maven 문자열은 없다"를 위반으로 잡았다 | • **적용:** 주석 문구 수정. 검사가 주석까지 보는 것은 의도된 보수성이라 예외를 만들지 않았다 |
 | **환경** | 이 PC의 콘솔(cp949)에서 한글 출력이 깨져 CLI 스모크가 조용히 실패한 것처럼 보였다 | • **적용:** `PYTHONUTF8=1`로 재실행. 사용가이드 문제 해결 표에 이미 있는 항목 |
 | **재생** | 스킬이 프롬프트를 바꾸면 저장된 LLM 호출 기록 재생이 깨질 위험 | • **확인:** 골든 재생(`cta demo`)은 자체 `STYLE_NOTES`로 생성기를 만들어 영향 없음. 실호출 시나리오 기록 재생성은 측정 환경에서 |
+| **검토(자체)** | 전체 diff 재검토에서 4건 발견 — ① cta.toml 값을 환경변수에 `setdefault`로 써넣어 오래 사는 MCP 서버가 다음 프로젝트를 다룰 때 이전 설정이 이김 ② MCP 핸들러의 전역 stdout 교체가 동시 호출에서 섞임 ③ Docker 미설치의 Windows 오류 원문에 'docker'가 없어 안내가 못 알아봄 ④ CI가 `[mcp]` 없이 설치해 MCP 서버 테스트가 항상 skip | • **적용:** ① 인자 전달(`GatewayClient(timeout_default)`)로 교체 + 테스트 ② `threading.Lock` 직렬화 ③ 샌드박스가 'docker'를 담아 다시 던짐 + 테스트 ④ `pip install -e ".[mcp]"`. 상세와 미조치 후보 6건은 `docs/E2E/e2e-notes.md` 4주차 |
 
 ---
 
@@ -100,7 +125,7 @@ ADR 색인(0001~0009 미반입 표기), CLAUDE.md 백엔드 표기 정정, PoC �
 | 검증 | 내용 | 결과 |
 |---|---|---|
 | 1 | `ruff check .` · `ruff format --check .` | 통과 · 152 files formatted |
-| 2 | `pytest -q` (재생 모드) | **222 passed**, 4 deselected(docker·neo4j) |
+| 2 | `pytest -q` (재생 모드) | **224 passed**, 4 deselected(docker·neo4j) — 검토 후 2건 추가 |
 | 3 | `python scripts/check_defects.py` — 결함 12건 컴파일 + probe 비교 | **12/12 통과** |
 | 4 | MCP SDK 2.x in-process — 도구 5개 등록, `call_tool("list_proposals")` 왕복 | 도구 이름 5개 일치, `is_error=False`, 본문 "대기 중인 제안 없음" |
 | 5 | CLI 오류 안내 스모크 — pom.xml 없는 폴더 / 게이트웨이 키 비움 | 각각 "오류 + 왜/할 일/명령" 4줄, 종료 코드 1, 전체 추적 없음 |

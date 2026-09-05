@@ -13,8 +13,8 @@
   게이트웨이 키 없음) + `integration`(수동: `-m docker`, `-m neo4j` with Neo4j 서비스 컨테이너)
 - **A-2 설정 파일**: `core/config.py` `load_config` → `CtaConfig(gates, retry, gateway_timeout_sec, model,
   max_tokens_per_run)`. `cta.toml` 절 5개([gates][retry][gateway][llm][budget]). 우선순위 환경변수 > .env >
-  cta.toml > 코드 기본값 — cta.toml 값은 `make_llm_client(model_default, timeout_default)`가 setdefault로만
-  놓는다. 반복 상한은 `build_writer_graph(ask_every, max_total)` 인자. 토큰 예산은 `MeteredClient(max_tokens)`가
+  cta.toml > 코드 기본값 — cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만
+  들어간다(환경변수 미기록, 4주차 검토에서 setdefault를 제거). 반복 상한은 `build_writer_graph(ask_every, max_total)` 인자. 토큰 예산은 `MeteredClient(max_tokens)`가
   호출 전 검사 → `BudgetExceededError`. `gates.py`의 toml 해석은 `gate_config_from_toml`로 분리해 공유
 - **A-3 시크릿**: `sandbox/docker_sandbox.py` 인자 조립을 `build_run_args`(순수 함수)로 분리 — `-e`류 옵션이
   없음을 테스트로 고정(②). `llm/masking.py` `mask_secrets` — 환경변수의 키 값 + 키 모양(`atl-…`)을 `****`로,
@@ -57,6 +57,32 @@
   (generate/maintain/resolve/list_proposals/apply), 에이전트 내부 도구 6개(R4)와 별개. in-process `call_tool`로
   `list_proposals` 왕복 확인. Claude Code 등록·실호출은 측정 환경에서
 - **하지 않은 것**: `cta eval` v2 베이스라인 실측(Docker·게이트웨이), B-3 경계값 실험(수치 필요)
+
+### 4주차 검토 — 3단계 변경분 전체 diff 재검토 + 시각자료 (2026-09-06)
+
+사용자 요청으로 `62a9bfc..HEAD`의 코드 diff(약 1,960줄)를 처음 보는 눈으로 다시 읽었다. 고친 것 4건, 기록만 한 것 6건.
+
+**고친 것**
+
+| # | 문제 | 왜 문제인가 | 조치 |
+|---|---|---|---|
+| 1 | `make_llm_client`가 cta.toml의 모델·시간 초과를 `os.environ.setdefault`로 **환경변수에 써넣었다** | MCP 서버처럼 오래 사는 프로세스가 프로젝트 A → B를 차례로 다루면 A의 cta.toml 값이 "환경변수"가 되어 B의 cta.toml을 이긴다. 우선순위 규칙이 두 번째 프로젝트부터 깨진다 | 인자로만 전달: `GatewayClient(timeout_default)` + `.timeout` 속성, `model = 환경변수 or model_default or 기본값`. 테스트 `test_cta_toml_값은_환경변수에_남지_않는다` 추가 |
+| 2 | MCP 핸들러의 `redirect_stdout`은 프로세스 전역 — 서버가 도구 호출을 동시에 처리하면 두 호출의 화면이 섞인다 | 도구 결과가 뒤죽박죽이 되고, 최악의 경우 한 호출의 결과가 다른 호출로 간다 | `threading.Lock`으로 한 번에 하나만 실행. ADR-0018 3항 보강 |
+| 3 | Docker 미설치 시 `subprocess`의 `FileNotFoundError` 원문(Windows: "[WinError 2] 지정된 파일을 찾을 수 없습니다")에 'docker'가 없어 오류 안내가 Docker 문제로 알아보지 못했다 | 설치 직후 가장 흔한 실패에서 안내가 일반 오류로 빠진다 | 샌드박스가 'docker'를 담은 FileNotFoundError로 다시 던진다. 테스트 `TestDockerMissing` |
+| 4 | CI가 `pip install -e .`만 해서 MCP 서버 테스트가 `importorskip`으로 **항상 skip**됐다 | "CI 그린"이 MCP 등록·호출을 보증하지 않았다 | `pip install -e ".[mcp]"` |
+
+**기록만 한 것(개선 후보)**
+
+- 토큰 예산 검사는 **호출 전** 누적만 본다 — 한 번의 큰 호출이 상한을 넘을 수 있다. 응답 후 검사도 추가하려면 "이미 쓴 토큰"을 되돌릴 수 없으므로 의미가 작다. 문서에 명시
+- `parse_skill`은 frontmatter 종료를 첫 `\n---`로 찾는다 — 본문에 수평선(`---`)을 쓰면 잘못 자른다. 현재 스킬 2개는 해당 없음. 스킬 작성 규칙에 "본문에 `---` 금지"를 적어 둘 것
+- MCP는 동기 실행이라 generate 5~10분 동안 클라이언트가 기다린다(`MCP_TIMEOUT`). 비동기(시작/조회/결과)는 ADR-0018 후속
+- `PoC구현.md` 메타 표의 "단위 172건"은 1단계 시점 스냅샷이다. 현재 224건은 E2E 산출물에 있다 — PoC 문서는 그대로 둔다
+- `hints.py` 규칙표의 문구 일치(`"CTA_GATEWAY_API_KEY가 필요하다" in t`)는 gateway.py의 오류 문구와 한 쌍이다 — 문구를 바꾸면 테스트가 잡는다(`test_hints`)
+- 결함 세트 `Buggy.java`는 스크래치 스크립트로 생성했다(치환 1회). 케이스를 손으로 고치면 고친 소스와 어긋날 수 있다 — `check_defects.py`가 "고친 소스와 같음"·"동치 변이"는 잡지만 "치환이 1군데인가"는 안 본다. 필요하면 diff 줄 수 검사 추가
+
+**시각자료 6종 추가** (`docs/제출자료/diagrams/*.mmd` → `images/*.png`, 로컬 Chrome 렌더): `e2e-architecture`(3단계 신설 모듈이 층 구조 어디에 붙었나),
+`skills-flow`(신호 → 규칙표 → 스킬 → 프롬프트), `mcp-path`(Claude Code → cta-mcp → 핸들러 → cli 함수), `config-precedence`(설정 4단계 우선순위와 행선지),
+`ci-and-defects`(CI 두 잡 + 결함 세트 자기 검사), `e2e-status`(작업 항목별 완료/대기). 기존 `workflow-summary`에 스킬 선택 단계를 추가해 재렌더.
 
 ## 검증 기록
 

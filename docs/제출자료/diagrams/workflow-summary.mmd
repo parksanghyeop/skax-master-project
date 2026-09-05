@@ -8,7 +8,7 @@ flowchart TD
 
     subgraph LOOP["③ 테스트 작성 루프 (LangGraph)"]
         direction TB
-        MAT["재료 수집 (일반 코드)<br/>확인 항목 · 객체 생성법 · 코드 그래프 검색"] --> GEN["코드 생성 — LLM"]
+        MAT["재료 수집 (일반 코드)<br/>확인 항목 · 객체 생성법 · 코드 그래프 검색<br/>+ 스킬 선택 — 규칙표 (3단계, ADR-0017)"] --> GEN["코드 생성 — LLM"]
         GEN --> RUN["Docker 샌드박스 실행<br/>방금 만든 테스트만"]
         RUN -->|"실패 → 실패 로그 + 직전 코드로 재시도<br/>(최대 8회, 같은 실패 반복 시 사용자 질문)"| GEN
     end

@@ -1,0 +1,68 @@
+flowchart TB
+    subgraph ENTRY["진입점 — 두 개, 로직은 하나"]
+        direction LR
+        CLI["cta CLI<br/>generate · maintain · resolve · diff · apply · graph"]
+        MCP["cta-mcp (MCP 서버, 3단계 신설)<br/>도구 5개 = 명령 5개<br/>cli 함수를 그대로 호출 + stdout 캡처"]
+        MCP -->|"Namespace 조립"| CLI
+    end
+
+    subgraph CFG["설정 입력 (3단계 신설)"]
+        direction TB
+        ENV[".env / 환경변수<br/>게이트웨이 주소·키 (시크릿은 여기만)"]
+        TOML["cta.toml (프로젝트 루트)<br/>[gates] [retry] [gateway] [llm] [budget]"]
+    end
+
+    subgraph CLIL["cli 층"]
+        direction LR
+        GEN["generate.py<br/>재료 수집 → 스킬 선택 → 작성 루프 → 게이트 → 제안"]
+        HINT["hints.py (신설)<br/>오류 → 왜 / 할 일 / 명령"]
+    end
+
+    subgraph ADP["adapters/java 층"]
+        direction LR
+        MAT["materials.py<br/>확인 항목 · 객체 생성법(mock 판정)"]
+        SK["skills/ (신설)<br/>junit5-mockito · regression-test<br/>select.py 규칙표"]
+        GATES["gates · mutation · regression<br/>게이트 6종"]
+    end
+
+    subgraph CORE["core 층 — 언어를 모른다 (R1)"]
+        direction LR
+        CONF["config.py (신설)<br/>CtaConfig 읽기"]
+        WG["writer_graph.py<br/>LangGraph 루프 (ask_every · max_total 인자)"]
+        RULES["pipeline/decide.py<br/>규칙표"]
+    end
+
+    subgraph LLML["llm 층 — 유일한 LLM 통로 (R7)"]
+        direction LR
+        MET["metering.py<br/>토큰 합산 + 예산(BudgetExceededError)"]
+        MASK["masking.py (신설)<br/>키 값·키 모양 → ****"]
+        GW["gateway.py<br/>Azure OpenAI 호환, 시간 초과 상한"]
+    end
+
+    SBX["sandbox/docker_sandbox.py<br/>build_run_args — -e 옵션 없음(키 미전달), 기본 네트워크 차단"]
+
+    CI["CI (.github/workflows/ci.yml, 신설)<br/>check: ruff · pytest 재생 · 결함 세트 자기 검사(JDK)<br/>integration(수동): Docker · Neo4j"]
+
+    CLI --> GEN
+    GEN --> MAT --> SK
+    GEN --> CONF
+    GEN --> WG
+    GEN --> GATES
+    TOML --> CONF
+    CONF -->|"기본값 자리에만"| GW
+    ENV -->|"항상 이긴다"| GW
+    SK -->|"style_notes"| WG
+    WG --> MET --> GW
+    GATES --> SBX
+    WG --> SBX
+    HINT --> MASK
+    GEN -. 예외 .-> HINT
+
+    classDef new fill:#fff3c4,stroke:#d97706,stroke-width:2px
+    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
+    classDef plain fill:#eef2ff,stroke:#6366f1
+    class MCP,TOML,HINT,SK,CONF,MASK,CI new
+    class RULES,GATES,SBX safe
+    class GW,MET llm
+    class CLI,ENV,GEN,MAT,WG plain

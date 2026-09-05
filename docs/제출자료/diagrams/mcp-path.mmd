@@ -1,0 +1,48 @@
+flowchart LR
+    CC["Claude Code<br/>(MCP 클라이언트)<br/>claude mcp add cta -- cta-mcp"]
+    SRV["cta-mcp (stdio)<br/>MCPServer — mcp&gt;=2, 선택 의존성<br/>instructions: '수 분 걸린다, 종료 코드 3은 사람 확인'"]
+
+    subgraph H["mcp/handlers.py — 인자 변환 + 출력 캡처만"]
+        direction TB
+        H1["generate(project, target, max_methods, fast)"]
+        H2["maintain(project, diff, plan_only, fast)"]
+        H3["resolve(project, decision, escalation_id, hint, fast)"]
+        H4["list_proposals(project, name)"]
+        H5["apply(project, name, all)"]
+        CAP["redirect_stdout → StringIO<br/>--non-interactive · --quiet 고정<br/>예외 → render_error (마스킹)"]
+    end
+
+    subgraph C["cli — CLI와 같은 함수"]
+        direction TB
+        C1["main._cmd_generate"]
+        C2["maintain_cmd.run_maintain"]
+        C3["resolve_cmd.run_resolve"]
+        C4["main._cmd_diff"]
+        C5["main._cmd_apply"]
+    end
+
+    CORE["core · adapters · llm · sandbox<br/>(변경 없음)"]
+    OUT["도구 결과 = 화면 출력 전체<br/>+ '종료 코드: N'<br/>0 정상 / 3 사람 확인 / 2 품질 미달 / 1 오류"]
+    SEC["시크릿: 서버 프로세스의 .env·환경변수만<br/>도구 인자로 받지 않는다"]
+
+    CC <-->|"JSON-RPC over stdio<br/>(stdout = 프로토콜 채널)"| SRV
+    SRV --> H1 & H2 & H3 & H4 & H5
+    H1 --> C1
+    H2 --> C2
+    H3 --> C3
+    H4 --> C4
+    H5 --> C5
+    C1 & C2 & C3 & C4 & C5 --> CORE
+    CAP --> OUT
+    OUT --> SRV
+
+    NOTE["R4 주의: 여기의 '도구 5개'는 MCP 노출 단위.<br/>에이전트 내부 도구 6개(core/tools)와 다른 층이다"]
+
+    classDef new fill:#fff3c4,stroke:#d97706,stroke-width:2px
+    classDef plain fill:#eef2ff,stroke:#6366f1
+    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef dim fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 4
+    class SRV,H1,H2,H3,H4,H5,CAP new
+    class CC,C1,C2,C3,C4,C5,CORE,OUT plain
+    class SEC safe
+    class NOTE dim
