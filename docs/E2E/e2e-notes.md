@@ -83,5 +83,5 @@
 
 ## 남은 것 (1주차 이후)
 
-- CI는 GitHub에 push해야 실제로 돈다 — 이 PC에서는 yml 문법과 로컬 동등 명령만 확인
+- CI: GitHub Actions `ci` check 잡 success — 50fa679(B-5), 6f63f91(B-4, check_defects 포함) (2026-09-06 API 확인). integration 잡은 수동 실행 대기
 - `--quiet` 실사용 확인은 Docker·게이트웨이가 있는 환경에서(이 PC는 Docker·키 없음)
