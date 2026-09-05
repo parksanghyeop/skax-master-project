@@ -87,7 +87,11 @@ v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 | `core/pipeline/decide.py` | 조치 결정 규칙표(+trivial 행) + 지침서 조립 — LLM 금지(R2) | M5 |
 | `core/pipeline/maintain.py` | 변경 대응 분석 — 건별 분류→검증 테스트 실행→규칙표 (포트만 사용) | ADR-0015 |
 | `adapters/java/changes.py` | git diff → 변경 심볼 + 단서(시그니처·접근 제어자·주석만·커밋 메시지·이슈), 수정 전 소스, 참조 파싱 TestLocator | M5·ADR-0015 |
-| `core/gates.py` | 게이트 실행기·설정(cta.toml) — 검문소의 언어 무관 틀 | M6 |
+| `core/gates.py` | 게이트 실행기·설정(cta.toml [gates]) — 검문소의 언어 무관 틀 | M6 |
+| `core/config.py` | cta.toml 전체 설정 — 게이트·반복 상한·시간 초과·모델·토큰 예산. 우선순위 환경변수 > .env > cta.toml | 3단계 A-2 |
+| `llm/masking.py` | 시크릿 가림 — 키 값·키 모양을 `****`로, CLI 출력 직전 2차 방어 | 3단계 A-3 |
+| `cli/hints.py` | 오류 안내 표 — 예외·문구 → "왜 / 할 일 / 명령" 세 줄. `main()`의 유일한 예외 출구 | 3단계 A-5 |
+| `.github/workflows/ci.yml` | CI — check(ruff·pytest 재생 모드, py 3.11/3.12) + integration(수동: docker·neo4j) | 3단계 A-1 |
 | `core/submit.py` | 생성→게이트 재시도 루프 (탈락 사유 반환, 소진 시 사람 확인) | M6 |
 | `adapters/java/gates.py` | 게이트 ①assert(메서드 단위·허용 목록) ②스킵 ③범위 ④커버리지 구현 + 기준선 스냅샷 | M6 |
 | `adapters/java/mutation.py` | 게이트 ⑤ PIT 뮤테이션 (overlay pom, 메서드 집합 집계, 전후 비교용 측정) | M6 |

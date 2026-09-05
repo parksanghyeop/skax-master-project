@@ -37,6 +37,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
 | `DockerSandbox.run` | `run(image, command, mounts, workdir, network_enabled=False, timeout_seconds=600) -> SandboxResult` | 기본 네트워크 차단. 실패는 exit_code로 전달(예외 아님), 시간 초과는 exit_code=124 |
+| `build_run_args` | `(image, command, mounts, workdir, network_enabled=False) -> list[str]` | `docker run` 인자 조립(순수 함수). `-e`/`--env`/`--env-file` 없음 — 호스트 환경변수(게이트웨이 키)가 컨테이너로 가는 경로가 없다(v4 6.6). `tests/test_secrets.py`가 고정 |
 | `Mount` | `host_path, container_path, read_only=False` | read_only는 실행 단계의 의존성 캐시 보호용 |
 | `SandboxResult` | `exit_code: int, output: str` | output은 stdout·stderr 합본 |
 
@@ -68,11 +69,12 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `LlmClient` (포트) | `chat(messages: list[ChatMessage], model: str) -> ChatResponse` | 구현: GatewayClient(실호출) / RecordingClient(녹음) / ReplayClient(재생) / MeteredClient(합산 래퍼) |
 | `ChatMessage` | `role: str, content: str` | role: system/user/assistant |
 | `ChatResponse` | `content: str, usage_tokens: int = 0` | usage_tokens는 게이트웨이 `usage.total_tokens`. 모르면 0 |
-| `MeteredClient` | `(inner)`; `.calls`, `.total_tokens` | 호출 수·토큰 합산 — "소요 … 토큰" 출력용 |
+| `MeteredClient` | `(inner, max_tokens=None)`; `.calls`, `.total_tokens` | 호출 수·토큰 합산 — "소요 … 토큰" 출력용. max_tokens(cta.toml [budget])에 닿으면 **호출 전** `BudgetExceededError` |
 | `RecordingClient` | `(inner, cassette_path)` | 호출마다 기록(JSON) 갱신. 시크릿은 기록에 미포함. 응답에 usage_tokens 포함 |
 | `ReplayClient` | `(cassette_path)` | 순서대로 재생 + 요청 대조. 기록 없음·소진·불일치 → `CassetteError`. **실호출 폴백 없음** |
-| `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_API_KEY` 필수, `CTA_GATEWAY_API_VERSION` 선택 | Azure OpenAI 호환(ADR-0011): `/openai/deployments/{model}/chat/completions?api-version=...`, 인증 `api-key` 헤더. 없으면 `GatewayConfigError` |
-| `make_llm_client` | `() -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` |
+| `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_API_KEY` 필수, `CTA_GATEWAY_API_VERSION`·`CTA_GATEWAY_TIMEOUT`(기본 300초) 선택 | Azure OpenAI 호환(ADR-0011): `/openai/deployments/{model}/chat/completions?api-version=...`, 인증 `api-key` 헤더. 없으면 `GatewayConfigError`. 오류 문구에 키를 넣지 않는다 |
+| `make_llm_client` | `(dotenv_path=None, *, model_default=None, timeout_default=None) -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` > cta.toml(`*_default` 인자, setdefault) > 코드 기본값 |
+| `mask_secrets` (masking) | `(text) -> str` | 환경변수의 키 값과 키 모양(`atl-…`)을 `****`로. CLI가 출력 직전에 적용(`cli/hints.render_error`) |
 
 기록 형식: `[{"request": {"model", "messages"}, "response": {"content", "usage_tokens"}}]` JSON 배열.
 
@@ -93,7 +95,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 항목 | 계약 |
 |---|---|
 | `WriterState` | 기존 키 + `extra_context: str`(호출부 재료, 수집 결과 뒤에 붙음) + `history: list[{"attempt","write_result","run_result"}]`(회차 기록). 둘 다 선택 — 없으면 빈 값 |
-| 상한 | `MAX_TOTAL_ATTEMPTS = 8`, `ASK_EVERY_ATTEMPTS = 4` (SC-001 5단계) |
+| 상한 | 기본 `MAX_TOTAL_ATTEMPTS = 8`, `ASK_EVERY_ATTEMPTS = 4` (SC-001 5단계). `build_writer_graph(ports, checkpointer=None, ask_every=4, max_total=8)` 인자로 조정 — 값은 cta.toml [retry](core/config.py). 1 미만은 ValueError |
 | `classify_failure` | `(last_run, prev_run) -> auto/ask/impossible` | 환경 표식→impossible, 동일 실패 반복→ask |
 | `InterruptUserGate` / `invoke_with_interrupts` | LangGraph interrupt 실연결 | 정지→질문→답(계속/중지/힌트)→같은 지점 재개. checkpointer 필수 |
 
@@ -101,7 +103,17 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
-| `GateConfig` / `load_gate_config` | `(project_root) -> GateConfig` | `cta.toml` [gates]로 조정: line_min(0.80), branch_min(0.70), max_retries(3), mutation_min(0.5) |
+| `GateConfig` / `load_gate_config` / `gate_config_from_toml` | `(project_root) -> GateConfig` / `(dict) -> GateConfig` | `cta.toml` [gates]로 조정: line_min(0.80), branch_min(0.70), max_retries(3), mutation_min(0.5). 해석은 `gate_config_from_toml` 하나를 `load_config`와 공유 |
+
+## 설정 파일 (core/config.py — cta.toml 전체)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
+| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
+| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)`의 setdefault로만 들어간다 — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않는다 |
+
+절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model / `[budget]` max_tokens_per_run.
 | `Gate` (포트) | `name; check() -> GateResult(name, passed, reason)` | 예외 없이 판정. 측정 불가 = 탈락(보수적) |
 | `run_gates` | `(list[Gate]) -> GateReport` | 단락 없이 전부 실행 — 탈락 사유를 한 번에 모은다 |
 | `snapshot_baseline` | `(project) -> SourceBaseline(asserts, skip_counts, file_hashes, test_sources)` | 에이전트 실행 **전** 기준선 |
@@ -119,10 +131,11 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|
 | 제안 `proposals.py` | `<프로젝트>/.cta/proposals/<이름>.java + .json`. status accepted/needs_review. apply 전에는 소스 트리에 없다(기존 파일에 추가하는 경우 원본으로 복구). apply하면 트리에 쓰고 보관소에서 제거 |
 | 사람 확인 `escalations.py` | `<프로젝트>/.cta/escalations/<id>.json` = `Escalation(id, kind, target, category, confidence, evidence, analysis, reason, briefing, tests, run_summary, failed_tests, file_rel, change_line, diff_excerpt, base, commit_message, created_at)`. maintain이 저장·종료(코드 3), resolve가 읽어 재개 후 삭제 |
-| 판단 메모 `memos.py` | `<프로젝트>/.cta/memos/*.json` = `Memo(target, category, decision, note, created_at)`. `find_similar(project, target)` 같은 메서드→같은 클래스 최근순 최대 3건. 참고용 |
+| 판단 메모 `memos.py` | `<프로젝트>/.cta/memos/<시각>-<순번>.json` = `Memo(target, category, decision, note, created_at)`. 순번은 같은 시각 저장의 덮어쓰기 방지(Windows 시계 해상도). `find_similar(project, target)` 같은 메서드→같은 클래스 최근순 최대 3건. 참고용 |
 | 결과 상태 `render.py` | 정상 완료 0 / 사람 확인 필요 3 / 품질 미달 2 / 실패 1 (`EXIT_CODES`) |
+| 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
-| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False) -> dict` | generate/maintain/resolve/eval 공용. 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가) |
+| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False) -> dict` | generate/maintain/resolve/eval 공용. 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`) |
 
 ## 코드 그래프 (graph/ — M4)
 

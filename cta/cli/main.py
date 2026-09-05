@@ -8,8 +8,10 @@ diff로 검토 → apply로만 소스 트리에 반영된다(v4 Step 3). 층: cl
 """
 
 import argparse
+import os
 from pathlib import Path
 
+from cta.cli.hints import render_error
 from cta.cli.locate import resolve_project
 from cta.cli.proposals import (
     STATUS_ACCEPTED,
@@ -20,6 +22,9 @@ from cta.cli.proposals import (
     select_names,
 )
 from cta.cli.render import EXIT_CODES
+
+# 전체 추적(traceback)을 보고 싶을 때 — 기본은 원인 한 줄 + 안내 세 줄만 낸다(cli/hints.py)
+ENV_DEBUG = "CTA_DEBUG"
 
 
 def _cmd_generate(args) -> int:
@@ -58,9 +63,10 @@ def _cmd_generate(args) -> int:
         ask_user=None if args.non_interactive else ask_on_terminal,
         max_methods=args.max_methods if args.max_methods else DEFAULT_MAX_METHODS,
         include_all=args.all,
+        quiet=args.quiet,
     )
     if outcome["status"] == "error":
-        print(f"오류: {outcome['report']}")
+        print(render_error(outcome["report"]))
         return 1
     if outcome.get("proposal"):
         print(f"\n다음: cta diff   → 검토      cta apply {outcome['proposal']}   → 반영")
@@ -167,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--warmup-test", help="준비 단계 예열용 기존 테스트")
     g.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
     g.add_argument("--non-interactive", action="store_true", help="질문 없이 자동 진행")
+    g.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
     g.set_defaults(func=_cmd_generate)
 
     m = sub.add_parser(
@@ -181,6 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--plan-only", action="store_true", help="판단만 출력하고 처리하지 않음")
     m.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
     m.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행 (CI)")
+    m.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
 
     def _maintain(args):
         from cta.cli.maintain_cmd import run_maintain
@@ -207,6 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     rs.add_argument("--project", help="생략 시 현재 위치에서 자동 인식")
     rs.add_argument("--fast", action="store_true", help="커버리지·뮤테이션 게이트 생략")
     rs.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행")
+    rs.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
 
     def _resolve(args):
         from cta.cli.resolve_cmd import run_resolve
@@ -267,7 +276,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    return args.func(args)
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        # 생성물은 run_generation의 BaseException 처리가 이미 되돌렸다 — 여기서는 안내만
+        print(render_error(KeyboardInterrupt("사용자 중단")))
+        return EXIT_CODES["실패"]
+    except Exception as e:  # noqa: BLE001 — 진입점: 원인 + 다음 행동을 내고 종료 코드 1
+        if os.environ.get(ENV_DEBUG):
+            raise
+        print(render_error(e))
+        return EXIT_CODES["실패"]
 
 
 if __name__ == "__main__":

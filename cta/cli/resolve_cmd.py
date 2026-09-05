@@ -108,6 +108,7 @@ def run_resolve(args: argparse.Namespace) -> int:
         fast=args.fast,
         ask_user=None if args.non_interactive else ask_on_terminal,
         authorized_tests=set(failed_names) if decision in ("intended", "test-issue") else None,
+        quiet=getattr(args, "quiet", False),
     )
     if outcome.get("status") == "error":
         print(f"오류: {outcome.get('report')}")
