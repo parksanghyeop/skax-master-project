@@ -28,6 +28,20 @@
 
 검증(이 PC, Python 3.12 임시 venv): 아래 "검증 기록" 참조.
 
+### 2주차 M8-b 확장 — B-1 스킬 · B-5 메모 불변식 (2026-09-06)
+
+- **B-1 워크플로우 스킬(ADR-0017)**: `adapters/java/skills/<이름>/SKILL.md` 2개(`junit5-mockito`, `regression-test`)
+  + `select.py`(frontmatter 파서, `SkillSignals`, 규칙표 `_RULES`, 렌더링). `run_generation`이 재료 수집 직후
+  신호(mock 판정 / 재발 방지 실행 / resolve 재개)로 스킬을 골라 `[2/4] 적용 스킬: …` 한 줄을 찍고,
+  `PromptedGenerator.style_notes`에 기본 문장 뒤로 붙인다. core 무변경, 도구 6개 유지, 골든 재생 무영향
+  (골든 케이스는 자체 STYLE_NOTES). 결과 dict에 `skills` 추가. wheel에 SKILL.md 포함 확인(package-data).
+  멘토 확인 질문은 답이 없어 제품 워크플로우 해석으로 진행 — 개발 스킬 어필 해석이면 산출물 한 단락으로 대응
+- **B-5 판단 메모 불변식**: `TestMemosCannotBypassRules` — 규칙표를 무시하라는 적대적 메모를 넣어도
+  `analyze_changes`의 조치가 메모 없을 때와 같고(refactor+fail → escalate 유지), `decide()`에는 메모 인자가
+  없음을 시그니처로 고정. 임베딩 검색은 게이트웨이 임베딩 API 확인 후(측정 환경) 결정
+- **하지 않은 것**: 전/후 측정(B-1 5번), 결함 세트 확장(B-2), 경계값 실험(B-3), MCP(B-4) — 전부 Docker·게이트웨이가
+  필요하거나(측정·`cta eval`) 사용자 결정(`mcp` 의존성)이 필요하다
+
 ## 검증 기록
 
 - 2026-09-06 착수 전 기준선: `pytest -q` 171 passed, 1 failed(memos 덮어쓰기), 4 deselected. ruff 통과
@@ -38,6 +52,8 @@
   4줄, 종료 코드 1 / 게이트웨이 키 비운 상태 → .env 안내 4줄, 종료 코드 1. 둘 다 전체 추적(traceback) 없이 끝남
 - `.github/workflows/ci.yml` — YAML 파싱 확인(jobs: check, integration). 실제 실행은 GitHub push 후
 - 미검증: `--quiet`가 실제 생성 진행 줄을 끄는지(Docker·게이트웨이 필요), 토큰 예산 초과 시 되돌림 경로의 실호출 재현
+- 2026-09-06 2주차(B-1·B-5): ruff 통과 · `pytest -q` **216 passed**(신규 12: skills 10, 메모 불변식 2) ·
+  `uv build --wheel`로 `cta/adapters/java/skills/*/SKILL.md` 포함 확인. 스킬이 실제 프롬프트에 들어간 실호출·전/후 수치는 미측정
 
 ## 문제·리서치 로그
 
