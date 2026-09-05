@@ -35,7 +35,13 @@ def save_memo(project: MavenProject, memo: Memo) -> Path:
     d = _dir(project)
     d.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    path = d / f"{stamp}.json"
+    # 같은 시각에 두 번 저장되면(Windows 시계 해상도 ~15ms) 파일이 덮어써져 메모가 사라진다 —
+    # 같은 자리 수의 순번을 붙여 이름을 구분하고, 이름순 정렬(list_memos)이 저장 순서와 같게 한다
+    seq = 0
+    path = d / f"{stamp}-{seq:02d}.json"
+    while path.exists():
+        seq += 1
+        path = d / f"{stamp}-{seq:02d}.json"
     path.write_text(json.dumps(asdict(memo), ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 

@@ -157,3 +157,25 @@ class TestEscalationRendering:
         assert "사람 확인 필요 — 자동으로 고치지 않았습니다" in text
         assert "수정한 테스트   0건 (일부러 안 함)" in text
         assert "PricingCalculator.java 45행 부근" in text
+
+
+class TestMemoFileNames:
+    def test_같은_시각에_저장해도_메모가_덮어써지지_않는다(self, tmp_path, monkeypatch):
+        # Windows 시계 해상도(~15ms) 안에서 두 번 저장되면 마이크로초 타임스탬프가 같아진다
+        from datetime import datetime
+
+        import cta.cli.memos as memos_module
+        from cta.cli.memos import list_memos
+
+        class FrozenDatetime:
+            @staticmethod
+            def now():
+                return datetime(2026, 9, 6, 12, 0, 0)
+
+        monkeypatch.setattr(memos_module, "datetime", FrozenDatetime)
+        project = _project(tmp_path)
+        save_memo(project, Memo("Calc#add", "refactor", "intended", "첫째", "2026-09-01T00:00:00"))
+        save_memo(
+            project, Memo("Calc#add", "refactor", "test-issue", "둘째", "2026-09-02T00:00:00")
+        )
+        assert [m.decision for m in list_memos(project)] == ["intended", "test-issue"]
