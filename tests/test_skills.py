@@ -35,6 +35,12 @@ class TestLoad:
             assert skill.description and skill.when and skill.body
             assert 200 <= len(skill.body) <= 1200  # 짧게 — 필요한 것만 싣는다
 
+    def test_본문의_수평선은_frontmatter_닫기로_오해되지_않는다(self):
+        # 4주차 검토의 우려 — partition은 첫 헤더 닫기만 자르므로 본문의 ---는 남는다
+        text = "---\nname: x\ndescription: d\n---\n앞\n\n---\n\n뒤\n"
+        skill = parse_skill(text)
+        assert (skill.name, skill.body) == ("x", "앞\n\n---\n\n뒤")
+
     def test_frontmatter가_없으면_폴더_이름과_전체_본문이다(self):
         skill = parse_skill("- 규칙 하나\n", fallback_name="x")
         assert skill == Skill("x", "", "", "- 규칙 하나")

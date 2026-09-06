@@ -13,6 +13,7 @@ Docker가 아니라 로컬 javac/java를 쓴다 — 대상 코드 실행이 아�
 종료 코드: 0 전부 통과 / 1 실패 있음
 """
 
+import difflib
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,9 @@ BENCH_SRC = (
     REPO_ROOT / "examples" / "evalbench" / "src" / "main" / "java" / "com" / "example" / "bench"
 )
 DEFECTS_DIR = REPO_ROOT / "cta" / "evals" / "defects"
+# 버그 버전은 고친 소스에 치환 1군데여야 한다 — 그래야 검출 실패의 원인이 한 가지로 좁혀진다.
+# 값 근거: 현재 12건 중 가장 큰 치환(null 검사 3줄 삭제)이 +1/-4 = 5줄.
+MAX_CHANGED_LINES = 8
 PACKAGE = "com.example.bench"
 
 # probe를 실행해 문자열 하나를 찍는 최소 진입점. 예외는 "throws <이름>"으로 통일해 비교한다
@@ -77,17 +81,30 @@ def check_case(case_dir: Path) -> tuple[bool, str]:
         return False, "case.toml에 probe/expected가 없다"
     fixed = {p.name: p.read_text(encoding="utf-8") for p in BENCH_SRC.glob("*.java")}
     buggy_name = Path(meta["class_rel"]).name
-    if fixed[buggy_name] == (case_dir / "Buggy.java").read_text(encoding="utf-8"):
+    buggy_text = (case_dir / "Buggy.java").read_text(encoding="utf-8")
+    if fixed[buggy_name] == buggy_text:
         return False, "Buggy.java가 고친 버전과 같다"
+    changed = sum(
+        1
+        for line in difflib.unified_diff(
+            fixed[buggy_name].splitlines(), buggy_text.splitlines(), lineterm="", n=0
+        )
+        if (line.startswith("+") or line.startswith("-")) and not line.startswith(("+++", "---"))
+    )
+    if changed > MAX_CHANGED_LINES:
+        return (
+            False,
+            f"고친 소스와 {changed}줄 다르다 (상한 {MAX_CHANGED_LINES}) — 치환이 여러 군데",
+        )
     buggy = dict(fixed)
-    buggy[buggy_name] = (case_dir / "Buggy.java").read_text(encoding="utf-8")
+    buggy[buggy_name] = buggy_text
     fixed_out = _evaluate(fixed, probe)
     buggy_out = _evaluate(buggy, probe)
     if fixed_out != expected:
         return False, f"고친 버전이 expected와 다르다: {fixed_out!r} != {expected!r}"
     if buggy_out == expected:
         return False, f"동치 변이 — 버그 버전도 {buggy_out!r} (관찰 불가, 어떤 테스트도 못 잡는다)"
-    return True, f"고친 {fixed_out!r} / 버그 {buggy_out!r}"
+    return True, f"고친 {fixed_out!r} / 버그 {buggy_out!r} ({changed}줄 치환)"
 
 
 def main(argv: list[str]) -> int:

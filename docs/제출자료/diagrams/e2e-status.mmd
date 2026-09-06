@@ -20,6 +20,7 @@ flowchart TB
         B4["B-4 MCP 서버 도구 5개 — ADR-0018"]
         B4m["B-4 Claude Code 실호출 [측정 대기]"]
         B5["B-5 판단 메모 불변식"]
+        BX["(추가) 로컬 실행 모드 --fast — ADR-0019<br/>실기동 6초 / 2초"]
     end
 
     subgraph A["M8-a 마감 — 남이 돌릴 수 있게"]
@@ -42,7 +43,7 @@ flowchart TB
     classDef wait fill:#fff3c4,stroke:#d97706,stroke-width:2px,stroke-dasharray: 4 4
     classDef partial fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
     classDef dim fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 4
-    class FIX0,A1,A2,A3,A4,A5,A6,B1,B2,B4,B5,C2,C4,C5 done
+    class FIX0,A1,A2,A3,A4,A5,A6,B1,B2,B4,B5,BX,C2,C4,C5 done
     class B1m,B2m,B3,B4m,C1,C3,C7 wait
     class C6 partial
     class LEGEND dim
