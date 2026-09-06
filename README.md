@@ -65,6 +65,7 @@ claude mcp add cta -- cta-mcp
 | [docs/제출자료/PoC구현.md](docs/제출자료/PoC구현.md) | 1단계 산출물 — 한눈에 보기, 최소 계약, 실행 로그 원문, 구현 범위 3구역 |
 | [docs/제출자료/핵심구현.md](docs/제출자료/핵심구현.md) | 워크플로우·의도 분류·코드 그래프·게이트의 상세 |
 | [docs/제출자료/시나리오수립.md](docs/제출자료/시나리오수립.md) · [examples/demo/README.md](examples/demo/README.md) | 시나리오 SC-001~004와 재현 절차 |
+| [docs/스킬.md](docs/스킬.md) · [docs/의도분류.md](docs/의도분류.md) · [docs/코드그래프.md](docs/코드그래프.md) | 스킬(테스트 작성 지식을 규칙으로 붙이는 법) / 의도 분류 / 코드 그래프 설명 |
 | [docs/architecture.md](docs/architecture.md) · [docs/contracts.md](docs/contracts.md) · [docs/adr/](docs/adr/) | 층 구조·모듈 표 / 데이터 모델·시그니처 / 설계 결정 기록 |
 | [docs/E2E/](docs/E2E/) | 3단계 계획·작업 목록·릴리스 체크리스트·작업 기록 |
 | [docs/개발환경.md](docs/개발환경.md) | 개발 명령, CI, Claude Code 구현 킷(스킬·플러그인) |
