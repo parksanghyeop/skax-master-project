@@ -60,7 +60,9 @@ claude mcp add cta -- cta-mcp
 | 문서 | 내용 |
 |---|---|
 | [docs/사용가이드.md](docs/사용가이드.md) | 설치, `.env`, 명령·옵션, `cta.toml`, CI, MCP, 문제 해결, **지원 범위와 한계** |
-| [docs/제출자료/PoC구현.md](docs/제출자료/PoC구현.md) | 구현 산출물 — 한눈에 보기, 최소 계약, 실행 로그 원문, 구현 범위 3구역 |
+| [docs/제출자료/E2E서비스개발_최종보고.md](docs/제출자료/E2E서비스개발_최종보고.md) | 최종 보고 — 아키텍처 요약, KPI 달성도, 가치, 운영·보안, 회고 |
+| [docs/제출자료/E2E서비스개발.md](docs/제출자료/E2E서비스개발.md) | 3단계 상세 산출물 — 계약 변경분, 구현, 문제 해결, 검증 로그 원문 |
+| [docs/제출자료/PoC구현.md](docs/제출자료/PoC구현.md) | 1단계 산출물 — 한눈에 보기, 최소 계약, 실행 로그 원문, 구현 범위 3구역 |
 | [docs/제출자료/핵심구현.md](docs/제출자료/핵심구현.md) | 워크플로우·의도 분류·코드 그래프·게이트의 상세 |
 | [docs/제출자료/시나리오수립.md](docs/제출자료/시나리오수립.md) · [examples/demo/README.md](examples/demo/README.md) | 시나리오 SC-001~004와 재현 절차 |
 | [docs/architecture.md](docs/architecture.md) · [docs/contracts.md](docs/contracts.md) · [docs/adr/](docs/adr/) | 층 구조·모듈 표 / 데이터 모델·시그니처 / 설계 결정 기록 |
