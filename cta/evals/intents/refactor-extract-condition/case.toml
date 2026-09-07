@@ -1,0 +1,10 @@
+# 의도 세트 케이스 — 조건식 지역 변수 추출
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#applyDiscount"
+expected = "refactor"
+message = "refactor: 등급 할인 조건에 이름을 붙임"
+before = """        if (customer.getGrade() == Grade.GOLD && amount.compareTo(THRESHOLD) >= 0) {
+            return amount.multiply(GOLD_RATE);"""
+after = """        boolean goldEligible = customer.getGrade() == Grade.GOLD && amount.compareTo(THRESHOLD) >= 0;
+        if (goldEligible) {
+            return amount.multiply(GOLD_RATE);"""

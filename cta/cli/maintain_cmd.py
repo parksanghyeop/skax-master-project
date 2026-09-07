@@ -70,7 +70,7 @@ def _make_locator(project: MavenProject):
 def run_maintain(args: argparse.Namespace) -> int:
     load_dotenv_into_env()
     project = detect_maven_project(args.project)
-    extractor = GitChangeExtractor(project, args.diff)
+    extractor = GitChangeExtractor(project, args.diff, message_override=args.message or "")
 
     # 1단계: 변경 추출 (일반 코드) — 시그니처·접근 제어자·줄 수·커밋 메시지·이슈 번호 단서 포함
     change_set = extractor.extract()
@@ -113,7 +113,15 @@ def run_maintain(args: argparse.Namespace) -> int:
         print(f"{INDENT}      … {msg}", flush=True)
 
     try:
-        analyses = analyze_changes(change_set, classifier, locator, runner, memo_lookup, progress)
+        analyses = analyze_changes(
+            change_set,
+            classifier,
+            locator,
+            runner,
+            memo_lookup,
+            progress,
+            author_intent=args.intent,
+        )
     finally:
         if hasattr(locator, "close"):
             locator.close()
@@ -168,7 +176,7 @@ def run_maintain(args: argparse.Namespace) -> int:
     print(f"{INDENT}손대지 않음  {untouched}건")
     print(f"{INDENT}사람 확인    {len(escalations)}건")
     if escalations:
-        options = "--intended | --test-issue | --proceed | --skip"
+        options = "--intended | --test-issue | --proceed | --as <의도> | --skip"
         print(f"{INDENT}판단 전달    cta resolve {escalations[0]} {options}")
     print(f"{INDENT}소요 토큰    {client.total_tokens:,}")
 
@@ -242,6 +250,7 @@ def _save_escalation(project, extractor, change_set, analysis: ChangeAnalysis) -
         base=extractor.base,
         commit_message=change_set.commit_message,
         created_at=datetime.now().isoformat(timespec="seconds"),
+        tests_status=analysis.tests_status,
     )
     save_escalation(project, escalation)
     return escalation
@@ -291,6 +300,10 @@ def _render_escalation(index: int, analysis: ChangeAnalysis, esc: Escalation) ->
         lines.append(f"{INDENT}   · 코드를 직접 고쳤다          → 다시 cta maintain")
     else:
         lines.append(f"{INDENT}   · 테스트를 만들어도 된다      → cta resolve {esc.id} --proceed")
+        lines.append(
+            f"{INDENT}   · 의도를 직접 알려준다        → cta resolve {esc.id}"
+            " --as bug_fix|refactor|new_feature"
+        )
     lines.append(f"{INDENT}   · 이번엔 건너뛴다            → cta resolve {esc.id} --skip")
     lines.append("")
     return "\n".join(lines)

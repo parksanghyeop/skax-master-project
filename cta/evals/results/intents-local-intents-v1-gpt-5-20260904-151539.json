@@ -1,0 +1,346 @@
+{
+  "dataset": "local-intents-v1",
+  "model": "gpt-5",
+  "prompt_hash": "81b7532afd8b",
+  "ran_at": "2026-09-04T15:15:39",
+  "summary": {
+    "all": {
+      "runs": 20,
+      "accuracy": 1.0,
+      "unclear_rate": 0.1,
+      "avg_elapsed_s": 10.7
+    },
+    "with_message": {
+      "runs": 10,
+      "accuracy": 1.0,
+      "unclear_rate": 0.1,
+      "avg_elapsed_s": 9.3
+    },
+    "no_message": {
+      "runs": 10,
+      "accuracy": 1.0,
+      "unclear_rate": 0.1,
+      "avg_elapsed_s": 12.1
+    },
+    "false_unclear": 0,
+    "total_tokens": 26094
+  },
+  "rows": [
+    {
+      "case": "ambiguous-deadcode",
+      "variant": "with_message",
+      "target": "PricingCalculator#calculate",
+      "expected": "unclear",
+      "actual": "unclear",
+      "confidence": 0.78,
+      "evidence": [
+        "커밋 메시지: wip",
+        "+        BigDecimal subtotal2 = subtotal.abs();",
+        "+        subtotal2 = subtotal;"
+      ],
+      "correct": true,
+      "elapsed": 12.0,
+      "tokens": 1297
+    },
+    {
+      "case": "ambiguous-deadcode",
+      "variant": "no_message",
+      "target": "PricingCalculator#calculate",
+      "expected": "unclear",
+      "actual": "unclear",
+      "confidence": 0.88,
+      "evidence": [
+        "Added assignment using absolute value: 'BigDecimal subtotal2 = subtotal.abs();'",
+        "Immediately overridden by 'subtotal2 = subtotal;', nullifying the abs() result",
+        "No commit message and method signature unchanged (+2/-0), offering no stated intent"
+      ],
+      "correct": true,
+      "elapsed": 16.0,
+      "tokens": 1694
+    },
+    {
+      "case": "bugfix-null-list",
+      "variant": "with_message",
+      "target": "OrderService#total",
+      "expected": "bug_fix",
+      "actual": "bug_fix",
+      "confidence": 1.0,
+      "evidence": [
+        "커밋 메시지: fix: total()에 null 목록이 들어오면 NPE — 0 반환으로 방어",
+        "diff에서 null 체크 추가: if (orders == null) { return BigDecimal.ZERO; }",
+        "메서드 시그니처와 접근 제어자 변경 없음(동작 수정 목적의 소규모 변경)"
+      ],
+      "correct": true,
+      "elapsed": 9.8,
+      "tokens": 1536
+    },
+    {
+      "case": "bugfix-null-list",
+      "variant": "no_message",
+      "target": "OrderService#total",
+      "expected": "bug_fix",
+      "actual": "bug_fix",
+      "confidence": 0.85,
+      "evidence": [
+        "orders가 null일 때 BigDecimal.ZERO를 반환하는 가드 추가",
+        "메서드 시그니처 변경 없음",
+        "바뀐 줄 수: +3 / -0 (예외 방지 목적의 조건문 추가만 존재)"
+      ],
+      "correct": true,
+      "elapsed": 9.8,
+      "tokens": 1370
+    },
+    {
+      "case": "bugfix-pay-state",
+      "variant": "with_message",
+      "target": "OrderService#pay",
+      "expected": "bug_fix",
+      "actual": "bug_fix",
+      "confidence": 0.98,
+      "evidence": [
+        "커밋 메시지: fix — 취소된 주문도 결제되는 문제, NEW 상태만 결제 허용",
+        "diff: order.getStatus() != OrderStatus.NEW 시 IllegalStateException 던지는 가드 추가",
+        "메서드 시그니처/접근자 불변, +3/-0 — 동작 제한을 위한 검증 로직 추가"
+      ],
+      "correct": true,
+      "elapsed": 12.6,
+      "tokens": 1302
+    },
+    {
+      "case": "bugfix-pay-state",
+      "variant": "no_message",
+      "target": "OrderService#pay",
+      "expected": "bug_fix",
+      "actual": "bug_fix",
+      "confidence": 0.78,
+      "evidence": [
+        "order.getStatus() != OrderStatus.NEW 체크를 추가",
+        "조건 위반 시 IllegalStateException을 던지는 예외 처리 추가",
+        "메서드 시그니처와 접근 제어자는 그대로이며 +3 라인만 추가됨"
+      ],
+      "correct": true,
+      "elapsed": 13.3,
+      "tokens": 1291
+    },
+    {
+      "case": "bugfix-threshold",
+      "variant": "with_message",
+      "target": "OrderService#applyDiscount",
+      "expected": "bug_fix",
+      "actual": "bug_fix",
+      "confidence": 0.98,
+      "evidence": [
+        "커밋 메시지: fix: 할인 임계금액 경계 조건 오류 수정 (#4821)",
+        "diff: amount.compareTo(THRESHOLD) > 0 → >= 0 (경계값 포함으로 변경)",
+        "메서드 시그니처/접근 제어자 변화 없음, 변경 줄 수 +1/-1"
+      ],
+      "correct": true,
+      "elapsed": 7.3,
+      "tokens": 1149
+    },
+    {
+      "case": "bugfix-threshold",
+      "variant": "no_message",
+      "target": "OrderService#applyDiscount",
+      "expected": "bug_fix",
+      "actual": "bug_fix",
+      "confidence": 0.78,
+      "evidence": [
+        "조건식에서 amount.compareTo(THRESHOLD) > 0 를 >= 0 로 변경(경계값 포함으로 수정)",
+        "메서드 시그니처와 접근 제어자 변화 없음",
+        "변경 라인 수 +1/-1로 핵심 로직의 경계 조건만 조정됨"
+      ],
+      "correct": true,
+      "elapsed": 9.0,
+      "tokens": 1271
+    },
+    {
+      "case": "feature-average",
+      "variant": "with_message",
+      "target": "OrderService#averageAmount",
+      "expected": "new_feature",
+      "actual": "new_feature",
+      "confidence": 0.94,
+      "evidence": [
+        "커밋 메시지: feat: 주문 평균 금액 계산 추가",
+        "diff: public BigDecimal averageAmount(List<Order> orders) 메서드가 추가됨 (+8 / -0)",
+        "일반 단서: 메서드 시그니처: 변경됨, 접근 제어자: 변경됨"
+      ],
+      "correct": true,
+      "elapsed": 13.8,
+      "tokens": 1670
+    },
+    {
+      "case": "feature-average",
+      "variant": "no_message",
+      "target": "OrderService#averageAmount",
+      "expected": "new_feature",
+      "actual": "new_feature",
+      "confidence": 0.64,
+      "evidence": [
+        "바뀐 줄 수: +8 / -0 — 메서드 본문이 새로 추가됨으로 보임",
+        "메서드 시그니처: 변경됨 — 새 API 형태로 노출",
+        "주석에 신규 동작 명시: '취소되지 않은 주문들의 평균 금액. 주문이 없으면 0.'"
+      ],
+      "correct": true,
+      "elapsed": 24.7,
+      "tokens": 2930
+    },
+    {
+      "case": "feature-silver-discount",
+      "variant": "with_message",
+      "target": "OrderService#applyDiscount",
+      "expected": "new_feature",
+      "actual": "new_feature",
+      "confidence": 0.98,
+      "evidence": [
+        "커밋 메시지: feat: SILVER 등급에 5% 할인 추가",
+        "diff: SILVER 등급 && amount.compareTo(THRESHOLD) >= 0 조건 추가",
+        "diff: 5% 할인 로직 amount.multiply(new BigDecimal(\"0.95\")) 추가"
+      ],
+      "correct": true,
+      "elapsed": 8.1,
+      "tokens": 1331
+    },
+    {
+      "case": "feature-silver-discount",
+      "variant": "no_message",
+      "target": "OrderService#applyDiscount",
+      "expected": "new_feature",
+      "actual": "new_feature",
+      "confidence": 0.85,
+      "evidence": [
+        "메서드 시그니처와 접근 제어자는 그대로이며 +3/-0로 신규 분기 추가",
+        "SILVER 등급 && amount.compareTo(THRESHOLD) >= 0 조건을 추가",
+        "해당 조건에서 amount.multiply(new BigDecimal(\"0.95\"))를 반환하여 5% 할인 동작 추가"
+      ],
+      "correct": true,
+      "elapsed": 13.7,
+      "tokens": 1449
+    },
+    {
+      "case": "refactor-extract-condition",
+      "variant": "with_message",
+      "target": "OrderService#applyDiscount",
+      "expected": "refactor",
+      "actual": "refactor",
+      "confidence": 1.0,
+      "evidence": [
+        "커밋 메시지: refactor: 등급 할인 조건에 이름을 붙임",
+        "메서드 시그니처: 그대로",
+        "조건식을 별도 boolean 변수(goldEligible)로 추출했고 if의 판단 조건은 동일"
+      ],
+      "correct": true,
+      "elapsed": 7.8,
+      "tokens": 1355
+    },
+    {
+      "case": "refactor-extract-condition",
+      "variant": "no_message",
+      "target": "OrderService#applyDiscount",
+      "expected": "refactor",
+      "actual": "refactor",
+      "confidence": 0.92,
+      "evidence": [
+        "인라인 if 조건을 동일한 표현식의 지역 변수 goldEligible로 추출",
+        "메서드 시그니처와 접근 제어자 변화 없음",
+        "변수 대입식과 if 조건식이 동일한 논리식을 사용"
+      ],
+      "correct": true,
+      "elapsed": 18.4,
+      "tokens": 1282
+    },
+    {
+      "case": "refactor-rename-local",
+      "variant": "with_message",
+      "target": "OrderService#create",
+      "expected": "refactor",
+      "actual": "refactor",
+      "confidence": 0.99,
+      "evidence": [
+        "커밋 메시지: \"refactor: create()의 지역 변수 이름 정리\"",
+        "메서드 시그니처: 그대로",
+        "diff: 지역 변수명이 order → newOrder로 변경되고 해당 변수를 save에 전달"
+      ],
+      "correct": true,
+      "elapsed": 8.5,
+      "tokens": 1080
+    },
+    {
+      "case": "refactor-rename-local",
+      "variant": "no_message",
+      "target": "OrderService#create",
+      "expected": "refactor",
+      "actual": "refactor",
+      "confidence": 0.96,
+      "evidence": [
+        "메서드 시그니처: 그대로",
+        "Order.builder(...).build()와 repository.save(...) 호출 흐름은 동일",
+        "지역 변수명 'order'가 'newOrder'로 변경됨"
+      ],
+      "correct": true,
+      "elapsed": 7.9,
+      "tokens": 1194
+    },
+    {
+      "case": "refactor-stream",
+      "variant": "with_message",
+      "target": "OrderService#total",
+      "expected": "refactor",
+      "actual": "refactor",
+      "confidence": 0.98,
+      "evidence": [
+        "커밋 메시지에 'refactor: total()을 스트림으로 정리' 명시",
+        "메서드 시그니처와 접근 제어자 변화 없음",
+        "diff에서 for-루프 합산을 stream/filter/map/reduce로 치환(동일 조건: CANCELLED 제외, BigDecimal 합)"
+      ],
+      "correct": true,
+      "elapsed": 12.6,
+      "tokens": 1614
+    },
+    {
+      "case": "refactor-stream",
+      "variant": "no_message",
+      "target": "OrderService#total",
+      "expected": "refactor",
+      "actual": "refactor",
+      "confidence": 0.95,
+      "evidence": [
+        "for-loop summation replaced with stream().filter().map().reduce()",
+        "메서드 시그니처와 접근 제어자 변경 없음",
+        "동일 조건(ORDER_STATUS != CANCELLED)과 동일 초기값(BigDecimal.ZERO) 유지"
+      ],
+      "correct": true,
+      "elapsed": 7.2,
+      "tokens": 1279
+    },
+    {
+      "case": "trivial-comment",
+      "variant": "with_message",
+      "target": "OrderService#total",
+      "expected": "trivial",
+      "actual": "trivial",
+      "confidence": 1.0,
+      "evidence": [
+        "주석만 수정됨 (코드 줄 변경 0)"
+      ],
+      "correct": true,
+      "elapsed": 0.6,
+      "tokens": 0
+    },
+    {
+      "case": "trivial-comment",
+      "variant": "no_message",
+      "target": "OrderService#total",
+      "expected": "trivial",
+      "actual": "trivial",
+      "confidence": 1.0,
+      "evidence": [
+        "주석만 수정됨 (코드 줄 변경 0)"
+      ],
+      "correct": true,
+      "elapsed": 0.5,
+      "tokens": 0
+    }
+  ]
+}

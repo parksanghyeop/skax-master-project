@@ -196,6 +196,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="비교할 커밋 범위의 기준 (기본 HEAD = 미커밋 변경, 예: HEAD~1)",
     )
     m.add_argument("--project", help="Maven 프로젝트 루트 (생략 시 현재 위치에서 자동 인식)")
+    m.add_argument(
+        "--intent",
+        choices=["bug_fix", "refactor", "new_feature"],
+        help="작성자가 밝히는 의도 — 분류를 이 값으로 확정 (미커밋 변경에 유용, ADR-0020)",
+    )
+    m.add_argument(
+        "--message",
+        default="",
+        help='미커밋 변경의 설명 — 커밋 메시지 자리에 단서로 쓴다 (예: "fix: 경계 조건")',
+    )
     m.add_argument("--plan-only", action="store_true", help="판단만 출력하고 처리하지 않음")
     m.add_argument(
         "--fast",
@@ -230,6 +240,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="테스트 쪽 문제다 → 실패 테스트를 동작 기준으로 재작성",
     )
     rs.add_argument("--proceed", action="store_true", help="(질문 항목) 계획대로 테스트 생성")
+    rs.add_argument(
+        "--as",
+        dest="as_intent",
+        choices=["bug_fix", "refactor", "new_feature"],
+        help="(질문 항목) 의도를 직접 지정 → 규칙표부터 다시 진행 (ADR-0020)",
+    )
     rs.add_argument("--skip", action="store_true", help="이번엔 건너뜀 (기록만)")
     rs.add_argument("--hint", default="", help="에이전트에 전달할 지시")
     rs.add_argument("--project", help="생략 시 현재 위치에서 자동 인식")
@@ -293,8 +309,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
     )
     e.add_argument("--cases", help="쉼표로 구분한 케이스 id (기본: 전체)")
+    e.add_argument(
+        "--intents",
+        action="store_true",
+        help="의도 세트로 의도 분류 정확도·unclear 비율 실측 (Docker 불필요, ADR-0020)",
+    )
+    e.add_argument(
+        "--variant",
+        choices=["both", "with", "without"],
+        default="both",
+        help="--intents 전용: 커밋 메시지 있음/없음 변형 선택 (기본 both)",
+    )
 
     def _eval(args):
+        if args.intents:
+            from cta.cli.eval_intents import run_eval_intents
+
+            return run_eval_intents(args)
         from cta.cli.eval_cmd import run_eval
 
         return run_eval(args)

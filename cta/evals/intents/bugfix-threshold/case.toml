@@ -1,0 +1,7 @@
+# 의도 세트 케이스 — 임계금액과 같은 주문이 할인에서 빠지는 경계 오류(> → >=)
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#applyDiscount"
+expected = "bug_fix"
+message = "fix: 할인 임계금액 경계 조건 오류 수정 (#4821)"
+before = """amount.compareTo(THRESHOLD) > 0"""
+after = """amount.compareTo(THRESHOLD) >= 0"""

@@ -1,0 +1,15 @@
+flowchart LR
+    S1["<b>① 의도 분류</b><br/>변경 건마다 LLM 1회<br/>판단 · 확신도 · 근거를 화면에 출력<br/>주석만 바뀌면 LLM 없이 확정"]
+    S2["<b>② 규칙표</b><br/>의도 × 기존 테스트 상태로 조치 결정<br/>리팩터링인데 실패 → 사람 확인<br/>LLM 관여 불가"]
+    S3["<b>③ 테스트 작성 루프</b><br/>재료 수집 → LLM 작성 → Docker 실행<br/>실패 로그로 재시도(최대 8회)<br/>같은 실패 반복 시 사용자 질문"]
+    S4["<b>④ 품질 게이트 6종</b><br/>assert · skip · scope · coverage<br/>mutation · regression<br/>탈락 사유를 붙여 재생성(최대 3회)"]
+    S5["<b>⑤ 제안 보관</b><br/>.cta/proposals/ 에 저장<br/>cta diff 검토 → cta apply 반영<br/>apply 전에는 소스 불변"]
+
+    S1 --> S2 --> S3 --> S4 --> S5
+
+    classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
+    classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
+    classDef human fill:#fde8d5,stroke:#f59e0b,stroke-width:2px
+    class S1,S3 llm
+    class S2,S4 safe
+    class S5 human

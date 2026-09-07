@@ -1,0 +1,12 @@
+# 의도 세트 케이스 — 상태 검사 누락 수정
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#pay"
+expected = "bug_fix"
+message = "fix: 취소된 주문도 결제되는 문제 — NEW 상태만 결제 허용"
+before = """        Order order = findById(id);
+        order.setStatus(OrderStatus.PAID);"""
+after = """        Order order = findById(id);
+        if (order.getStatus() != OrderStatus.NEW) {
+            throw new IllegalStateException("only NEW orders can be paid");
+        }
+        order.setStatus(OrderStatus.PAID);"""

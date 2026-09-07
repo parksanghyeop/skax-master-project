@@ -1,0 +1,16 @@
+# 의도 세트 케이스 — 새 public 메서드
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#averageAmount"
+expected = "new_feature"
+message = "feat: 주문 평균 금액 계산 추가"
+before = """    /** 취소되지 않은 주문들의 총액. */"""
+after = """    /** 취소되지 않은 주문들의 평균 금액. 주문이 없으면 0. */
+    public BigDecimal averageAmount(List<Order> orders) {
+        long count = orders.stream().filter(o -> o.getStatus() != OrderStatus.CANCELLED).count();
+        if (count == 0) {
+            return BigDecimal.ZERO;
+        }
+        return total(orders).divide(BigDecimal.valueOf(count), 2, java.math.RoundingMode.HALF_UP);
+    }
+
+    /** 취소되지 않은 주문들의 총액. */"""

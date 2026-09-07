@@ -63,6 +63,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `check_item_satisfaction` (materials) | `(items, line_coverage) -> int` | 항목 줄 실행(분기는 전부 실행) 기준의 충족 수 — 근사 |
 | `parse_failed_tests` / `count_tests_run` / `describe_attempt` (failures) | 실행 출력 → `FailedTest(name, test_class, expected, actual, message)` / 합계 / 회차 한 줄 요약 | 화면 문구의 원천 — LLM 없음 |
 | `compare_test_asserts` / `render_changes` (assert_report) | `(before_src, after_src) -> list[AssertChange]` / `-> str` | 테스트 메서드 단위 전/후 + 엄격함 점수(같음 4 > 참/거짓 3 > null 2 > null 아님 1) |
+| `GitChangeExtractor(project, base="HEAD", message_override="")` | 생성자 | message_override가 있으면 `commit_message()`가 그 값을 돌려준다 — 미커밋 변경의 `--message` 단서(ADR-0020 D1) |
 | `GitChangeExtractor.old_source` / `old_main_sources` | `(file_rel) -> str \| None` / `(change_set) -> dict` | base 시점 소스(git show). 재발 방지 게이트 입력 |
 
 ## 테스트 작성 스킬 (adapters/java/skills — ADR-0017)
@@ -100,7 +101,8 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `Intent` | `category(bug_fix/refactor/new_feature/trivial/unclear), analysis, confidence(0~1), evidence: tuple[str]` | 파싱 실패·모르는 값 → unclear(confidence 0). **화면에 전부 출력된다** |
 | `decide` | `(ChangedSymbol, Intent, tests_status) -> ActionDecision` | **규칙표 조회, LLM 금지(R2)**. tests_status: pass/fail/none |
 | `ActionDecision` | `kind(create_test/no_action/escalate/ask), target, briefing, reason` | 기대값 자동 수정 행은 표에 없다(R3). refactor+fail→escalate, unclear→ask, refactor+none→ask, trivial→no_action |
-| `analyze_changes` (maintain) | `(change_set, classifier, locator, runner, memo_lookup=None, progress=None) -> list[ChangeAnalysis]` | 건별 분류 → 검증 테스트 실행(같은 묶음 1회) → 규칙표. comment_only는 분류기 호출 없이 `TRIVIAL_INTENT` |
+| `analyze_changes` (maintain) | `(change_set, classifier, locator, runner, memo_lookup=None, progress=None, author_intent=None) -> list[ChangeAnalysis]` | 건별 분류 → 검증 테스트 실행(같은 묶음 1회) → 규칙표. comment_only는 분류기 호출 없이 `TRIVIAL_INTENT`. author_intent(--intent)가 있으면 분류를 그 값으로 덮어쓴다(comment_only는 예외) |
+| `with_author_intent` / `AUTHOR_INTENTS` (maintain) | `(Intent, category) -> Intent` / `(bug_fix, refactor, new_feature)` | 작성자 지정 의도(ADR-0020 D1): category·확신도 1.0·근거 첫 줄 "작성자 지정 의도". LLM 근거·분석은 유지. trivial·unclear 지정은 ValueError |
 | `ChangeAnalysis` | `change, intent, tests, tests_status, run_summary, decision, memos` | 화면 블록(①②…)과 후속 처리의 단위 |
 
 ## 테스트 작성 서브그래프 (core/writer_graph)
@@ -118,15 +120,6 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|---|
 | `GateConfig` / `load_gate_config` / `gate_config_from_toml` | `(project_root) -> GateConfig` / `(dict) -> GateConfig` | `cta.toml` [gates]로 조정: line_min(0.80), branch_min(0.70), max_retries(3), mutation_min(0.5). 해석은 `gate_config_from_toml` 하나를 `load_config`와 공유 |
 
-## 설정 파일 (core/config.py — cta.toml 전체)
-
-| 항목 | 시그니처 | 계약 |
-|---|---|---|
-| `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
-| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
-| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, MCP 서버가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
-
-절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model / `[budget]` max_tokens_per_run.
 | `Gate` (포트) | `name; check() -> GateResult(name, passed, reason)` | 예외 없이 판정. 측정 불가 = 탈락(보수적) |
 | `run_gates` | `(list[Gate]) -> GateReport` | 단락 없이 전부 실행 — 탈락 사유를 한 번에 모은다 |
 | `snapshot_baseline` | `(project) -> SourceBaseline(asserts, skip_counts, file_hashes, test_sources)` | 에이전트 실행 **전** 기준선 |
@@ -138,15 +131,27 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `BugReproductionGate` | ⑥ `regression` `(project, runner, old_sources, selector)` | 수정 전 소스로 바꿔 끼우고 실행 → **통과하면 탈락**. 파일은 finally로 복구. bug_fix create_test에만 부착 |
 | `generate_with_gates` (core/submit) | `-> SubmitResult(status, ...)` | 생성→게이트, 탈락 사유를 지침서에 붙여 재시도(max_retries), 소진 시 human_review |
 
+## 설정 파일 (core/config.py — cta.toml 전체)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
+| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
+| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, MCP 서버가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
+
+절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model / `[budget]` max_tokens_per_run.
+
 ## CLI 보관소 (cli/)
 
 | 항목 | 계약 |
 |---|---|
 | 제안 `proposals.py` | `<프로젝트>/.cta/proposals/<이름>.java + .json`. status accepted/needs_review. apply 전에는 소스 트리에 없다(기존 파일에 추가하는 경우 원본으로 복구). apply하면 트리에 쓰고 보관소에서 제거 |
-| 사람 확인 `escalations.py` | `<프로젝트>/.cta/escalations/<id>.json` = `Escalation(id, kind, target, category, confidence, evidence, analysis, reason, briefing, tests, run_summary, failed_tests, file_rel, change_line, diff_excerpt, base, commit_message, created_at)`. maintain이 저장·종료(코드 3), resolve가 읽어 재개 후 삭제 |
+| 사람 확인 `escalations.py` | `<프로젝트>/.cta/escalations/<id>.json` = `Escalation(id, kind, target, category, confidence, evidence, analysis, reason, briefing, tests, run_summary, failed_tests, file_rel, change_line, diff_excerpt, base, commit_message, created_at, status, extra, tests_status)`. maintain이 저장·종료(코드 3), resolve가 읽어 재개 후 삭제. tests_status(pass/fail/none)는 `resolve --as`가 규칙표를 다시 볼 때 쓴다 |
+| `stated_intent_decision` (resolve_cmd.py) | `(Escalation, category) -> (ActionDecision, tests_status)` | 사람이 지정한 의도로 규칙표 재조회(LLM 없음). no_action → 메모·삭제, create_test → 생성(bug_fix는 regression 게이트 부착), escalate → --intended/--test-issue 안내 후 항목 유지 |
 | 판단 메모 `memos.py` | `<프로젝트>/.cta/memos/<시각>-<순번>.json` = `Memo(target, category, decision, note, created_at)`. 순번은 같은 시각 저장의 덮어쓰기 방지(Windows 시계 해상도). `find_similar(project, target)` 같은 메서드→같은 클래스 최근순 최대 3건. 참고용 |
 | 결과 상태 `render.py` | 정상 완료 0 / 사람 확인 필요 3 / 품질 미달 2 / 실패 1 (`EXIT_CODES`) |
 | 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
+| `run_maintain` / `run_resolve` / `run_eval_intents` | `(args: argparse.Namespace) -> int`(종료 코드) | 명령 진입점(`maintain_cmd.py`·`resolve_cmd.py`·`eval_intents.py`). MCP 핸들러도 같은 함수를 부른다(ADR-0018) |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
 | `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="docker") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` local이면 준비 단계 없음 + 경고, 결과 `runner`(ADR-0019). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
 
@@ -168,6 +173,14 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `case.toml` | `target`("Class#method"), `class_rel`, `bug`(한 줄), `probe`(자바 식), `expected`(고친 버전의 probe 출력 문자열. 예외는 `"throws <이름>"`) |
 | `Buggy.java` | 고친 소스에 치환 1회를 적용한 전체 파일. `scripts/check_defects.py`가 컴파일·probe로 고친 버전과 다름을 확인(동치 변이 금지) |
 | `DATASET_VERSION` | `cli/eval_cmd.py` — 케이스 추가·수정 시 올린다(v2 = 12건) |
+
+## 의도 세트 (evals/intents — ADR-0020)
+
+| 항목 | 계약 |
+|---|---|
+| `case.toml` | `file`(예제 안 상대 경로), `target`("Class#method"), `expected`(bug_fix/refactor/new_feature/trivial/unclear), `message`(커밋 메시지 변형용), `before`/`after`(치환 1회) |
+| `DATASET_VERSION` | `cli/eval_intents.py` — `local-intents-v1`(10건). 케이스 추가·수정 시 올린다 |
+| 결과 JSON | `summary.{all,with_message,no_message}.{runs, accuracy, unclear_rate, avg_elapsed_s}`, `false_unclear`(정답이 unclear가 아닌데 unclear로 답한 수), `total_tokens`. 분류만 하므로 Docker 불필요 |
 
 ## 코드 그래프 (graph/ — M4)
 

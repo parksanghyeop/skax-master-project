@@ -1,0 +1,7 @@
+# 의도 세트 케이스 — 주석만 변경 — LLM 없이 trivial이어야 한다
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#total"
+expected = "trivial"
+message = "docs: total() 주석 정리"
+before = """        // 주문 총액을 계산한다"""
+after = """        // 취소된 주문은 제외하고 총액을 계산한다"""

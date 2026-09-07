@@ -1,0 +1,16 @@
+# 의도 세트 케이스 — 동작 보존 스트림 변환
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#total"
+expected = "refactor"
+message = "refactor: total()을 스트림으로 정리"
+before = """        BigDecimal sum = BigDecimal.ZERO;
+        for (Order order : orders) {
+            if (order.getStatus() != OrderStatus.CANCELLED) {
+                sum = sum.add(order.getAmount());
+            }
+        }
+        return sum;"""
+after = """        return orders.stream()
+                .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
+                .map(Order::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);"""

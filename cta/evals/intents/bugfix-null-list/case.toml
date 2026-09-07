@@ -1,0 +1,12 @@
+# 의도 세트 케이스 — null 목록 방어 추가
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#total"
+expected = "bug_fix"
+message = "fix: total()에 null 목록이 들어오면 NPE — 0 반환으로 방어"
+before = """        BigDecimal sum = BigDecimal.ZERO;
+        for (Order order : orders) {"""
+after = """        if (orders == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal sum = BigDecimal.ZERO;
+        for (Order order : orders) {"""

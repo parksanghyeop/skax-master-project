@@ -40,6 +40,9 @@ class Escalation:
     created_at: str
     status: str = "open"
     extra: dict = field(default_factory=dict)
+    tests_status: str = (
+        ""  # pass/fail/none — resolve --as가 규칙표를 다시 조회할 때 쓴다(구 파일은 빈 값)
+    )
 
 
 def _dir(project: MavenProject) -> Path:

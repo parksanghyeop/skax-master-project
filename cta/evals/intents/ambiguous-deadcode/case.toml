@@ -1,0 +1,11 @@
+# 의도 세트 케이스 — 효과 없는 대입 — 실제 unclear로 저장됐던 사례. 과교정 여부 확인용
+file = "src/main/java/com/example/demo/pricing/PricingCalculator.java"
+target = "PricingCalculator#calculate"
+expected = "unclear"
+message = "wip"
+before = """            subtotal = subtotal.add(item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())));
+        }"""
+after = """            subtotal = subtotal.add(item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())));
+        }
+        BigDecimal subtotal2 = subtotal.abs();
+        subtotal2 = subtotal;"""

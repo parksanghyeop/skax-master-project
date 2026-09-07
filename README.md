@@ -37,8 +37,8 @@ cta apply                                         # 반영
 | 명령 | 역할 | 종료 코드 |
 |---|---|---|
 | `cta generate <파일명> \| --class C [--max-methods N]` | 테스트 없는 메서드에 생성 → 제안 | 0/2/3/1 |
-| `cta maintain [--diff REF] [--plan-only]` | git 변경 → 건별 판단 → 규칙표 → 생성 또는 사람 확인 | 0/2/3/1 |
-| `cta resolve [id] --intended\|--test-issue\|--proceed\|--skip` | 사람 확인 항목에 답해 재개 | 0/2/3/1 |
+| `cta maintain [--diff REF] [--plan-only] [--intent 의도] [--message "..."]` | git 변경 → 건별 판단 → 규칙표 → 생성 또는 사람 확인. 작성자가 의도를 알면 `--intent`로 확정 | 0/2/3/1 |
+| `cta resolve [id] --intended\|--test-issue\|--proceed\|--as 의도\|--skip` | 사람 확인 항목에 답해 재개. `--as`는 "의도 모름" 항목에 의도를 지정 | 0/2/3/1 |
 | `cta diff [이름]` / `cta apply [이름\|--all]` / `cta discard` | 제안 확인 / 반영 / 폐기 | 0 |
 | `cta graph [--coverage]` | Neo4j에 코드 그래프 빌드 (선택) | 0/1 |
 | `cta demo` | 저장된 LLM 호출 기록으로 대표 시나리오 재생 (비용 0) | 0/1 |
@@ -63,6 +63,7 @@ claude mcp add cta -- cta-mcp
 | [docs/E2E/최종보고.md](docs/E2E/최종보고.md) | 최종 보고 — 아키텍처 요약, KPI 달성도, 가치, 운영·보안, 회고 |
 | [docs/제출자료/E2E서비스개발.md](docs/제출자료/E2E서비스개발.md) | 3단계 상세 산출물 — 계약 변경분, 구현, 문제 해결, 검증 로그 원문 |
 | [docs/제출자료/PoC구현.md](docs/제출자료/PoC구현.md) | 1단계 산출물 — 한눈에 보기, 최소 계약, 실행 로그 원문, 구현 범위 3구역 |
+| [docs/제출자료/테스트및고도화.md](docs/제출자료/테스트및고도화.md) | 2단계 산출물 — 검출률 평가, 개선 전/후, 가드레일 검증, 의도 분류 측정 |
 | [docs/제출자료/핵심구현.md](docs/제출자료/핵심구현.md) | 워크플로우·의도 분류·코드 그래프·게이트의 상세 |
 | [docs/제출자료/시나리오수립.md](docs/제출자료/시나리오수립.md) · [examples/demo/README.md](examples/demo/README.md) | 시나리오 SC-001~004와 재현 절차 |
 | [docs/스킬.md](docs/스킬.md) · [docs/의도분류.md](docs/의도분류.md) · [docs/코드그래프.md](docs/코드그래프.md) | 스킬(테스트 작성 지식을 규칙으로 붙이는 법) / 의도 분류 / 코드 그래프 설명 |
@@ -78,6 +79,6 @@ Maven 단일 모듈만(멀티모듈·Gradle 미지원). 소스 파서는 정규�
 ## 개발
 
 ```bash
-pip install -e . pytest ruff && ruff check . && pytest -q     # 단위 172+건, Docker·Neo4j 제외
+pip install -e . pytest ruff && ruff check . && pytest -q     # 단위 236건, Docker·Neo4j 제외
 ```
 규칙은 `CLAUDE.md`, 개발 환경·CI는 `docs/개발환경.md`.

@@ -1,0 +1,10 @@
+# 의도 세트 케이스 — 새 분기(등급) 추가
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#applyDiscount"
+expected = "new_feature"
+message = "feat: SILVER 등급에 5% 할인 추가"
+before = """        return isPromo ? amount.multiply(PROMO_RATE) : amount;"""
+after = """        if (customer.getGrade() == Grade.SILVER && amount.compareTo(THRESHOLD) >= 0) {
+            return amount.multiply(new BigDecimal("0.95"));
+        }
+        return isPromo ? amount.multiply(PROMO_RATE) : amount;"""

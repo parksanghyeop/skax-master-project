@@ -207,6 +207,48 @@
 - 워크플로우 그림을 요약판(`diagrams/workflow-summary.mmd`, 5단계 한 장)과 상세판(기존 `workflow.mmd`)으로 분리
 - `scripts/render_diagram.py` 추가: mermaid → PNG를 로컬 Chrome 헤드리스로 렌더링(그림 내용을 외부 렌더 서비스에
   보내지 않음, mermaid.js만 CDN). 기존 산출물과 같은 폭(1568) 기본값, `--scale 2`로 고해상도
+### 산출물 — 테스트 및 고도화 문서 (2026-09-04)
+- `docs/제출자료/테스트및고도화.md` 신설: 제출 양식(품질 평가·성능/비용·가드레일·기타 사례·테스트 단계 리서치 표)에
+  이 파일의 실측을 재배치 — 검출률 베이스라인 83.3%(케이스별 표), 의도 판단 불명확 87% → 리팩터링 90%, 재생 74초·0 토큰,
+  게이트 불변식 15건 + Docker 실측. 같은 결함 세트 재측정은 아직 없음을 명시(경계값 실험은 후보 ①로 유지)
+- 프롬프트 인젝션 입력 필터는 미구현으로 적고 남은 과제에 추가
+
+### 실행 시간 병목 실측 (2026-09-04, 사용자 요청 "maintain 3분 → 1분") — 개선안만, 미적용
+- 실측: SC-003형 maintain 60.9초 = 분류(gpt-5) 15.6 + 기존 테스트 Docker 실행 43.3(target 없음) + 기타 2.
+  SC-002형 570초 중 Maven 8회 ≈ 450초. 컨테이너 기동 0.9초·Maven 부팅 0.9초는 무관
+- **원인: `.cta/m2repo` 바인드 마운트**. 같은 테스트 1건: 바인드 23.3초 → named volume 5.3초 → +JVM 플래그 4.5초
+  (전체 컴파일 43.3 → 7.6초). Windows Docker Desktop 파일 공유 계층이 jar 161MB 로딩을 느리게 한다
+- 개선안 6개와 전망을 테스트및고도화.md §2.2에 기록. #1(named volume)은 캐시 위치가 바뀌므로 ADR 먼저
+- **[발견] 시나리오 재현 스크립트 깨짐** — 커밋 9a003f2가 예제 PricingCalculator의 반올림을
+  `setScale(10, HALF_DOWN)`으로 바꿔 `scripts/demo_scenarios.py refactor`가 바꿀 부분(`setScale(0, HALF_UP)`)을
+  못 찾고 실패한다. 같은 이유로 예제 HEAD에서 `PricingCalculatorTest` 4건 중 2건이 이미 실패한다.
+  이번 실측은 임시 저장소에 스트림 리팩터링을 손으로 커밋해 진행. 수정 여부는 사용자 판단(의도된 변경일 수 있음)
+
+### 모델 비교 ② + LLM 지연 실측 + 구조 개편안 (2026-09-04) — 측정만, 미적용
+- `cta eval`을 gpt-4.1로: 검출률 5/6 = 83.3%(gpt-5와 동일, 같은 케이스 미검출), 승인 6/6, 평균 시도 1.17,
+  총 8.7분(gpt-5 19.5분). 기록 evals/results/eval-local-defects-v1-gpt-4.1-20260904-135950.json
+- 게이트웨이가 `reasoning_effort`를 받음: gpt-5 짧은 작성 17.4초 → low 7.8초 → minimal 1.8초. gpt-4.1 2.3초, gpt-5-mini 7.5초
+- 의도 분류 4모델 대조(SC-003 저장소): 전부 리팩터링. gpt-5(15.6초)·gpt-5-mini(7.3초)는 근거에 동작 변화 의심을
+  적고, gpt-4.1(5.4초)·4.1-mini(2.4초)는 안 적음 → 분류는 gpt-5-mini 권장
+- 규칙표 (bug_fix, FAIL) → create_test 행이 오분류 시 사람 확인을 건너뛰는 경로 → ask로 바꾸는 ADR 제안
+- 구조 개편안 S1~S6(Maven → javac+JUnit 런처, 세션 컨테이너, fan-out, 실행 1회화, 역할별 모델, 다건 병합)과
+  예상 소요를 테스트및고도화.md §2.2에 기록
+
+### 의도 모름 축소 — ADR-0020 (2026-09-04)
+- 배경: 사용자 "의도 모름으로 거의 다 빠지는 것 같다". 저장된 unclear 2건 확인 → 둘 다 미커밋(메시지 없음) + 애매한 편집
+  (`BigDecimal.ZERO → 0`, 효과 없는 대입). 카테고리 세분화 문제가 아니라 단서 부족 + 사람이 의도를 말할 길 없음
+- **의도 세트 하네스** `cta eval --intents`(cli/eval_intents.py): 케이스 10건(cta/evals/intents/, 버그 수정 3·리팩터링 3·
+  새 기능 2·주석 1·애매 1)을 예제 복사본에 치환 적용, 커밋 메시지 있음/없음 두 변형, 분류만(Docker 없음). 20회 약 4분
+- **개선 전 측정(gpt-5)**: 정확도 20/20, 잘못된 unclear 0, 메시지 없으면 확신도만 64~96%로 하락. 애매 케이스는 양쪽 다 unclear(정답)
+  → 단서 확대(D2)·확신도 기준치(D3)는 근거 없어 **보류**(기준치 0.7이면 정답을 unclear로 만들어 오히려 악화)
+- **구현(D1)**: `cta maintain --intent bug_fix|refactor|new_feature`(분류 덮어쓰기, 근거 첫 줄 "작성자 지정 의도", 주석만은 trivial 유지),
+  `--message`(미커밋 변경의 커밋 메시지 자리 단서, 이슈 번호 추출), `cta resolve <id> --as <의도>`(저장된 테스트 상태로 규칙표 재조회 —
+  LLM 없음, refactor×fail은 --intended/--test-issue 안내 후 항목 유지). Escalation에 tests_status 추가
+- 실측(임시 저장소, 미커밋 애매 변경): 옵션 없음 → 판단 불확실 85% → 사람에게 질문 / `--intent refactor --message` → 리팩터링 100%,
+  근거 첫 줄 작성자 지정 → (테스트 실패 중) 사람 확인 / 저장 후 `resolve --as refactor` → 규칙표 escalate → 선택지 안내, 항목 유지.
+  단위 180 passed(신규 tests/test_author_intent.py 8건), ruff 통과
+- 하네스 결함 1건: mkdtemp 폴더에 copytree → 하위 폴더로 복사하도록 수정
+
 ## 문제·리서치 로그
 
 - **[이슈: 설계] 스킬의 ADR-0010 번호 충돌** — phase2 스킬이 예정한 ADR-0010

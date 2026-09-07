@@ -1,0 +1,9 @@
+# 의도 세트 케이스 — 지역 변수 이름 변경
+file = "src/main/java/com/example/demo/order/OrderService.java"
+target = "OrderService#create"
+expected = "refactor"
+message = "refactor: create()의 지역 변수 이름 정리"
+before = """        Order order = Order.builder().customerName(customerName).amount(amount).build();
+        return repository.save(order);"""
+after = """        Order newOrder = Order.builder().customerName(customerName).amount(amount).build();
+        return repository.save(newOrder);"""

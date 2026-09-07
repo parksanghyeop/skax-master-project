@@ -54,7 +54,12 @@ class GitChangeExtractor:
     실패 시 동작: git 저장소가 아니면 RuntimeError(안내 포함).
     """
 
-    def __init__(self, project: MavenProject, base: str = "HEAD") -> None:
+    def __init__(
+        self, project: MavenProject, base: str = "HEAD", message_override: str = ""
+    ) -> None:
+        # message_override: 미커밋 변경처럼 커밋 메시지가 없을 때 사용자가 --message로 준 설명.
+        # 있으면 커밋 메시지 자리에 그대로 들어간다(ADR-0020 D1).
+        self._message_override = message_override.strip()
         self._project = project
         self._base = base
 
@@ -118,7 +123,12 @@ class GitChangeExtractor:
         )
 
     def commit_message(self) -> str:
-        """비교 범위(base..HEAD)의 커밋 메시지들. 미커밋 변경(base=HEAD)이면 빈 문자열."""
+        """비교 범위(base..HEAD)의 커밋 메시지들. 미커밋 변경(base=HEAD)이면 빈 문자열.
+
+        --message로 준 설명이 있으면 그것이 우선한다(작성자가 직접 밝힌 단서).
+        """
+        if self._message_override:
+            return self._message_override
         if self._base.strip() == "HEAD":
             return ""
         try:
