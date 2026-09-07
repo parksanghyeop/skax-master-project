@@ -157,6 +157,22 @@
   달라 불일치가 난다(예상된 동작, R7). HEAD의 예제로 만든 임시 worktree에서 재생 — 결과는 검증 기록
 - 문서: README·사용가이드(준비물·§12·문제 해결·한계)·architecture·contracts·CLAUDE.md·최종보고·E2E서비스개발·핵심구현·다이어그램 7종
 
+### 10주차 — LLM 호출 비용 (2026-09-07, 사용자 요청 "제일 좋은 방법으로 적용")
+
+- **ADR-0023**: ① 토큰 내역 기록(`ChatResponse`·`MeteredClient.breakdown()`, 화면 "소요 … 토큰 (입력·출력·추론·캐시)", 결과 `tokens_breakdown`)
+  ② 기존 테스트 파일에 추가할 때 **새 import·멤버 조각만 출력**(`write_test_append.md`) → `adapters/java/merge.py`가 파일 전체로 합침.
+  재시도에는 직전 조각만. 새 클래스는 `write_test.md` 그대로(골든 재생 무영향) ③ `reasoning_effort` 기본 low(cta.toml `[llm]`·`CTA_LLM_REASONING_EFFORT`,
+  추론 모델일 때만 전송, 재생 대조 키 무영향). 단위 12건(`tests/test_llm_cost.py`)
+- **전/후 실측(같은 대상 `OrderService` delete·total, `--max-methods 2 --fast`, gpt-5)**:
+  전 **20,969토큰 · 2분 37초 · 2회 시도** → 후 **5,128토큰(입력 3,968 · 출력 1,160 · 추론 768) · 32초 · 1회 통과**, 같은 +4 테스트, 게이트 동일 통과.
+  토큰 76%·시간 80% 감소. 합친 결과: 새 import 1줄은 import 블록 뒤, 메서드 4개는 클래스 끝 앞
+- **의도 분류(`cta eval --intents --variant with`, low)**: 정확도 10/10, 잘못된 unclear 0, 평균 7.6초(전 9.3초), 10회 8,909토큰(전 20회 26,094 → 10회 환산 약 13,000, 32% 감소)
+- **결함 세트 v1 6건(`--fast`, low)**: fib-base·palindrome-empty·rounding-negative·truncate-boundary·truncate-null 검출(5건 모두 1차 통과, 케이스당 25~29초·1.9~2.6k토큰),
+  **clamp-wrongop 미검출**. 첫 실행은 6번째 케이스에서 게이트웨이 응답 초과(300초)로 중단돼 truncate-null은 재실행에서 검출.
+  clamp는 재확인 3회(low·medium·게이트 전부 켠 로컬 실행 — 커버리지·뮤테이션 50% 통과) 모두 미검출 → **추론 강도 탓이 아니다**(medium도 미검출).
+  재료 수집이 `value > max` 상한을 확인 항목으로 안 뽑는다(경계값 0건)는 쪽이 유력 — 기존 개선 후보 B-3(경계값 강조)와 같은 문제. 기록 `eval-local-defects-v2-gpt-5-20260907-2337*.json`
+- **발견**: 게이트웨이가 프롬프트 캐싱을 지원한다 — 같은 케이스 재실행에서 입력 1,158 중 **캐시 1,152**. 템플릿의 안정 부분(지침·정보·관례)이 앞, 변하는 부분(직전 코드·실패)이 뒤라 재시도에도 캐시가 먹는다
+
 ## 검증 기록
 
 - 2026-09-06 착수 전 기준선: `pytest -q` 171 passed, 1 failed(memos 덮어쓰기), 4 deselected. ruff 통과
@@ -180,6 +196,11 @@
   `grep -ri mcp cta tests pyproject.toml .github` 0건 · `pip install -e .` 후 `cta --help` 정상
 - 2026-09-07 9주차(로컬 기본): ruff 통과 · `pytest -q` **236 passed**, 4 deselected · 로컬 게이트 실측(evalbench) 실행 5.9초 / 커버리지 9.5초 /
   뮤테이션 30초 · **`cta demo` 로컬 재생 통과**(HEAD 예제의 임시 worktree, 이 PC의 Maven·JDK, 7개 테스트 통과, 시도 1회, **11.1초** — Docker 경로는 74초였다)
+- 2026-09-07 실호출(gpt-5, `examples/demo`, `cta generate --class …OrderService --max-methods 2 --fast --non-interactive`, 로컬 실행): 대상 delete·total,
+  스킬 junit5-mockito 적용, 1차 실행 실패(컴파일 문제) → 2차 통과, 게이트 assert·skip·scope 통과(기존 assert 27개 보존), +4 테스트(24개 전체 통과),
+  **2분 37초 · 20,969 토큰**(LLM 61+55초, 로컬 실행 12초×2). 제안으로만 저장, apply 안 함 — ADR-0019의 미검증 항목 "`--fast` 전체" 닫힘
+- 2026-09-07 10주차(비용): ruff 통과 · `pytest -q` **248 passed**(신규 12) · 같은 대상 실호출 후 **5,128토큰 · 32초 · 1회 통과** · 의도 세트 10/10 ·
+  결함 세트 v1 5/6(clamp 미검출은 low·medium·전체 게이트 모두 동일 → 비용 변경과 무관)
 
 ## 문제·리서치 로그
 

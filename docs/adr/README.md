@@ -21,6 +21,7 @@
 | [0020](ADR-0020-intent-unclear-reduction.md) | 의도 모름(unclear) 축소 — 작성자 지정 의도(`--intent`/`--message`/`resolve --as`), 의도 세트 측정. 단서 확대·기준치는 보류 | 승인 |
 | [0021](ADR-0021-remove-mcp-server.md) | MCP 서버 제거 — 진입점은 CLI 하나(발표·시연 볼륨 축소) | 승인 |
 | [0022](ADR-0022-local-runner-default.md) | 실행 장치 기본값은 로컬 — Docker 샌드박스는 `--runner docker`, `--fast`는 게이트 생략만 (R6 재정의) | 승인 |
+| [0023](ADR-0023-llm-cost.md) | LLM 비용 — 기존 테스트 파일에는 새 멤버만 출력(합치기는 어댑터), 추론 강도 기본 low, 토큰 내역 기록 | 승인 |
 
 > ⚠️ 0001~0009 원문은 미반입 상태다. 기존 결정과 충돌이 의심되면 사용자에게 원문을 요청해 확인한다.
-> 새 ADR은 0023부터.
+> 새 ADR은 0024부터.

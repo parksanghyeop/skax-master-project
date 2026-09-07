@@ -1,0 +1,49 @@
+{
+  "dataset": "local-defects-v2",
+  "model": "gpt-5",
+  "prompt_hash": "e0e51e976f9a",
+  "gates": "fast(3종)",
+  "runner": "local",
+  "ran_at": "2026-09-07T23:37:17",
+  "summary": {
+    "cases": 2,
+    "accepted": 2,
+    "detected": 1,
+    "detection_rate": 0.5,
+    "escalation_rate": 0.0,
+    "avg_writer_attempts": 1.0,
+    "total_elapsed_s": 67.7
+  },
+  "rows": [
+    {
+      "case": "clamp-wrongop",
+      "target": "MathUtil#clamp",
+      "bug": "Math.min(value, max)를 Math.max(value, max)로 — 상한을 넘겨도 안 잘림",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 26.6,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": false
+    },
+    {
+      "case": "truncate-null",
+      "target": "TextUtil#truncate",
+      "bug": "null 체크 삭제 — text가 null이면 NullPointerException",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 26.3,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    }
+  ]
+}

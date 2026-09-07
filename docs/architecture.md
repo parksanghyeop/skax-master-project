@@ -60,10 +60,10 @@ docs/       설계·산출물 문서
 | `llm/client.py` | 공용 타입(ChatMessage·ChatResponse[usage_tokens])과 LlmClient 포트 | M2 |
 | `llm/gateway.py` | 사내 게이트웨이 실호출 클라이언트 (Azure OpenAI 호환, 환경변수로만 설정, usage 수집) | M2 |
 | `llm/replay.py` | record & replay 장치 — 재생 실패 시 폴백 없음 | M2 |
-| `llm/metering.py` | 호출 수·토큰 합산 래퍼 — "소요 … 토큰" 출력 | ADR-0015 |
+| `llm/metering.py` | 호출 수·토큰 합산 래퍼 — "소요 … 토큰" 출력 + 입력·출력·추론·캐시 내역 | ADR-0015 · 0023 |
 | `llm/config.py` | .env 로딩·deployment 선택 — 클라이언트 생성의 유일한 입구 | ADR-0011 |
-| `llm/prompts/` | 프롬프트 파일 보관소 (system.md, write_test.md, classify_intent.md) | M0 |
-| `llm/generation.py` | 프롬프트 렌더링 + chat → 테스트 코드 (TestCodeGenerator 구현) | M3 |
+| `llm/prompts/` | 프롬프트 파일 보관소 (system.md, write_test.md, write_test_append.md, classify_intent.md) | M0 · ADR-0023 |
+| `llm/generation.py` | 프롬프트 렌더링 + chat → 테스트 코드 (TestCodeGenerator 구현). 기존 파일이 있으면 추가 모드(조각만 받아 merge) | M3 · ADR-0023 |
 | `llm/intent.py` | 의도 분류 LLM 구현 — 변경 건별 JSON(분류·확신도·근거·분석), 실패→unclear | M5·ADR-0015 |
 | `core/tools/` | 도구 6개 — 1도구 1파일, 문자열 반환 + clip 상한(R4) | M3 |
 | `core/writer_graph.py` | 테스트 작성 서브그래프(LangGraph) — 반복(최대 8회)·interrupt·회차 기록 | M3 |
@@ -73,6 +73,7 @@ docs/       설계·산출물 문서
 | `adapters/java/quality.py` | assert 수 비교 검사 최소본 (작성 그래프의 마무리 품질 확인) | M3 |
 | `adapters/java/parsing.py` | 시그니처·본문·assert·접근 제어자 파싱 공용 헬퍼 | M3 |
 | `adapters/java/materials.py` | 재료 수집 — 메서드 선정, 확인 항목 열거, 객체 생성법 판단, 기존 테스트 파일 | ADR-0015 |
+| `adapters/java/merge.py` | 기존 테스트 파일 + 모델의 새 멤버 조각 → 파일 전체(import 중복 제외, 마지막 `}` 앞 삽입) | ADR-0023 |
 | `adapters/java/failures.py` | 실행 출력 해석 — 실패 테스트(기대·실제), 컴파일 오류 수, 회차 요약 | ADR-0015 |
 | `adapters/java/assert_report.py` | assert 전/후 비교 보고 — 테스트 메서드 단위, 엄격함 점수 | ADR-0015 |
 | `adapters/java/regression.py` | 게이트 ⑥ — 수정 전 코드에서 실패하는지 확인(파일 교체·복구) | ADR-0015 |

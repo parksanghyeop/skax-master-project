@@ -25,6 +25,15 @@ DEFAULT_API_VERSION = "2024-12-01-preview"
 REQUEST_TIMEOUT_SECONDS = 300
 ENV_TIMEOUT = "CTA_GATEWAY_TIMEOUT"
 
+# 추론 강도(ADR-0023 결정 3). gpt-5는 추론 토큰을 출력으로 과금하고 응답도 그만큼 느리다 —
+# 실측(2026-09-04) 짧은 작성 17.4초 → low 7.8초 → minimal 1.8초. 기본값 low.
+# 조정: cta.toml [llm] reasoning_effort 또는 CTA_LLM_REASONING_EFFORT ("none"이면 보내지 않음)
+ENV_REASONING_EFFORT = "CTA_LLM_REASONING_EFFORT"
+REASONING_EFFORT_DEFAULT = "low"
+REASONING_EFFORTS = ("minimal", "low", "medium", "high")
+# 이 파라미터를 받는 deployment 이름의 접두사 — gpt-4.1 같은 비추론 모델은 400으로 거부한다
+_REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+
 
 class GatewayConfigError(RuntimeError):
     """필수 환경변수가 없을 때 — 시크릿을 코드·파일로 받지 않으므로 대안은 없다."""
@@ -45,9 +54,42 @@ def build_url(base_url: str, deployment: str, api_version: str) -> str:
     )
 
 
-def build_payload(messages: list[ChatMessage]) -> dict:
-    """요청 본문을 만든다. 모델 선택은 본문이 아니라 URL(deployment)이 담당한다."""
-    return {"messages": [{"role": m.role, "content": m.content} for m in messages]}
+def is_reasoning_model(model: str) -> bool:
+    """deployment 이름이 추론 모델(reasoning_effort를 받는 모델)인가."""
+    return model.lower().startswith(_REASONING_MODEL_PREFIXES)
+
+
+def build_payload(
+    messages: list[ChatMessage], model: str = "", reasoning_effort: str | None = None
+) -> dict:
+    """요청 본문을 만든다. 모델 선택은 본문이 아니라 URL(deployment)이 담당한다.
+
+    reasoning_effort는 추론 모델일 때만 넣는다(ADR-0023) — 비추론 모델은 거부한다.
+    재생 대조 키(model·messages)에는 들어가지 않으므로 기록 재생성이 필요 없다.
+    """
+    payload: dict = {"messages": [{"role": m.role, "content": m.content} for m in messages]}
+    if reasoning_effort and is_reasoning_model(model):
+        payload["reasoning_effort"] = reasoning_effort
+    return payload
+
+
+def parse_usage(usage: dict | None) -> dict[str, int]:
+    """게이트웨이 usage 블록 → 토큰 내역(ADR-0023). 없거나 형식이 이상하면 0."""
+    usage = usage or {}
+
+    def _int(value) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    return {
+        "total": _int(usage.get("total_tokens")),
+        "prompt": _int(usage.get("prompt_tokens")),
+        "completion": _int(usage.get("completion_tokens")),
+        "reasoning": _int((usage.get("completion_tokens_details") or {}).get("reasoning_tokens")),
+        "cached": _int((usage.get("prompt_tokens_details") or {}).get("cached_tokens")),
+    }
 
 
 class GatewayClient:
@@ -57,8 +99,11 @@ class GatewayClient:
     호출 실패·응답 형식 이상 → GatewayCallError.
     """
 
-    def __init__(self, timeout_default: int | None = None) -> None:
+    def __init__(
+        self, timeout_default: int | None = None, reasoning_effort: str | None = None
+    ) -> None:
         """timeout_default: 환경변수 CTA_GATEWAY_TIMEOUT이 없을 때 쓸 값(cta.toml [gateway]).
+        reasoning_effort: 추론 강도(ADR-0023). None이면 보내지 않는다. 우선순위는 llm/config.py.
 
         환경변수를 고쳐 넣지 않고 인자로 받는 이유: 오래 사는 프로세스가 여러
         프로젝트를 차례로 다룰 때 첫 프로젝트의 설정이 환경변수에 남아 다음 프로젝트를
@@ -81,6 +126,7 @@ class GatewayClient:
             self._timeout = REQUEST_TIMEOUT_SECONDS
         if not configured and timeout_default is not None:
             self._timeout = timeout_default
+        self._reasoning_effort = reasoning_effort
 
     @property
     def timeout(self) -> int:
@@ -88,7 +134,7 @@ class GatewayClient:
         return self._timeout
 
     def chat(self, messages: list[ChatMessage], model: str) -> ChatResponse:
-        body = json.dumps(build_payload(messages)).encode("utf-8")
+        body = json.dumps(build_payload(messages, model, self._reasoning_effort)).encode("utf-8")
         request = urllib.request.Request(
             build_url(self._base_url, model, self._api_version),
             data=body,
@@ -116,9 +162,12 @@ class GatewayClient:
         except (KeyError, IndexError, TypeError) as e:
             raise GatewayCallError(f"응답 형식 이상: 최상위 키 {sorted(data)[:10]}") from e
         # usage는 선택 항목 — 없어도 응답은 유효하다(토큰 수만 0으로 남는다)
-        usage = data.get("usage") or {}
-        try:
-            tokens = int(usage.get("total_tokens", 0))
-        except (TypeError, ValueError):
-            tokens = 0
-        return ChatResponse(content=content or "", usage_tokens=tokens)
+        u = parse_usage(data.get("usage"))
+        return ChatResponse(
+            content=content or "",
+            usage_tokens=u["total"],
+            prompt_tokens=u["prompt"],
+            completion_tokens=u["completion"],
+            reasoning_tokens=u["reasoning"],
+            cached_tokens=u["cached"],
+        )

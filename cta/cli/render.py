@@ -118,6 +118,18 @@ def format_tokens(tokens: int) -> str:
     return f"{tokens:,} 토큰" if tokens else "토큰 수 미제공"
 
 
+def format_token_breakdown(b: dict[str, int]) -> str:
+    """토큰 내역(ADR-0023) — 내역이 없으면(재생 기록 등) 빈 문자열."""
+    if not b.get("prompt") and not b.get("completion"):
+        return ""
+    parts = [f"입력 {b.get('prompt', 0):,}", f"출력 {b.get('completion', 0):,}"]
+    if b.get("reasoning"):
+        parts.append(f"추론 {b['reasoning']:,}")
+    if b.get("cached"):
+        parts.append(f"캐시 {b['cached']:,}")
+    return " (" + " · ".join(parts) + ")"
+
+
 def render_diff_excerpt(diff_excerpt: str, max_lines: int = 6) -> list[str]:
     """ "바뀌기 전/바뀐 후" — diff 발췌에서 -/+ 줄을 각각 몇 줄씩 보여준다."""
     before = [ln[1:].strip() for ln in diff_excerpt.splitlines() if ln.startswith("-")]

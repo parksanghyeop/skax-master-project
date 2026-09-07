@@ -70,6 +70,7 @@ def make_llm_client(
     *,
     model_default: str | None = None,
     timeout_default: int | None = None,
+    reasoning_effort_default: str | None = None,
 ) -> tuple[LlmClient, str]:
     """(게이트웨이 클라이언트, deployment 이름)을 만든다.
 
@@ -79,11 +80,21 @@ def make_llm_client(
       값이 없을 때만 쓰인다(우선순위: 환경변수 > .env > cta.toml > 코드 기본값 — core/config.py).
       환경변수에 써넣지 않는다 — 오래 사는 프로세스가 프로젝트를 바꿔도 이전 값이
       남지 않는다.
+    reasoning_effort_default: cta.toml [llm] reasoning_effort. 환경변수 CTA_LLM_REASONING_EFFORT가
+      이기고, 둘 다 없으면 코드 기본값 low. "none"은 보내지 않음(ADR-0023).
     실패 시 동작: 주소·키 미설정은 GatewayClient가 GatewayConfigError로 알린다.
     """
     load_dotenv_into_env(dotenv_path)
-    from cta.llm.gateway import GatewayClient
+    from cta.llm.gateway import ENV_REASONING_EFFORT, REASONING_EFFORT_DEFAULT, GatewayClient
 
     from_env = os.environ.get(ENV_MODEL, "").strip()
     model = from_env or (model_default or "").strip() or DEFAULT_MODEL
-    return GatewayClient(timeout_default=timeout_default), model
+    effort = (
+        os.environ.get(ENV_REASONING_EFFORT, "").strip()
+        or (reasoning_effort_default or "").strip()
+        or REASONING_EFFORT_DEFAULT
+    )
+    return GatewayClient(
+        timeout_default=timeout_default,
+        reasoning_effort=None if effort.lower() == "none" else effort,
+    ), model

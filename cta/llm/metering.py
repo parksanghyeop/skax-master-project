@@ -27,6 +27,11 @@ class MeteredClient:
         self._max_tokens = max_tokens
         self.calls = 0
         self.total_tokens = 0
+        # 내역(ADR-0023) — 재생 기록에는 없어 0으로 남을 수 있다
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.reasoning_tokens = 0
+        self.cached_tokens = 0
 
     def chat(self, messages: list[ChatMessage], model: str) -> ChatResponse:
         if self._max_tokens is not None and self.total_tokens >= self._max_tokens:
@@ -37,4 +42,18 @@ class MeteredClient:
         response = self._inner.chat(messages, model)
         self.calls += 1
         self.total_tokens += int(response.usage_tokens or 0)
+        self.prompt_tokens += int(response.prompt_tokens or 0)
+        self.completion_tokens += int(response.completion_tokens or 0)
+        self.reasoning_tokens += int(response.reasoning_tokens or 0)
+        self.cached_tokens += int(response.cached_tokens or 0)
         return response
+
+    def breakdown(self) -> dict[str, int]:
+        """화면·결과 dict용 토큰 내역."""
+        return {
+            "total": self.total_tokens,
+            "prompt": self.prompt_tokens,
+            "completion": self.completion_tokens,
+            "reasoning": self.reasoning_tokens,
+            "cached": self.cached_tokens,
+        }

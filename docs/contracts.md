@@ -50,6 +50,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|---|
 | `detect_maven_project` | `(path) -> MavenProject` | pom.xml 없으면 `NotAMavenProjectError` |
 | `find_existing_test_class` | `(project) -> str \| None` | 예열용 기존 테스트 클래스 탐지 (없으면 None) |
+| `merge_test_members` (merge.py) | `(existing: str, fragment: str) -> str` | 조각의 import(중복 제외)를 마지막 import 뒤에, 멤버를 클래스 마지막 `}` 앞에 4칸 들여쓰기로. 조각의 package 문은 버리고 class 래핑은 벗긴다. 기존 내용 불변. `}` 없으면 ValueError (ADR-0023) |
 | `read_package` (parsing) | `(source: str) -> str` | package 선언 읽기, 없으면 빈 문자열 — 테스트 저장 경로 계산용 |
 | `parse_target` / `parse_methods` (parsing) | `(target) -> (class, method_field)` / `(field) -> list[str]` | 클래스 자리는 FQN 허용(마지막 마디만 사용), 메서드 자리는 쉼표 목록 |
 | `strip_methods` (parsing) | `(source, names: set[str]) -> str` | 지정 메서드 본문 제거 — 사람 허용 테스트를 assert 비교에서 제외할 때 |
@@ -82,12 +83,13 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|---|
 | `LlmClient` (포트) | `chat(messages: list[ChatMessage], model: str) -> ChatResponse` | 구현: GatewayClient(실호출) / RecordingClient(녹음) / ReplayClient(재생) / MeteredClient(합산 래퍼) |
 | `ChatMessage` | `role: str, content: str` | role: system/user/assistant |
-| `ChatResponse` | `content: str, usage_tokens: int = 0` | usage_tokens는 게이트웨이 `usage.total_tokens`. 모르면 0 |
-| `MeteredClient` | `(inner, max_tokens=None)`; `.calls`, `.total_tokens` | 호출 수·토큰 합산 — "소요 … 토큰" 출력용. max_tokens(cta.toml [budget])에 닿으면 **호출 전** `BudgetExceededError` |
+| `ChatResponse` | `content: str, usage_tokens: int = 0, prompt_tokens=0, completion_tokens=0, reasoning_tokens=0, cached_tokens=0` | usage_tokens는 게이트웨이 `usage.total_tokens`. 내역(ADR-0023)은 `usage.prompt_tokens`·`completion_tokens`·`completion_tokens_details.reasoning_tokens`·`prompt_tokens_details.cached_tokens`. 모르면 0(재생 기록) |
+| `MeteredClient` | `(inner, max_tokens=None)`; `.calls`, `.total_tokens`, `.breakdown() -> {total, prompt, completion, reasoning, cached}` | 호출 수·토큰 합산 — "소요 … 토큰 (입력 · 출력 · 추론 · 캐시)" 출력용. max_tokens(cta.toml [budget])에 닿으면 **호출 전** `BudgetExceededError` |
 | `RecordingClient` | `(inner, cassette_path)` | 호출마다 기록(JSON) 갱신. 시크릿은 기록에 미포함. 응답에 usage_tokens 포함 |
 | `ReplayClient` | `(cassette_path)` | 순서대로 재생 + 요청 대조. 기록 없음·소진·불일치 → `CassetteError`. **실호출 폴백 없음** |
-| `GatewayClient` | 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_API_KEY` 필수, `CTA_GATEWAY_API_VERSION`·`CTA_GATEWAY_TIMEOUT`(기본 300초) 선택 | Azure OpenAI 호환(ADR-0011): `/openai/deployments/{model}/chat/completions?api-version=...`, 인증 `api-key` 헤더. 없으면 `GatewayConfigError`. 오류 문구에 키를 넣지 않는다 |
-| `make_llm_client` | `(dotenv_path=None, *, model_default=None, timeout_default=None) -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1). 우선순위: 환경변수 > `.env` > cta.toml(`*_default` 인자) > 코드 기본값. `*_default`는 환경변수에 써넣지 않는다(장수 프로세스 오염 방지). `GatewayClient(timeout_default).timeout`으로 적용값 확인 |
+| `GatewayClient` | `(timeout_default=None, reasoning_effort=None)`. 환경변수 `CTA_GATEWAY_URL`·`CTA_GATEWAY_API_KEY` 필수, `CTA_GATEWAY_API_VERSION`·`CTA_GATEWAY_TIMEOUT`(기본 300초) 선택 | Azure OpenAI 호환(ADR-0011): `/openai/deployments/{model}/chat/completions?api-version=...`, 인증 `api-key` 헤더. 없으면 `GatewayConfigError`. 오류 문구에 키를 넣지 않는다. `build_payload(messages, model, reasoning_effort)`는 추론 모델(gpt-5·o 계열)일 때만 `reasoning_effort`를 넣는다(ADR-0023) — 재생 대조 키에는 미포함 |
+| `make_llm_client` | `(dotenv_path=None, *, model_default=None, timeout_default=None, reasoning_effort_default=None) -> (LlmClient, deployment 이름)` | 설정 `CTA_LLM_MODEL`(기본 gpt-4.1), `CTA_LLM_REASONING_EFFORT`(minimal/low/medium/high/none, 기본 low). 우선순위: 환경변수 > `.env` > cta.toml(`*_default` 인자) > 코드 기본값. `*_default`는 환경변수에 써넣지 않는다(장수 프로세스 오염 방지). `GatewayClient(timeout_default).timeout`으로 적용값 확인 |
+| `PromptedGenerator` (generation) | `(client, model, language, framework, style_notes="", existing_code="", merge=None)`; `.append_mode` | `existing_code`와 `merge`가 있으면 **추가 모드**(ADR-0023): 프롬프트 `write_test_append.md`로 새 import·멤버 조각만 받고 `merge(existing, fragment)`로 파일 전체를 돌려준다. 재시도의 "직전 시도 코드"는 직전 조각. 없으면 `write_test.md`(파일 전체) |
 | `mask_secrets` (masking) | `(text) -> str` | 환경변수의 키 값과 키 모양(`atl-…`)을 `****`로. CLI가 출력 직전에 적용(`cli/hints.render_error`) |
 
 기록 형식: `[{"request": {"model", "messages"}, "response": {"content", "usage_tokens"}}]` JSON 배열.
@@ -136,10 +138,10 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
 | `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
-| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
-| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, 오래 사는 프로세스가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
+| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, reasoning_effort: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
+| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default, reasoning_effort_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, 오래 사는 프로세스가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
 
-절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model / `[budget]` max_tokens_per_run.
+절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model·reasoning_effort(허용값 minimal/low/medium/high/none, 아니면 ValueError) / `[budget]` max_tokens_per_run.
 
 ## CLI 보관소 (cli/)
 
@@ -153,7 +155,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
 | `run_maintain` / `run_resolve` / `run_eval_intents` | `(args: argparse.Namespace) -> int`(종료 코드) | 명령 진입점(`maintain_cmd.py`·`resolve_cmd.py`·`eval_intents.py`) |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
-| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="local") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` docker면 준비 단계 + 격리, local(기본)은 준비 없음 + 안내 한 줄, 결과 `runner`(ADR-0022). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
+| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="local") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` docker면 준비 단계 + 격리, local(기본)은 준비 없음 + 안내 한 줄, 결과 `runner`(ADR-0022), `tokens_breakdown`(ADR-0023). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가 — 추가 모드로 새 멤버만 생성). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
 
 ## 결함 세트 (evals/defects — ADR-0014, v2)
 

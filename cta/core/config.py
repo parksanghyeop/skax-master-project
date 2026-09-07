@@ -18,6 +18,7 @@ cta.toml 값은 cli가 `make_llm_client(model_default=…, timeout_default=…)`
     timeout_sec = 600
     [llm]
     model = "gpt-5"
+    reasoning_effort = "low"   # minimal/low/medium/high/none (ADR-0023)
     [budget]
     max_tokens_per_run = 50000
 """
@@ -28,6 +29,10 @@ from pathlib import Path
 
 from cta.core.gates import CONFIG_FILE_NAME, GateConfig, gate_config_from_toml
 from cta.core.writer_graph import ASK_EVERY_ATTEMPTS, MAX_TOTAL_ATTEMPTS
+
+# 추론 강도 허용값 — 게이트웨이 스펙(llm/gateway.py)과 같다. "none" = 보내지 않음.
+# core는 값의 뜻을 모른다 — 키 이름과 허용 범위만 검사한다(R1)
+REASONING_EFFORT_CHOICES = ("minimal", "low", "medium", "high", "none")
 
 
 @dataclass(frozen=True)
@@ -46,6 +51,7 @@ class CtaConfig:
     retry: RetryConfig = field(default_factory=RetryConfig)
     gateway_timeout_sec: int | None = None  # None → CTA_GATEWAY_TIMEOUT 또는 llm/gateway.py 기본값
     model: str | None = None  # None → CTA_LLM_MODEL 또는 llm/config.py 기본값
+    reasoning_effort: str | None = None  # None → CTA_LLM_REASONING_EFFORT 또는 llm 기본값 low
     max_tokens_per_run: int | None = None  # None → 무제한. 넘으면 MeteredClient가 실행을 멈춘다
 
 
@@ -71,11 +77,18 @@ def load_config(project_root: str | Path) -> CtaConfig:
         )
     timeout = data.get("gateway", {}).get("timeout_sec")
     model = data.get("llm", {}).get("model")
+    effort = data.get("llm", {}).get("reasoning_effort")
+    if effort is not None and str(effort).strip().lower() not in REASONING_EFFORT_CHOICES:
+        raise ValueError(
+            f"{CONFIG_FILE_NAME} [llm] reasoning_effort는 {', '.join(REASONING_EFFORT_CHOICES)} "
+            f"중 하나여야 한다: {effort!r}"
+        )
     budget = data.get("budget", {}).get("max_tokens_per_run")
     return CtaConfig(
         gates=gate_config_from_toml(data.get("gates", {})),
         retry=retry,
         gateway_timeout_sec=int(timeout) if timeout is not None else None,
         model=str(model).strip() or None if model is not None else None,
+        reasoning_effort=str(effort).strip().lower() if effort is not None else None,
         max_tokens_per_run=int(budget) if budget is not None else None,
     )

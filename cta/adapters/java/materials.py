@@ -320,9 +320,10 @@ def render_materials(materials: Materials) -> str:
     for c in materials.constructions:
         parts.append(f"- {c.type_name} → {c.strategy} ({c.reason})")
     if materials.existing_test_code:
+        # 출력 형식(전체/조각)은 작성 프롬프트가 정한다 — 여기서는 참고 자료임만 밝힌다(ADR-0023)
         parts.append(
-            "\n[기존 테스트 파일 — 파일 전체를 출력하되 아래 기존 테스트 메서드와 assert는 "
-            "한 글자도 바꾸지 말고 그대로 두고, 새 테스트 메서드만 추가하라]"
+            "\n[기존 테스트 파일 — 이미 있는 import·필드·헬퍼·테스트를 참고하라. "
+            "기존 테스트 메서드와 assert는 한 글자도 바꾸지 않는다]"
         )
         parts.append(materials.existing_test_code)
     return "\n".join(parts)

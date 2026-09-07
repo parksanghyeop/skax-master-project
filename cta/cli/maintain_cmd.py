@@ -86,7 +86,9 @@ def run_maintain(args: argparse.Namespace) -> int:
     # 2~4단계: 건별 의도 분류(LLM) → 기존 테스트 실행 → 규칙표
     config = load_config(project.root)
     raw_client, model = make_llm_client(
-        model_default=config.model, timeout_default=config.gateway_timeout_sec
+        model_default=config.model,
+        timeout_default=config.gateway_timeout_sec,
+        reasoning_effort_default=config.reasoning_effort,
     )
     client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
     classifier = PromptedIntentClassifier(client, model)

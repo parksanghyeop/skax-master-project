@@ -6,6 +6,7 @@ core는 이 파일을 모르고, 포트로만 받는다.
 """
 
 import re
+from collections.abc import Callable
 from pathlib import Path
 from string import Template
 
@@ -40,16 +41,33 @@ class PromptedGenerator:
         language: str,
         framework: str,
         style_notes: str = "",
+        existing_code: str = "",
+        merge: Callable[[str, str], str] | None = None,
     ) -> None:
+        """existing_code + merge가 주어지면 **추가 모드**(ADR-0023 결정 2): 프롬프트가
+        write_test_append.md로 바뀌어 모델은 새 멤버 조각만 출력하고, merge(existing, fragment)가
+        파일 전체를 만든다. 둘 중 하나라도 없으면 지금까지처럼 파일 전체를 출력받는다.
+        """
         self._client = client
         self._model = model
         self._system = Template((_PROMPTS_DIR / "system.md").read_text(encoding="utf-8"))
-        self._user = Template((_PROMPTS_DIR / "write_test.md").read_text(encoding="utf-8"))
+        self._append = bool(existing_code) and merge is not None
+        prompt_file = "write_test_append.md" if self._append else "write_test.md"
+        self._user = Template((_PROMPTS_DIR / prompt_file).read_text(encoding="utf-8"))
         self._language = language
         self._framework = framework
         self._style_notes = style_notes
+        self._existing_code = existing_code
+        self._merge = merge
+        self._last_fragment = ""  # 추가 모드의 재시도에 "직전 시도 코드"로 보내는 조각
+
+    @property
+    def append_mode(self) -> bool:
+        return self._append
 
     def generate(self, instruction: str, context: str, current_code: str, last_failure: str) -> str:
+        # 추가 모드에서는 파일 전체 대신 직전 조각을 보낸다 — 기존 파일은 [수집된 정보]에 이미 있다
+        previous = self._last_fragment if self._append else current_code
         messages = [
             ChatMessage(
                 role="system",
@@ -61,9 +79,13 @@ class PromptedGenerator:
                     instruction=instruction,
                     context=context,
                     style=self._style_notes,
-                    current_code=current_code or "(없음)",
+                    current_code=previous or "(없음)",
                     last_failure=last_failure or "(없음)",
                 ),
             ),
         ]
-        return extract_code(self._client.chat(messages, self._model).content)
+        code = extract_code(self._client.chat(messages, self._model).content)
+        if not self._append:
+            return code
+        self._last_fragment = code
+        return self._merge(self._existing_code, code)

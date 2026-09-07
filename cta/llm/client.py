@@ -24,10 +24,16 @@ class ChatResponse:
     usage_tokens: 게이트웨이가 알려준 총 토큰(입력+출력). 모르면 0 — 재생 기록에
     값이 없던 시절의 호환용 기본값. 소요 비용을 시나리오 출력("34,200 토큰")에
     보여주기 위해 둔다(ADR-0015 D6).
+    prompt_tokens / completion_tokens / reasoning_tokens / cached_tokens: 내역(ADR-0023).
+      추론 토큰은 출력에 포함돼 과금되고, 캐시 토큰은 입력 중 할인된 부분이다. 모르면 0.
     """
 
     content: str
     usage_tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    cached_tokens: int = 0
 
 
 class LlmClient(Protocol):

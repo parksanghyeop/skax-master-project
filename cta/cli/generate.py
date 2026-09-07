@@ -34,6 +34,7 @@ from cta.adapters.java.materials import (
     select_methods,
 )
 from cta.adapters.java.maven import MavenProject, detect_maven_project, find_existing_test_class
+from cta.adapters.java.merge import merge_test_members
 from cta.adapters.java.mutation import MutationGate, measure_mutation
 from cta.adapters.java.parsing import find_class_file, parse_methods, parse_target
 from cta.adapters.java.quality import AssertCountChecker
@@ -50,6 +51,7 @@ from cta.cli.render import (
     STATUS_OK,
     STATUS_QUALITY,
     format_duration,
+    format_token_breakdown,
     format_tokens,
 )
 from cta.core.config import load_config
@@ -150,7 +152,9 @@ def run_generation(
     project = detect_maven_project(project_path)
     config = load_config(project.root)
     raw_client, model = make_llm_client(
-        model_default=config.model, timeout_default=config.gateway_timeout_sec
+        model_default=config.model,
+        timeout_default=config.gateway_timeout_sec,
+        reasoning_effort_default=config.reasoning_effort,
     )
     client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
     if model_override:
@@ -293,6 +297,9 @@ def run_generation(
             "Java",
             "JUnit 5",
             "\n\n".join([BASE_STYLE_NOTE, render_skills(skills)]) if skills else BASE_STYLE_NOTE,
+            # 기존 테스트 파일이 있으면 새 멤버만 받아 합친다 — 출력 토큰 절감(ADR-0023)
+            existing_code=materials.existing_test_code,
+            merge=merge_test_members,
         ),
         progress=progress,
     )
@@ -414,7 +421,10 @@ def run_generation(
         print(f"{INDENT}{verb:<8} {test_rel}  (+{new_tests} 테스트, 제안 {proposal_name!r})")
         run_state = "전체 통과" if result.final_state.get("status") == "passed" else "실패"
         print(f"{INDENT}테스트   {tests_run}개 / {run_state}")
-    print(f"{INDENT}소요     {format_duration(elapsed)} · {format_tokens(client.total_tokens)}")
+    print(
+        f"{INDENT}소요     {format_duration(elapsed)} · {format_tokens(client.total_tokens)}"
+        f"{format_token_breakdown(client.breakdown())}"
+    )
     print(f"\n{INDENT}결과 상태: {status_label}")
 
     return {
@@ -425,6 +435,7 @@ def run_generation(
         "writer_attempts": result.final_state.get("attempts", 0),
         "elapsed": elapsed,
         "tokens": client.total_tokens,
+        "tokens_breakdown": client.breakdown(),
         "test_rel": test_rel,
         "test_class": test_class,
         "gate_results": gate_results,
