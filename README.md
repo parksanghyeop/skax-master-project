@@ -47,19 +47,11 @@ cta apply                                         # 반영
 공통 옵션 `--non-interactive`(질문 없이) · `--quiet`(진행 줄 생략) · `--fast`(Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략. 격리 없음, 자기 PC용) · `--runner docker|local`.
 프로젝트 설정은 `cta.toml`(게이트 기준치·반복 상한·시간 초과·모델·토큰 예산), 시크릿은 `.env`만.
 
-## Claude Code에서 쓰기
-
-```powershell
-pip install "code-test-agent[mcp]"
-claude mcp add cta -- cta-mcp
-```
-도구 5개(`generate`·`maintain`·`resolve`·`list_proposals`·`apply`)가 명령과 1:1이다. 사용가이드 §14.
-
 ## 문서 지도
 
 | 문서 | 내용 |
 |---|---|
-| [docs/사용가이드.md](docs/사용가이드.md) | 설치, `.env`, 명령·옵션, `cta.toml`, CI, MCP, 문제 해결, **지원 범위와 한계** |
+| [docs/사용가이드.md](docs/사용가이드.md) | 설치, `.env`, 명령·옵션, `cta.toml`, CI, 문제 해결, **지원 범위와 한계** |
 | [docs/E2E/최종보고.md](docs/E2E/최종보고.md) | 최종 보고 — 아키텍처 요약, KPI 달성도, 가치, 운영·보안, 회고 |
 | [docs/제출자료/E2E서비스개발.md](docs/제출자료/E2E서비스개발.md) | 3단계 상세 산출물 — 계약 변경분, 구현, 문제 해결, 검증 로그 원문 |
 | [docs/제출자료/PoC구현.md](docs/제출자료/PoC구현.md) | 1단계 산출물 — 한눈에 보기, 최소 계약, 실행 로그 원문, 구현 범위 3구역 |
@@ -74,7 +66,7 @@ claude mcp add cta -- cta-mcp
 ## 알려진 한계
 
 Maven 단일 모듈만(멀티모듈·Gradle 미지원). 소스 파서는 정규식 기반이라 제네릭·중첩 클래스가 많은 코드에서 빗나갈 수 있다.
-화면의 확신도는 모델이 매긴 값이며 코드는 이 값으로 분기하지 않는다. 전체 목록은 사용가이드 §15.
+화면의 확신도는 모델이 매긴 값이며 코드는 이 값으로 분기하지 않는다. 전체 목록은 사용가이드 §14.
 
 ## 개발
 

@@ -77,7 +77,7 @@ def make_llm_client(
       넘겨 로컬 설정과 격리한다 — 개발자의 .env가 테스트 결과를 바꾸면 안 된다.
     model_default / timeout_default: 프로젝트 설정(cta.toml)이 준 기본값. 환경변수·.env에
       값이 없을 때만 쓰인다(우선순위: 환경변수 > .env > cta.toml > 코드 기본값 — core/config.py).
-      환경변수에 써넣지 않는다 — 오래 사는 프로세스(MCP 서버)가 프로젝트를 바꿔도 이전 값이
+      환경변수에 써넣지 않는다 — 오래 사는 프로세스가 프로젝트를 바꿔도 이전 값이
       남지 않는다.
     실패 시 동작: 주소·키 미설정은 GatewayClient가 GatewayConfigError로 알린다.
     """

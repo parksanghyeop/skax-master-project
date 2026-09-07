@@ -125,7 +125,7 @@ pytest -q                               # 단위 테스트 (test_layering.py 포
 |---|---|---|
 | 1. PoC | `.claude/skills/phase1-poc` | 수직 슬라이스 1개 + 문제점 리포트 |
 | 2. 테스트·고도화 | `.claude/skills/phase2-hardening` | 파이프라인·게이트·평가 하네스 |
-| 3. E2E 서비스 | `.claude/skills/phase3-e2e` | CLI·MCP·장기기억·릴리스 |
+| 3. E2E 서비스 | `.claude/skills/phase3-e2e` | CLI·장기기억·릴리스 |
 
 ## 보고 형식
 

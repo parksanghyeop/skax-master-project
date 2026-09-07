@@ -17,8 +17,7 @@ flowchart TB
         B2["B-2 결함 세트 v2 12건 + 자기 검사 12/12"]
         B2m["B-2 cta eval v2 베이스라인 [측정 대기]"]
         B3["B-3 경계값 실험 [측정 대기 — 수치 필요]"]
-        B4["B-4 MCP 서버 도구 5개 — ADR-0018"]
-        B4m["B-4 Claude Code 실호출 [측정 대기]"]
+        B4["B-4 MCP 서버 — 구현 후 제거 (ADR-0021)"]
         B5["B-5 판단 메모 불변식"]
         BX["(추가) 로컬 실행 모드 --fast — ADR-0019<br/>실기동 6초 / 2초"]
     end
@@ -29,7 +28,7 @@ flowchart TB
         A2["A-2 cta.toml 단일 설정<br/>gates · retry · gateway · llm · budget"]
         A3["A-3 시크릿 3 테스트<br/>환경변수만 · 샌드박스 미전달 · 마스킹"]
         A4["A-4 --quiet · 종료 코드 CI 사용법"]
-        A5["A-5 오류 안내 9상황<br/>왜 / 할 일 / 명령"]
+        A5["A-5 오류 안내 10상황<br/>왜 / 할 일 / 명령"]
         A6["A-6 대화 압축 불필요 — ADR-0016"]
     end
 
@@ -43,7 +42,7 @@ flowchart TB
     classDef wait fill:#fff3c4,stroke:#d97706,stroke-width:2px,stroke-dasharray: 4 4
     classDef partial fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
     classDef dim fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 4
-    class FIX0,A1,A2,A3,A4,A5,A6,B1,B2,B4,B5,BX,C2,C4,C5 done
-    class B1m,B2m,B3,B4m,C1,C3,C7 wait
+    class FIX0,A1,A2,A3,A4,A5,A6,B1,B2,B5,BX,C2,C4,C5 done
+    class B1m,B2m,B3,C1,C3,C7 wait
     class C6 partial
-    class LEGEND dim
+    class LEGEND,B4 dim

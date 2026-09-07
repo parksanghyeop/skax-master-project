@@ -137,7 +137,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 |---|---|---|
 | `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
 | `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
-| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, MCP 서버가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
+| 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, 오래 사는 프로세스가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
 
 절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model / `[budget]` max_tokens_per_run.
 
@@ -151,20 +151,9 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 판단 메모 `memos.py` | `<프로젝트>/.cta/memos/<시각>-<순번>.json` = `Memo(target, category, decision, note, created_at)`. 순번은 같은 시각 저장의 덮어쓰기 방지(Windows 시계 해상도). `find_similar(project, target)` 같은 메서드→같은 클래스 최근순 최대 3건. 참고용 |
 | 결과 상태 `render.py` | 정상 완료 0 / 사람 확인 필요 3 / 품질 미달 2 / 실패 1 (`EXIT_CODES`) |
 | 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
-| `run_maintain` / `run_resolve` / `run_eval_intents` | `(args: argparse.Namespace) -> int`(종료 코드) | 명령 진입점(`maintain_cmd.py`·`resolve_cmd.py`·`eval_intents.py`). MCP 핸들러도 같은 함수를 부른다(ADR-0018) |
+| `run_maintain` / `run_resolve` / `run_eval_intents` | `(args: argparse.Namespace) -> int`(종료 코드) | 명령 진입점(`maintain_cmd.py`·`resolve_cmd.py`·`eval_intents.py`) |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
 | `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="docker") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` local이면 준비 단계 없음 + 경고, 결과 `runner`(ADR-0019). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
-
-## MCP 층 (mcp/ — ADR-0018)
-
-| 항목 | 시그니처 | 계약 |
-|---|---|---|
-| `handlers.generate` | `(project, target, max_methods=4, fast=False) -> str` | `cli/main._cmd_generate`를 Namespace로 호출(non_interactive·quiet 고정). 반환 = 화면 출력 + `"종료 코드: N"` |
-| `handlers.maintain` | `(project, diff="HEAD", plan_only=False, fast=False) -> str` | `run_maintain` 호출 |
-| `handlers.resolve` | `(project, decision, escalation_id="", hint="", fast=False) -> str` | decision ∈ intended/test-issue/proceed/skip, 아니면 종료 코드 1 문구 |
-| `handlers.list_proposals` / `handlers.apply` | `(project, name="")` / `(project, name="", all=False)` | `_cmd_diff` / `_cmd_apply` |
-| `server.build_server` | `() -> MCPServer` | `mcp>=2` 없으면 ImportError. 도구 = `handlers.TOOLS` 순서. `main()`은 stdio |
-| 불변식 | — | stdout은 전부 캡처(프로토콜 채널 보호)하고 도구 실행은 한 번에 하나(`threading.Lock` — 전역 stdout 교체가 섞이지 않게). 시크릿은 인자로 받지 않는다. 에이전트 내부 도구 6개(R4)와 별개 |
 
 ## 결함 세트 (evals/defects — ADR-0014, v2)
 

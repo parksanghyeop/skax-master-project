@@ -128,13 +128,22 @@
 
 기록만 한 것(개선 후보 — 신규 기능이 아니라 정합·중복):
 - `cli/graph_cmd.py`가 "캐시 없으면 준비" 로직을 `cli/generate.ensure_prepared`와 따로 갖고 있다(문구·잘라내는 길이만 다름). 동작 오류는 없어 두었다 — 합치면 한 곳
-- MCP `resolve` 도구는 intended/test-issue/proceed/skip만 받는다. `--as`(ADR-0020)는 CLI에만 있다 — 의도적 범위이며 필요하면 ADR-0018 후속
+- ~~MCP `resolve` 도구에 `--as` 없음~~ → 같은 날 MCP 자체를 제거(8주차)
 - `docs/contracts.md` 품질 게이트 표 아래에 설정 파일 절이 끼어들어 게이트 행 10줄이 고아처럼 보인다(내용은 맞음) — 절 순서만 정리
 - `docs/사용가이드.md` §1·§7 옵션 표에 `--as`·`--intent`·`--message`·`--quiet`·`--runner`가 빠져 있다(본문 §6·§7에는 있음). `--warmup-test`·`eval` 옵션은 어디에도 없다
 - `docs/architecture.md` §개요에 "`mcp_server/`만 아직 없다"가 남아 있다(`cta/mcp/` 존재). 층 그림에 sandbox·mcp 줄 없음
 - `docs/adr/README.md` 0010 상태 "승인" ↔ 파일은 "폐기 — 0011로 대체"
 - 산출물 `E2E서비스개발.md`의 단위 222/224건·오류 안내 9행·"새 ADR 0016~0018"·"setdefault 주입" 표기는 현재(236건·10행·0016~0020·인자 전달)와 다르다
 - R1~R7 위반 없음(재확인: 도구 6개, 빈 selector 거부는 Docker·로컬 둘 다, 로컬 폴백 경로 없음, LLM 호출은 `llm/`만)
+
+### 8주차 — MCP 서버 제거 (2026-09-07, 사용자 결정 "볼륨이 너무 커져 발표·시연이 어렵다")
+
+- **ADR-0021**(0018 폐기): 진입점은 CLI 하나. `cta/mcp/`(핸들러·서버)·`tests/test_mcp.py`·선택 의존성 `[mcp]`·진입점 `cta-mcp`·
+  패키지 목록 `cta.mcp` 삭제, CI 설치 `pip install -e .`로 원복
+- **유지한 것**: MCP를 계기로 고친 "cta.toml 값을 환경변수에 쓰지 않는다"는 오래 사는 프로세스 일반의 이유라 그대로 둠(주석만 MCP 언급 제거)
+- **문서**: README·사용가이드(§14 삭제, §15→§14)·architecture·contracts·개발환경·CLAUDE.md·phase3 스킬·PoC구현·E2E 산출물·최종보고에서 제거.
+  다이어그램 `mcp-path` 삭제, `e2e-architecture`(진입점 하나)·`e2e-status`(B-4 제거 표기)·`config-precedence`(문구) 재렌더.
+  작업 기록·계획 문서는 이력이라 "구현 후 제거"로만 표기
 
 ## 검증 기록
 
@@ -155,6 +164,8 @@
   1 skipped(`test_mcp` — venv에 mcp SDK 없음), 4 deselected(신규 4: 작성자 지정 의도 8 + 회귀 1 = 9, 기존 232 대비 병합분).
   CLI 스모크: `cta maintain/resolve/eval --help`에 `--intent`·`--message`·`--as`·`--intents`·`--variant` 노출.
   이 PC: Docker 데몬 꺼짐, 로컬 Maven 3.9.16·JDK 21 있음, 게이트웨이 키 있음 — 실호출·Docker 실측은 하지 않았다
+- 2026-09-07 8주차(MCP 제거): `ruff check`·`format --check` 통과 · `pytest -q` **236 passed**, 4 deselected, skip 0(test_mcp 6건 삭제 — 이 venv에서는 모듈째 skip 1건이었다) ·
+  `grep -ri mcp cta tests pyproject.toml .github` 0건 · `pip install -e .` 후 `cta --help` 정상
 
 ## 문제·리서치 로그
 

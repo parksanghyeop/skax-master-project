@@ -1,9 +1,7 @@
 flowchart TB
-    subgraph ENTRY["진입점 — 두 개, 로직은 하나"]
+    subgraph ENTRY["진입점 — CLI 하나 (MCP 서버는 구현 후 제거, ADR-0021)"]
         direction LR
         CLI["cta CLI<br/>generate · maintain · resolve · diff · apply · graph"]
-        MCP["cta-mcp (MCP 서버, 3단계 신설)<br/>도구 5개 = 명령 5개<br/>cli 함수를 그대로 호출 + stdout 캡처"]
-        MCP -->|"Namespace 조립"| CLI
     end
 
     subgraph CFG["설정 입력 (3단계 신설)"]
@@ -62,7 +60,7 @@ flowchart TB
     classDef safe fill:#d5f5e0,stroke:#10b981,stroke-width:2px
     classDef llm fill:#e8d5f5,stroke:#8b5cf6,stroke-width:2px
     classDef plain fill:#eef2ff,stroke:#6366f1
-    class MCP,TOML,HINT,SK,CONF,MASK,CI new
+    class TOML,HINT,SK,CONF,MASK,CI new
     class RULES,GATES,SBX safe
     class GW,MET llm
     class CLI,ENV,GEN,MAT,WG plain

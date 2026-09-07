@@ -74,7 +74,7 @@ class TestPrecedence:
         assert client.timeout == 120
 
     def test_cta_toml_값은_환경변수에_남지_않는다(self):
-        # 오래 사는 프로세스(MCP 서버)가 다음 프로젝트를 다룰 때 이전 프로젝트 설정이 이기면 안 된다
+        # 오래 사는 프로세스가 다음 프로젝트를 다룰 때 이전 프로젝트 설정이 이기면 안 된다
         make_llm_client(self.no_dotenv, model_default="gpt-5", timeout_default=600)
         assert "CTA_LLM_MODEL" not in os.environ
         assert "CTA_GATEWAY_TIMEOUT" not in os.environ

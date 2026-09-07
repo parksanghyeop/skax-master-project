@@ -5,7 +5,6 @@
 ## 층 구조와 의존 방향
 
 ```
-mcp      ──▶ cli         # MCP 서버 — cli 함수를 그대로 부르는 껍데기 (ADR-0018)
 cli      ──▶ (모든 층)   # cta 명령 — 조립·입출력만. 판단 로직 없음
 tests    ──▶ (모든 층)
 adapters ──▶ core, graph, sandbox # 구체 구현이 포트에 의존, 그래프를 채운다
@@ -20,7 +19,7 @@ core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
 리포 루트는 역할별 5개 폴더로 나뉜다 — 제품 코드는 전부 `cta/` 아래에 있다:
 
 ```
-cta/        제품 코드 (파이썬 패키지 — core/adapters/llm/graph/sandbox/cli/evals/mcp)
+cta/        제품 코드 (파이썬 패키지 — core/adapters/llm/graph/sandbox/cli/evals)
 tests/      단위·통합 테스트
 scripts/    개발용 스크립트 (record_golden, demo_scenarios, check_defects, render_capture, render_diagram)
 examples/   예제 Maven 프로젝트 (demo = Spring Boot 주문 CRUD, evalbench)
@@ -29,7 +28,7 @@ docs/       설계·산출물 문서
 
 층 패키지들은 `cta/` 아래에 그대로 있고 import 경로만 `cta.core...` 형태다.
 아래 모듈 표의 경로도 `cta/` 생략 표기다(예: `core/ports.py` = `cta/core/ports.py`).
-v4 6.1의 목표 구조는 전부 있다 — `mcp_server/`는 `cta/mcp/`로 들어갔다(ADR-0018).
+v4 6.1의 목표 구조 중 `mcp_server/`는 구현했다가 제거했다(ADR-0021) — 진입점은 CLI 하나다.
 어댑터 실물은 `adapters/java/`로 들어간다(M1) — 새 언어 지원 = 폴더 추가.
 
 - **core는 언어를 모른다(R1)**: 언어·빌드 도구 이름 문자열 금지.
@@ -95,7 +94,6 @@ v4 6.1의 목표 구조는 전부 있다 — `mcp_server/`는 `cta/mcp/`로 들�
 | `cli/hints.py` | 오류 안내 표 — 예외·문구 → "왜 / 할 일 / 명령" 세 줄. `main()`의 유일한 예외 출구 | 3단계 A-5 |
 | `adapters/java/skills/` | 테스트 작성 스킬 — `<이름>/SKILL.md` 2개(junit5-mockito·regression-test) + `select.py`(규칙표 선택·렌더링). core 무관, 도구 추가 없음 | ADR-0017 |
 | `sandbox/local_sandbox.py` · `sandbox/factory.py` | 로컬 실행 모드(`--fast` / `--runner local`) — Docker 없이 호스트 Maven·JDK, 같은 `Sandbox` 프로토콜. 선택 규칙 + 경고 문구 | ADR-0019 |
-| `mcp/handlers.py` · `mcp/server.py` | MCP 층(cli 위) — 도구 5개(generate·maintain·resolve·list_proposals·apply)는 cli 함수를 그대로 호출 + stdout 캡처. SDK는 선택 의존성, 진입점 `cta-mcp` | ADR-0018 |
 | `scripts/check_defects.py` | 결함 세트 자기 검사 — 로컬 JDK로 버그 버전 컴파일 + probe 비교(동치 변이 탐지). CI check 잡 | 3단계 B-2 |
 | `.github/workflows/ci.yml` | CI — check(ruff·pytest 재생 모드, py 3.11/3.12) + integration(수동: docker·neo4j) | 3단계 A-1 |
 | `core/submit.py` | 생성→게이트 재시도 루프 (탈락 사유 반환, 소진 시 사람 확인) | M6 |

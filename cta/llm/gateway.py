@@ -60,7 +60,7 @@ class GatewayClient:
     def __init__(self, timeout_default: int | None = None) -> None:
         """timeout_default: 환경변수 CTA_GATEWAY_TIMEOUT이 없을 때 쓸 값(cta.toml [gateway]).
 
-        환경변수를 고쳐 넣지 않고 인자로 받는 이유: MCP 서버처럼 오래 사는 프로세스가 여러
+        환경변수를 고쳐 넣지 않고 인자로 받는 이유: 오래 사는 프로세스가 여러
         프로젝트를 차례로 다룰 때 첫 프로젝트의 설정이 환경변수에 남아 다음 프로젝트를
         오염시키면 안 된다.
         """
