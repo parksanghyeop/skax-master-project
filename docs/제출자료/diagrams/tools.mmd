@@ -28,7 +28,7 @@ flowchart LR
         direction TB
         SRC["Java 소스 파싱<br/>(정규식 + 중괄호 짝맞춤)"]
         NEO["Neo4j 코드 그래프<br/>COVERS = JaCoCo 실측 (없으면 참조 파싱 폴백)"]
-        SBX["Docker 샌드박스 2단계<br/>준비: 온라인 — 의존성+분석도구 캐시<br/>실행: 네트워크 차단 — 캐시 읽기전용,<br/>지정한 테스트만 (전체 실행 거부)"]
+        SBX["실행 장치: 이 PC의 Maven·JDK (기본)<br/>--runner docker: 준비 캐시 · 네트워크 차단 · 캐시 읽기전용<br/>지정한 테스트만 (전체 실행 거부)"]
         STORE["보관소 .cta/<br/>proposals(제안) · escalations(사람 확인) · memos(판단 메모)"]
     end
 

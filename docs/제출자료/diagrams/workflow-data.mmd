@@ -8,7 +8,7 @@ flowchart TB
     ME["memos/ 판단 메모"] -.->|"참고"| CLS
 
     SRC["Java 소스 + 기존 테스트"] --> TL["adapters · TestLocator<br/>Neo4j COVERS 실측 / 참조 파싱 폴백"]
-    TL -->|"검증 테스트 실행 (Docker)"| ST["기존 테스트 상태<br/>pass · fail · none"]
+    TL -->|"검증 테스트 실행"| ST["기존 테스트 상태<br/>pass · fail · none"]
 
     IT --> DEC{"core · 규칙표 decide()<br/>의도 × 기존 테스트 상태<br/>기대값 자동 수정 행 없음"}
     ST --> DEC
@@ -23,7 +23,7 @@ flowchart TB
     NEO["Neo4j 코드 그래프"] -.->|"유사 테스트 본보기"| WS
     WS -->|"프롬프트"| GEN["llm · write_test.md → 테스트 파일 전체"]
     GEN -->|"코드"| WS
-    WS -->|"write_test · run_tests"| DK["Docker 샌드박스<br/>컴파일 · 지정 테스트만 실행<br/>(네트워크 차단)"]
+    WS -->|"write_test · run_tests"| DK["실행 장치 (이 PC의 Maven·JDK 기본)<br/>컴파일 · 지정 테스트만 실행<br/>(--runner docker면 네트워크 차단)"]
     DK -->|"실패 → 재시도 (최대 8회)"| WS
     DK -->|"통과"| GT["adapters · 게이트 6종<br/>assert · skip · scope · coverage · mutation · regression"]
     GIT -.->|"수정 전 소스"| GT

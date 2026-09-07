@@ -1,5 +1,5 @@
 flowchart TB
-    subgraph ENTRY["진입점 — CLI 하나 (MCP 서버는 구현 후 제거, ADR-0021)"]
+    subgraph ENTRY["진입점"]
         direction LR
         CLI["cta CLI<br/>generate · maintain · resolve · diff · apply · graph"]
     end
@@ -37,7 +37,7 @@ flowchart TB
         GW["gateway.py<br/>Azure OpenAI 호환, 시간 초과 상한"]
     end
 
-    SBX["sandbox/docker_sandbox.py<br/>build_run_args — -e 옵션 없음(키 미전달), 기본 네트워크 차단"]
+    SBX["sandbox/ — 실행 장치<br/>local(기본): 이 PC의 Maven·JDK<br/>docker(--runner docker): 네트워크 차단, 키 미전달"]
 
     CI["CI (.github/workflows/ci.yml, 신설)<br/>check: ruff · pytest 재생 · 결함 세트 자기 검사(JDK)<br/>integration(수동): Docker · Neo4j"]
 

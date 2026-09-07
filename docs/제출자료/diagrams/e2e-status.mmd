@@ -1,7 +1,7 @@
 flowchart TB
     subgraph C["M8-c 릴리스 — 닫기"]
         direction LR
-        C1["C-1 데모 2개 3회 연속 [Docker 대기]"]
+        C1["C-1 데모 2개 3회 연속 [게이트웨이 대기]"]
         C2["C-2 제품 README"]
         C3["C-3 설치 테스트 1명 [사람 대기]"]
         C4["C-4 문서 정합 — ADR 색인 · CLAUDE.md · contracts"]
@@ -17,9 +17,8 @@ flowchart TB
         B2["B-2 결함 세트 v2 12건 + 자기 검사 12/12"]
         B2m["B-2 cta eval v2 베이스라인 [측정 대기]"]
         B3["B-3 경계값 실험 [측정 대기 — 수치 필요]"]
-        B4["B-4 MCP 서버 — 구현 후 제거 (ADR-0021)"]
         B5["B-5 판단 메모 불변식"]
-        BX["(추가) 로컬 실행 모드 --fast — ADR-0019<br/>실기동 6초 / 2초"]
+        BX["(추가) 로컬 실행 — 기본 실행 장치 — ADR-0019·0022<br/>실기동 6초 / 2초, 게이트 9.5초 / 30초"]
     end
 
     subgraph A["M8-a 마감 — 남이 돌릴 수 있게"]
@@ -35,7 +34,7 @@ flowchart TB
     subgraph Z["착수 전"]
         direction LR
         FIX0["결함 수정<br/>memos 덮어쓰기 — Windows 시계 해상도"]
-        LEGEND["범례<br/>초록 = 완료(이 PC에서 검증)<br/>노랑 점선 = Docker·게이트웨이·사람 대기<br/>파랑 = 부분 완료"]
+        LEGEND["범례<br/>초록 = 완료(이 PC에서 검증)<br/>노랑 점선 = 게이트웨이·사람 대기<br/>파랑 = 부분 완료"]
     end
 
     classDef done fill:#d5f5e0,stroke:#10b981,stroke-width:2px
@@ -45,4 +44,4 @@ flowchart TB
     class FIX0,A1,A2,A3,A4,A5,A6,B1,B2,B5,BX,C2,C4,C5 done
     class B1m,B2m,B3,C1,C3,C7 wait
     class C6 partial
-    class LEGEND,B4 dim
+    class LEGEND dim

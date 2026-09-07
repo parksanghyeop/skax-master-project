@@ -145,6 +145,18 @@
   다이어그램 `mcp-path` 삭제, `e2e-architecture`(진입점 하나)·`e2e-status`(B-4 제거 표기)·`config-precedence`(문구) 재렌더.
   작업 기록·계획 문서는 이력이라 "구현 후 제거"로만 표기
 
+### 9주차 — 실행 장치 기본값을 로컬로 (2026-09-07, 사용자 결정 "로컬 기준으로 진행")
+
+- **ADR-0022**(0019 일부 대체): `choose_runner`는 명시 없으면 항상 local. `--fast`는 커버리지·뮤테이션 게이트 생략만. Docker는 `--runner docker`.
+  `cta graph --coverage`·`cta demo`도 같은 규칙(`--runner` 옵션 추가, 준비 단계는 docker일 때만 — graph_cmd는 `ensure_prepared` 재사용으로 중복 제거).
+  `LOCAL_MODE_WARNING` → `LOCAL_MODE_NOTE`(기본값이므로 경고가 아니라 안내). R6 재정의, hints의 Docker·mvn 안내 문구 갱신
+- **로컬 게이트 실측(이 PC, Maven 3.9.16 + JDK 21, evalbench)** — ADR-0019의 미검증 항목: `JavaTestRunner(LocalSandbox).run("TextUtilTest")`
+  통과 **5.9초**, `JacocoCoverageCollector.measure` **9.5초**(TextUtil#countWords 1건), `measure_mutation` **30초**(20개 중 3개 검출 —
+  테스트 1건짜리 클래스라 낮은 것이 정상). 세 경로 모두 `-o`·`-Dmaven.repo.local` 제거 상태로 사용자 `~/.m2`에서 돌았다
+- **`cta demo` 로컬 재생**: 작업 트리의 `examples/demo`는 사용자가 실험 중(OrderService에 applyPenalty 추가)이라 저장된 기록과 프롬프트가
+  달라 불일치가 난다(예상된 동작, R7). HEAD의 예제로 만든 임시 worktree에서 재생 — 결과는 검증 기록
+- 문서: README·사용가이드(준비물·§12·문제 해결·한계)·architecture·contracts·CLAUDE.md·최종보고·E2E서비스개발·핵심구현·다이어그램 7종
+
 ## 검증 기록
 
 - 2026-09-06 착수 전 기준선: `pytest -q` 171 passed, 1 failed(memos 덮어쓰기), 4 deselected. ruff 통과
@@ -166,6 +178,8 @@
   이 PC: Docker 데몬 꺼짐, 로컬 Maven 3.9.16·JDK 21 있음, 게이트웨이 키 있음 — 실호출·Docker 실측은 하지 않았다
 - 2026-09-07 8주차(MCP 제거): `ruff check`·`format --check` 통과 · `pytest -q` **236 passed**, 4 deselected, skip 0(test_mcp 6건 삭제 — 이 venv에서는 모듈째 skip 1건이었다) ·
   `grep -ri mcp cta tests pyproject.toml .github` 0건 · `pip install -e .` 후 `cta --help` 정상
+- 2026-09-07 9주차(로컬 기본): ruff 통과 · `pytest -q` **236 passed**, 4 deselected · 로컬 게이트 실측(evalbench) 실행 5.9초 / 커버리지 9.5초 /
+  뮤테이션 30초 · **`cta demo` 로컬 재생 통과**(HEAD 예제의 임시 worktree, 이 PC의 Maven·JDK, 7개 테스트 통과, 시도 1회, **11.1초** — Docker 경로는 74초였다)
 
 ## 문제·리서치 로그
 
