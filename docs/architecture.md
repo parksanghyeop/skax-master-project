@@ -5,9 +5,11 @@
 ## 층 구조와 의존 방향
 
 ```
+mcp      ──▶ cli         # MCP 서버 — cli 함수를 그대로 부르는 껍데기 (ADR-0018)
 cli      ──▶ (모든 층)   # cta 명령 — 조립·입출력만. 판단 로직 없음
 tests    ──▶ (모든 층)
-adapters ──▶ core, graph # 구체 구현이 포트에 의존, 그래프를 채운다
+adapters ──▶ core, graph, sandbox # 구체 구현이 포트에 의존, 그래프를 채운다
+sandbox  ──▶ (독립)      # Docker / 로컬 실행 장치 (ADR-0019)
 graph    ──▶ (독립)      # 코드 그래프 모델·저장소·질의 (M4). 언어를 모른다
 llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2)
 core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
@@ -18,16 +20,16 @@ core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
 리포 루트는 역할별 5개 폴더로 나뉜다 — 제품 코드는 전부 `cta/` 아래에 있다:
 
 ```
-cta/        제품 코드 (파이썬 패키지 — core/adapters/llm/graph/sandbox/cli/evals)
+cta/        제품 코드 (파이썬 패키지 — core/adapters/llm/graph/sandbox/cli/evals/mcp)
 tests/      단위·통합 테스트
-scripts/    개발용 스크립트 (record_golden, demo_scenarios)
+scripts/    개발용 스크립트 (record_golden, demo_scenarios, check_defects, render_capture, render_diagram)
 examples/   예제 Maven 프로젝트 (demo = Spring Boot 주문 CRUD, evalbench)
 docs/       설계·산출물 문서
 ```
 
 층 패키지들은 `cta/` 아래에 그대로 있고 import 경로만 `cta.core...` 형태다.
 아래 모듈 표의 경로도 `cta/` 생략 표기다(예: `core/ports.py` = `cta/core/ports.py`).
-v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
+v4 6.1의 목표 구조는 전부 있다 — `mcp_server/`는 `cta/mcp/`로 들어갔다(ADR-0018).
 어댑터 실물은 `adapters/java/`로 들어간다(M1) — 새 언어 지원 = 폴더 추가.
 
 - **core는 언어를 모른다(R1)**: 언어·빌드 도구 이름 문자열 금지.
@@ -111,6 +113,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`(3단계)만 아직 없다.
 | `cli/file_mode.py` | `cta generate <파일명>` 파일 탐색·프로젝트 인식 | 사용성 |
 | `cli/locate.py` | 프로젝트 자동 인식(현재 폴더→상위→하위) — 전 명령의 --project 생략 지원 | 사용성 |
 | `cli/graph_cmd.py`·`eval_cmd.py`·`demo_cmd.py` | graph/eval/demo 서브커맨드 | CLI화 |
+| `cli/eval_intents.py` | `cta eval --intents` — 의도 세트(cta/evals/intents/)로 분류 정확도·unclear 비율 실측, 커밋 메시지 있음/없음 두 변형 | ADR-0020 |
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_scenarios.py` | SC-002/SC-003 재현용 임시 저장소 생성 (버그 수정 커밋 / 리팩터링 커밋) | ADR-0015 |
 | `scripts/render_capture.py` · `render_diagram.py` | 산출물 이미지 재생성 — 실행 로그 → 터미널 모양 PNG / mermaid → PNG(로컬 Chrome 헤드리스) | 산출물 |

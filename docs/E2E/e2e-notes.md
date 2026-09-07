@@ -76,7 +76,7 @@
 - 토큰 예산 검사는 **호출 전** 누적만 본다 — 한 번의 큰 호출이 상한을 넘을 수 있다. 응답 후 검사도 추가하려면 "이미 쓴 토큰"을 되돌릴 수 없으므로 의미가 작다. 문서에 명시
 - ~~`parse_skill`은 frontmatter 종료를 첫 `\n---`로 찾는다 — 본문에 수평선(`---`)을 쓰면 잘못 자른다~~ → 6주차에 재확인: 첫 `\n---`가 곧 헤더 닫기라 본문의 수평선은 영향 없음. 테스트로 고정
 - MCP는 동기 실행이라 generate 5~10분 동안 클라이언트가 기다린다(`MCP_TIMEOUT`). 비동기(시작/조회/결과)는 ADR-0018 후속
-- `PoC구현.md` 메타 표의 "단위 172건"은 1단계 시점 스냅샷이다. 현재 224건은 E2E 산출물에 있다 — PoC 문서는 그대로 둔다
+- `PoC구현.md` 메타 표의 "단위 172건"은 1단계 시점 스냅샷이다. 현재 수치(2026-09-07: 236건)는 E2E 산출물에 있다 — PoC 문서는 그대로 둔다
 - `hints.py` 규칙표의 문구 일치(`"CTA_GATEWAY_API_KEY가 필요하다" in t`)는 gateway.py의 오류 문구와 한 쌍이다 — 문구를 바꾸면 테스트가 잡는다(`test_hints`)
 - 결함 세트 `Buggy.java`는 스크래치 스크립트로 생성했다(치환 1회). 케이스를 손으로 고치면 고친 소스와 어긋날 수 있다 — `check_defects.py`가 "고친 소스와 같음"·"동치 변이"는 잡지만 "치환이 1군데인가"는 안 본다. 필요하면 diff 줄 수 검사 추가
 
@@ -107,6 +107,35 @@
   그대로 남는다. 테스트로 고정(`test_본문의_수평선은_frontmatter_닫기로_오해되지_않는다`). 4주차 개선 후보 목록에서 제외
 - 릴리스 체크리스트 "CLI와 MCP 동일 함수" 항목에 grep 근거 기입. 상태도에 로컬 실행 모드 노드 추가
 
+### 7주차 — ADR-0020 병합 · 소스 전체 점검(보완사항) (2026-09-07)
+
+**배경**: 3단계 작업(1~6주차)은 다른 PC에서 진행·푸시됐고, 이 PC에는 2026-09-04의 **ADR-0020 의도 모름 축소** 작업이
+미커밋으로 남아 있었다(로컬 main은 62a9bfc, origin/main은 20커밋 앞). 사용자 요청 "현재까지 개발된 소스 분석 + docs/E2E 갱신 +
+신규 기능 없이 보완사항 점검"으로 둘을 합쳤다.
+
+- **병합**: 로컬 변경을 stash → fast-forward pull → 재적용. 충돌 2건(`README.md` 문서 지도, `contracts.md` 보관소 표)은 양쪽을 합쳐 해소.
+  **ADR 번호 충돌** — 로컬이 0016으로 쓴 의도 축소 ADR을 원격의 0016(대화 압축)과 구분해 **ADR-0020**으로 옮기고 코드 주석·문서
+  참조 12파일을 갱신, 색인에 행 추가. 백업: stash `local ADR-0016 intent work` + `%TEMP%/cta-local-intent-work-*/tracked.patch`
+- **병합된 기능(ADR-0020 D1)**: `cta maintain --intent bug_fix|refactor|new_feature`·`--message`, `cta resolve <id> --as <의도>`,
+  `cta eval --intents [--variant]`(의도 세트 10건). 측정 결과 `intents-local-intents-v1-gpt-5-20260904-151539.json`: 20회 정확도 1.0,
+  잘못된 unclear 0 → 단서 확대·확신도 기준치는 보류. 같은 날 gpt-4.1로 결함 세트 v1 5/6(520초, gpt-5는 1,169초)
+- **보완사항 점검(소스 7,800줄 전체 + 문서↔코드 대조)** — 고친 것 2건, 기록만 한 것은 아래 표
+
+| # | 문제 | 왜 문제인가 | 조치 |
+|---|---|---|---|
+| 1 | `cli/resolve_cmd.py` `_resolve_as`가 `run_generation`에 `quiet`·`runner_kind`를 안 넘겼다(다른 호출부 4곳은 전부 넘긴다) | `cta resolve <id> --as bug_fix --fast`가 게이트만 생략하고 샌드박스는 Docker 그대로 — Docker 없는 PC에서 실패. ADR-0019·사용가이드 §12 "공통 옵션"과 어긋남. `--quiet`도 무시 | 두 인자 추가. 회귀 테스트 `TestResolveAsPassesRunOptions`(수정 전 실패 확인 → 수정 후 통과) |
+| 2 | ruff 0.16(CI는 버전 미고정)이 **마크다운 안의 python 코드 블록**까지 `format --check` 대상에 넣어 `docs/스킬.md`(77bc257)가 떨어졌다 | CI `check` 잡 lint 단계가 빨강. 문서 발췌는 포맷 대상이 아니다 | `pyproject.toml` `[tool.ruff.format] exclude = ["*.md"]` + 이유 주석 |
+
+기록만 한 것(개선 후보 — 신규 기능이 아니라 정합·중복):
+- `cli/graph_cmd.py`가 "캐시 없으면 준비" 로직을 `cli/generate.ensure_prepared`와 따로 갖고 있다(문구·잘라내는 길이만 다름). 동작 오류는 없어 두었다 — 합치면 한 곳
+- MCP `resolve` 도구는 intended/test-issue/proceed/skip만 받는다. `--as`(ADR-0020)는 CLI에만 있다 — 의도적 범위이며 필요하면 ADR-0018 후속
+- `docs/contracts.md` 품질 게이트 표 아래에 설정 파일 절이 끼어들어 게이트 행 10줄이 고아처럼 보인다(내용은 맞음) — 절 순서만 정리
+- `docs/사용가이드.md` §1·§7 옵션 표에 `--as`·`--intent`·`--message`·`--quiet`·`--runner`가 빠져 있다(본문 §6·§7에는 있음). `--warmup-test`·`eval` 옵션은 어디에도 없다
+- `docs/architecture.md` §개요에 "`mcp_server/`만 아직 없다"가 남아 있다(`cta/mcp/` 존재). 층 그림에 sandbox·mcp 줄 없음
+- `docs/adr/README.md` 0010 상태 "승인" ↔ 파일은 "폐기 — 0011로 대체"
+- 산출물 `E2E서비스개발.md`의 단위 222/224건·오류 안내 9행·"새 ADR 0016~0018"·"setdefault 주입" 표기는 현재(236건·10행·0016~0020·인자 전달)와 다르다
+- R1~R7 위반 없음(재확인: 도구 6개, 빈 selector 거부는 Docker·로컬 둘 다, 로컬 폴백 경로 없음, LLM 호출은 `llm/`만)
+
 ## 검증 기록
 
 - 2026-09-06 착수 전 기준선: `pytest -q` 171 passed, 1 failed(memos 덮어쓰기), 4 deselected. ruff 통과
@@ -122,6 +151,10 @@
 - 2026-09-06 3주차(B-2·B-4): ruff 통과 · `pytest -q` **222 passed**(신규 6: mcp 핸들러 5 + 서버 1) ·
   `python scripts/check_defects.py` **12/12 통과** · MCP SDK 2.x in-process 도구 5개 등록·호출 확인
 - 2026-09-06 4주차(검토)·5주차(로컬 모드): ruff 통과 · `pytest -q` **232 passed**(검토 2 + 로컬 샌드박스 8) · 로컬 모드 실기동 6초/2초
+- 2026-09-07 7주차(병합·점검, py3.12 venv, ruff 0.16.5): `ruff check` 통과 · `ruff format --check` 116 files · `pytest -q` **236 passed**,
+  1 skipped(`test_mcp` — venv에 mcp SDK 없음), 4 deselected(신규 4: 작성자 지정 의도 8 + 회귀 1 = 9, 기존 232 대비 병합분).
+  CLI 스모크: `cta maintain/resolve/eval --help`에 `--intent`·`--message`·`--as`·`--intents`·`--variant` 노출.
+  이 PC: Docker 데몬 꺼짐, 로컬 Maven 3.9.16·JDK 21 있음, 게이트웨이 키 있음 — 실호출·Docker 실측은 하지 않았다
 
 ## 문제·리서치 로그
 

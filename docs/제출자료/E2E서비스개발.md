@@ -7,11 +7,11 @@ PoC(1단계)·테스트 및 고도화(2단계)에서 만든 에이전트를 **�
 ## 한눈에 보기
 
 - **이번 단계에서 구현한 것**: CI(재생 모드) · `cta.toml` 단일 설정(게이트·반복 상한·시간 초과·모델·토큰 예산) ·
-  시크릿 3 테스트(환경변수만 / 샌드박스 미전달 / 출력 마스킹) · `--quiet` + 종료 코드 CI 사용법 · 오류 안내 "왜/할 일/명령" 9상황 ·
+  시크릿 3 테스트(환경변수만 / 샌드박스 미전달 / 출력 마스킹) · `--quiet` + 종료 코드 CI 사용법 · 오류 안내 "왜/할 일/명령" 10상황 ·
   **워크플로우 스킬**(규칙 선택, ADR-0017) · **MCP 서버**(도구 5개 = 명령 5개, ADR-0018) · 결함 세트 v2(12건) + 로컬 JDK 자기 검사 ·
   판단 메모 불변식 · 대화 압축 불필요 판정(ADR-0016) · **로컬 실행 모드 `--fast`**(Docker 없이 이 PC의 Maven·JDK, ADR-0019 — 실기동 6초) ·
   제품 README · 지원 범위와 한계 절
-- **검증한 것**: 단위 테스트 222건(1단계 172 → +50), 결함 세트 자기 검사 12/12, MCP 도구 5개 in-process 등록·호출, CLI 오류 안내 스모크 2건,
+- **검증한 것**: 단위 테스트 236건(1단계 172 → +64, 2026-09-07 기준), 결함 세트 자기 검사 12/12, MCP 도구 5개 in-process 등록·호출, CLI 오류 안내 스모크 2건,
   wheel에 스킬·프롬프트 데이터 포함
 - **발견한 것**: (1) 판단 메모가 Windows 시계 해상도 때문에 덮어써지는 결함 (2) 2단계 벤치의 truncate-boundary가 **동치 변이**라
   어떤 테스트도 잡을 수 없었다 — 베이스라인 "5/6"의 미검출 1건은 잡을 수 없는 결함 (3) MCP SDK 2.x에서 FastMCP가 MCPServer로 바뀜
@@ -22,9 +22,9 @@ PoC(1단계)·테스트 및 고도화(2단계)에서 만든 에이전트를 **�
 |---|---|
 | 기간 | 2026-09-06 (1~3주차 작업을 하루에 진행) |
 | 커밋 | 11개 (`b5c1232`…`6f63f91`), 전부 main에 push |
-| 테스트 | 단위 222건 · Docker 통합 2건 · Neo4j 통합 1건 · 결함 세트 자기 검사 12건 |
-| 새 모듈 | `core/config.py` · `llm/masking.py` · `cli/hints.py` · `adapters/java/skills/` · `mcp/` · `scripts/check_defects.py` |
-| 새 ADR | 0016 대화 압축 불필요 · 0017 워크플로우 스킬 · 0018 MCP 서버 |
+| 테스트 | 단위 236건 · Docker 통합 3건 · Neo4j 통합 1건 · 결함 세트 자기 검사 12건 |
+| 새 모듈 | `core/config.py` · `llm/masking.py` · `cli/hints.py` · `adapters/java/skills/` · `mcp/` · `sandbox/local_sandbox.py`·`factory.py` · `cli/eval_intents.py`·`evals/intents/` · `scripts/check_defects.py` |
+| 새 ADR | 0016 대화 압축 불필요 · 0017 워크플로우 스킬 · 0018 MCP 서버 · 0019 로컬 실행 모드 · 0020 의도 모름 축소 |
 
 ---
 
@@ -74,7 +74,7 @@ PoC구현.md §2.0의 계약에 더해진 것만 적는다. 전체는 `docs/cont
 - **설정 파일** `cta.toml` 절 5개. 시크릿은 받지 않는다. cta.toml 값은 환경변수의 기본값 자리에만 놓여 개인 설정(.env)을 덮지 않는다
 - **시크릿**: `docker run` 인자 조립을 순수 함수로 분리해 `-e`류 옵션이 없음을 테스트로 고정(샌드박스 미전달). 출력 직전 마스킹.
   기록 파일에 키 없음. 키 없으면 클라이언트 생성 시점에 실패
-- **오류 안내**: 예외·문구 → 표 9행 → "오류: 원인 / 왜 / 할 일 / 명령". 진입점 `main()`이 유일한 출구, `CTA_DEBUG=1`이면 전체 추적
+- **오류 안내**: 예외·문구 → 표 10행(로컬 Maven 없음 포함) → "오류: 원인 / 왜 / 할 일 / 명령". 진입점 `main()`이 유일한 출구, `CTA_DEBUG=1`이면 전체 추적
 - **CI 사용법**: 종료 코드 0/3/2/1의 뜻과 GitHub Actions 예시(3은 실패가 아니라 리뷰 요청). `--quiet`로 진행 줄 생략
 
 ### 3.2 확장 — 기술 어필 (M8-b)
@@ -119,7 +119,7 @@ ADR 색인(0001~0009 미반입 표기), CLAUDE.md 백엔드 표기 정정, PoC �
 | **결함** | 판단 메모 두 건을 연속 저장하면 한 건이 사라짐 — 파일명이 마이크로초 타임스탬프만이라 Windows 시계 해상도(~15ms) 안에서 같은 이름으로 덮어씀. 개발 환경에서는 재현되지 않아 2단계 내내 숨어 있었다 | • **발견:** 3.12 임시 환경에서 `pytest -q` 1건 실패 <br>• **적용:** 같은 자리 수 순번(`-00`, `-01`)을 붙여 이름을 구분하고 정렬 순서 유지. `datetime` 고정 회귀 테스트 |
 | **벤치마크** | 2단계 베이스라인의 미검출 1건(truncate-boundary)이 "테스트가 못 잡은 것"으로 기록됐는데, 실제로는 `<=`→`<`가 길이==max에서 같은 결과를 내는 **동치 변이**라 어떤 테스트도 잡을 수 없었다 | • **리서치:** 뮤테이션 테스팅의 equivalent mutant 문제 <br>• **적용:** 케이스마다 `probe`/`expected`를 두고 로컬 JDK로 고친/버그 버전을 비교하는 자기 검사(`check_defects.py`). 관찰 가능한 결함(`substring(0, max-1)`)으로 교체. 베이스라인 해석은 실질 5/5 |
 | **의존성** | MCP Python SDK 2.x에서 `FastMCP`가 `MCPServer`로 바뀌고 모듈 경로도 이동 — 학습 데이터 기준 코드는 import 시점에 깨진다 | • **리서치:** 설치본 `inspect`로 `tool`·`run`·`call_tool` 시그니처 확인, in-process 호출로 검증 <br>• **적용:** `mcp>=2` 선택 의존성, 핸들러는 SDK 없이 테스트, 서버 테스트는 `importorskip` |
-| **설계** | 설정 우선순위 — 커밋되는 `cta.toml`이 개인 `.env`(모델·시간 초과)를 덮으면 놀랍다 | • **적용:** cta.toml 값은 `setdefault`로만 주입 → 환경변수 > .env > cta.toml > 기본값 |
+| **설계** | 설정 우선순위 — 커밋되는 `cta.toml`이 개인 `.env`(모델·시간 초과)를 덮으면 놀랍다 | • **적용:** cta.toml 값은 `make_llm_client(model_default, timeout_default)` 인자로만 전달(환경변수에 쓰지 않음 — §4 검토 ①) → 환경변수 > .env > cta.toml > 기본값 |
 | **규칙 검사** | R1 검사(`test_layering`)가 새 `core/config.py`의 **주석** "java·maven 문자열은 없다"를 위반으로 잡았다 | • **적용:** 주석 문구 수정. 검사가 주석까지 보는 것은 의도된 보수성이라 예외를 만들지 않았다 |
 | **환경** | 이 PC의 콘솔(cp949)에서 한글 출력이 깨져 CLI 스모크가 조용히 실패한 것처럼 보였다 | • **적용:** `PYTHONUTF8=1`로 재실행. 사용가이드 문제 해결 표에 이미 있는 항목 |
 | **재생** | 스킬이 프롬프트를 바꾸면 저장된 LLM 호출 기록 재생이 깨질 위험 | • **확인:** 골든 재생(`cta demo`)은 자체 `STYLE_NOTES`로 생성기를 만들어 영향 없음. 실호출 시나리오 기록 재생성은 측정 환경에서 |
@@ -138,7 +138,7 @@ ADR 색인(0001~0009 미반입 표기), CLAUDE.md 백엔드 표기 정정, PoC �
 | 3 | `python scripts/check_defects.py` — 결함 12건 컴파일 + probe 비교 | **12/12 통과** |
 | 4 | MCP SDK 2.x in-process — 도구 5개 등록, `call_tool("list_proposals")` 왕복 | 도구 이름 5개 일치, `is_error=False`, 본문 "대기 중인 제안 없음" |
 | 5 | CLI 오류 안내 스모크 — pom.xml 없는 폴더 / 게이트웨이 키 비움 | 각각 "오류 + 왜/할 일/명령" 4줄, 종료 코드 1, 전체 추적 없음 |
-| 6 | `uv build --wheel` — 데이터 파일 포함 | `skills/*/SKILL.md` 2개, `prompts/*.md` 4개 포함 |
+| 6 | `uv build --wheel` — 데이터 파일 포함 | `skills/*/SKILL.md` 2개, `prompts/*.md`(프롬프트 3 + README) 포함 |
 
 **[검증 3 — 결함 세트 자기 검사]** 실행 로그 원문:
 
@@ -200,7 +200,7 @@ exit=1
 |---|---|
 | `cta.toml` 설정 5절, 우선순위, 반복 상한 주입, 토큰 예산 | `tests/test_config.py`, `test_writer_graph.py::TestConfigurableLimits`, `test_secrets.py::TestTokenBudget` |
 | 시크릿 3 테스트 | `test_llm_config.py`, `test_secrets.py` |
-| 오류 안내 9상황 + `CTA_DEBUG` | `tests/test_hints.py`, CLI 스모크(검증 5) |
+| 오류 안내 10상황 + `CTA_DEBUG` | `tests/test_hints.py`, CLI 스모크(검증 5) |
 | 스킬 읽기·규칙 선택·렌더링·불변식 | `tests/test_skills.py`(10건) |
 | MCP 핸들러 5개 + SDK 등록·호출 | `tests/test_mcp.py`(6건), 검증 4 |
 | 결함 세트 12건이 컴파일되고 관찰 가능 | 검증 3 |
@@ -235,12 +235,12 @@ exit=1
 | 문서 | 내용 |
 |---|---|
 | `docs/E2E/README.md` · `작업목록.md` · `릴리스체크리스트.md` · `e2e-notes.md` | 3단계 계획·항목별 상세·체크리스트·작업 기록 |
-| `docs/adr/ADR-0016~0018` | 대화 압축 불필요 · 워크플로우 스킬 · MCP 서버 |
+| `docs/adr/ADR-0016~0020` | 대화 압축 불필요 · 워크플로우 스킬 · MCP 서버 · 로컬 실행 모드 · 의도 모름 축소 |
 | `docs/사용가이드.md` §9·§13·§14·§15 | cta.toml · CI · MCP · 지원 범위와 한계 |
 | `docs/피드백반영계획.md` | AI 멘토·사람 멘토 피드백 반영 계획과 진행 상태 |
 
 ```
-pytest -q                              # 단위 222건 (Docker·Neo4j 제외)
+pytest -q                              # 단위 236건 (Docker·Neo4j 제외)
 python scripts/check_defects.py        # 결함 세트 자기 검사 (JDK 17+)
 pip install -e ".[mcp]" && cta-mcp     # MCP 서버 (stdio) — Claude Code: claude mcp add cta -- cta-mcp
 cta eval                               # 결함 세트 검출률 (Docker·게이트웨이 필요)
