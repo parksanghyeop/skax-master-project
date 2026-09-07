@@ -143,6 +143,8 @@ def _resolve_as(project, escalation: Escalation, args) -> int:
         fast=args.fast,
         ask_user=None if args.non_interactive else ask_on_terminal,
         regression_sources=regression,
+        quiet=getattr(args, "quiet", False),
+        runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
     )
     if outcome.get("status") == "error":
         print(f"오류: {outcome.get('report')}")

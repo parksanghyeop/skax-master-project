@@ -59,6 +59,11 @@ markers = [
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.format]
+# 왜 제외: ruff 0.16부터 마크다운 안의 python 코드 블록도 포맷 대상이라 문서의 짧은 발췌(인자 생략 등)가
+# `ruff format --check`에서 떨어진다(CI lint 단계). 문서 발췌는 포맷 대상이 아니다
+exclude = ["*.md"]
+
 [tool.ruff.lint]
 # E/F: 기본 오류, I: import 정렬, UP: 최신 문법, B: 흔한 버그 패턴
 select = ["E", "F", "I", "UP", "B"]

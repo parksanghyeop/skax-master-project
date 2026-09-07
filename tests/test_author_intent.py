@@ -4,6 +4,8 @@
 커밋 메시지 자리에 들어가며, resolve --as가 저장된 테스트 상태로 규칙표를 다시 조회한다.
 """
 
+import argparse
+import dataclasses
 import subprocess
 from pathlib import Path
 
@@ -12,6 +14,7 @@ import pytest
 from cta.adapters.fake import FakeTestRunner
 from cta.adapters.java.changes import GitChangeExtractor
 from cta.adapters.java.maven import detect_maven_project
+from cta.cli import resolve_cmd
 from cta.cli.escalations import Escalation, make_id
 from cta.cli.resolve_cmd import stated_intent_decision
 from cta.core.pipeline.maintain import AUTHOR_INTENTS, analyze_changes, with_author_intent
@@ -167,3 +170,36 @@ class TestStatedIntentDecision:
             _ask(["T"], failed=[{"name": "t"}]), INTENT_REFACTOR
         )
         assert (none_status, pass_status, fail_status) == (TESTS_NONE, TESTS_PASS, TESTS_FAIL)
+
+
+class TestResolveAsPassesRunOptions:
+    def test_as_경로도_fast_runner_quiet를_run_generation에_넘긴다(self, tmp_path, monkeypatch):
+        """검토(2026-09-07)에서 찾은 결함의 회귀 테스트 — --as 경로만 runner_kind·quiet를
+        빠뜨려 `--fast`인데도 Docker 샌드박스가 선택됐다(ADR-0019 위반)."""
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        project = detect_maven_project(tmp_path)
+        captured: dict = {}
+
+        def fake_run_generation(**kwargs):
+            captured.update(kwargs)
+            return {"status": "ok", "status_label": "정상 완료", "proposal": ""}
+
+        monkeypatch.setattr(resolve_cmd, "run_generation", fake_run_generation)
+        escalation = _ask(tests=[], tests_status=TESTS_NONE)
+        # file_rel을 비워 git 조회 없이 new_feature 경로만 본다(Escalation은 frozen)
+        escalation = dataclasses.replace(escalation, file_rel="")
+        args = argparse.Namespace(
+            as_intent="new_feature",
+            hint="",
+            fast=True,
+            runner=None,
+            quiet=True,
+            non_interactive=True,
+        )
+
+        code = resolve_cmd._resolve_as(project, escalation, args)
+
+        assert code == 0
+        assert captured["runner_kind"] == "local"
+        assert captured["quiet"] is True
+        assert captured["fast"] is True
