@@ -2,12 +2,12 @@
 
 from cta.adapters.java.coverage import JacocoCoverageCollector
 from cta.adapters.java.graph_builder import build_graph
-from cta.adapters.java.maven import detect_maven_project, find_existing_test_class
+from cta.adapters.java.maven import detect_maven_project
 from cta.adapters.java.runner import JavaTestRunner
-from cta.cli.generate import CACHE_DIR_NAME
+from cta.cli.generate import CACHE_DIR_NAME, ensure_prepared
 from cta.graph.model import NODE_METHOD
 from cta.llm.config import load_dotenv_into_env
-from cta.sandbox.docker_sandbox import DockerSandbox
+from cta.sandbox.factory import RUNNER_DOCKER, choose_runner, make_sandbox
 
 
 def run_graph_build(args) -> int:
@@ -21,17 +21,17 @@ def run_graph_build(args) -> int:
     print(f"파싱 완료: 노드 {len(nodes)}개, 정적 엣지 {len(edges)}개")
 
     if args.coverage:
-        sandbox = DockerSandbox()
+        # 실행 장치는 generate/maintain과 같은 규칙(ADR-0022):
+        # 기본 local, --runner docker면 격리 + 준비 단계
+        runner_kind = choose_runner(getattr(args, "runner", None), False)
+        sandbox = make_sandbox(runner_kind)
         cache_dir = project.root / CACHE_DIR_NAME
-        if not cache_dir.is_dir():
-            warmup = find_existing_test_class(project)
-            if not warmup:
-                print("오류: 준비 단계에 예열할 기존 테스트가 없다")
-                return 1
-            print(f"[준비] 의존성 캐시 생성 + 예열({warmup}) — 최초 1회...")
-            prepared = JavaTestRunner(project, sandbox, cache_dir).prepare(warmup)
-            if prepared.exit_code != 0:
-                print(f"오류: 준비 실패\n{prepared.output[-1500:]}")
+        if runner_kind == RUNNER_DOCKER:
+            problem = ensure_prepared(
+                project, JavaTestRunner(project, sandbox, cache_dir), cache_dir, None
+            )
+            if problem:
+                print(f"오류: {problem}")
                 return 1
         test_classes = sorted(p.stem for p in project.test_source_dir.rglob("*Test.java"))
         print(f"[실측] 테스트 클래스 {len(test_classes)}개 커버리지 수집 중...")

@@ -1,6 +1,6 @@
 """cta demo — 대표 검증 시나리오를 저장된 LLM 호출 기록으로 재생해 보여준다.
 
-LLM 비용 0(실호출 없음), Docker 필요. 산출물 캡처·발표 데모용.
+LLM 비용 0(실호출 없음), 이 PC의 Maven·JDK로 실행(--runner docker면 격리). 산출물 캡처·발표 데모용.
 대상: examples/demo(Spring Boot 주문 CRUD)의 OrderService#applyDiscount.
 """
 
@@ -9,6 +9,7 @@ import time
 from cta.core.writer_graph import build_writer_graph
 from cta.evals import golden_case as gc
 from cta.llm.replay import ReplayClient
+from cta.sandbox.factory import choose_runner
 
 
 def run_demo(args) -> int:
@@ -21,10 +22,12 @@ def run_demo(args) -> int:
     print(f"대상: {gc.TARGET}  (테스트가 없는 할인 계산 메서드)")
     print(f"지침: {gc.INSTRUCTION}")
     print(f"LLM: 실호출 없음 — 저장된 호출 기록을 재생 (기록된 모델: {gc.cassette_model()})")
+    print(f"실행 장치: {choose_runner(getattr(args, 'runner', None), False)}")
     print()
     started = time.monotonic()
     try:
-        ports = gc.make_ports(ReplayClient(gc.CASSETTE))
+        runner_kind = choose_runner(getattr(args, "runner", None), False)
+        ports = gc.make_ports(ReplayClient(gc.CASSETTE), runner_kind=runner_kind)
         final = build_writer_graph(ports).invoke(gc.initial_state())
         elapsed = time.monotonic() - started
 

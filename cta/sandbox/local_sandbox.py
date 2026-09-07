@@ -1,10 +1,8 @@
-"""로컬 실행 샌드박스 — Docker 없이 이 PC의 JDK·Maven으로 같은 명령을 돈다.
+"""로컬 실행 샌드박스 — 이 PC의 JDK·Maven으로 같은 명령을 돈다. **기본 실행 장치**다(ADR-0022).
 
-ADR-0019, `--fast` / `--runner local`.
-
-R6(샌드박스 밖 대상 코드 실행 금지)의 **명시적 완화**다. 격리는 없다: 생성된 테스트가 호스트
-JVM에서 돌고 네트워크도 차단되지 않는다. 그래서 기본값이 아니고, 사용자가 플래그로 켠 경우에만
-만들어지며 화면에 경고가 나간다.
+ADR-0019에서 `--fast` 전용으로 들어왔고, ADR-0022로 기본값이 됐다. 격리는 없다: 생성된 테스트가
+호스트 JVM에서 돌고 네트워크도 차단되지 않는다. 그래서 화면에 안내 한 줄을 찍고, 격리가 필요한
+곳(남의 코드·CI)은 `--runner docker`를 쓰게 한다.
 왜 필요한가: Docker 준비 단계(이미지 + go-offline + 예열)가 첫 실행 5분, 매 실행 수십 초의 비용이다.
 자기 PC의 신뢰하는 코드베이스에서 빠르게 돌리고 싶을 때 쓴다.
 
@@ -72,7 +70,7 @@ class LocalSandbox:
         executable = shutil.which(argv[0])  # Windows에서는 mvn.cmd로 풀린다
         if executable is None:
             raise FileNotFoundError(
-                f"{argv[0]} 실행 파일을 찾을 수 없다 — 로컬 실행 모드(--fast / --runner local)는 "
+                f"{argv[0]} 실행 파일을 찾을 수 없다 — 이 PC에서 실행하려면(기본) "
                 "Maven과 JDK가 PATH에 있어야 한다. 격리 실행은 --runner docker"
             )
         cwd = translate_paths([workdir], mounts)[0]

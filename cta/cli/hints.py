@@ -96,7 +96,7 @@ _RULES: list[tuple[Callable[[BaseException | None, str], bool], Hint]] = [
     (
         lambda e, t: isinstance(e, FileNotFoundError) and "mvn" in t.lower(),
         Hint(
-            why="로컬 실행 모드(--fast / --runner local)인데 Maven을 찾지 못했다",
+            why="이 PC의 Maven으로 실행하는데(기본 실행 장치) Maven을 찾지 못했다",
             todo="Maven과 JDK를 설치해 PATH에 넣거나, 격리 실행(Docker)으로 돌린다",
             command="mvn -version   또는   --runner docker",
         ),
@@ -104,8 +104,8 @@ _RULES: list[tuple[Callable[[BaseException | None, str], bool], Hint]] = [
     (
         _is_docker_problem,
         Hint(
-            why="Docker가 실행 중이 아니거나 설치돼 있지 않다 — 테스트는 샌드박스에서만 돈다(R6)",
-            todo="Docker Desktop을 실행하고 다시 시도한다",
+            why="--runner docker(격리 실행)인데 Docker가 실행 중이 아니거나 설치돼 있지 않다",
+            todo="Docker Desktop을 실행하고 다시 시도하거나, --runner를 빼고 이 PC에서 돌린다",
             command="docker info",
         ),
     ),

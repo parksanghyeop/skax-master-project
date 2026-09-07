@@ -176,12 +176,12 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument(
         "--fast",
         action="store_true",
-        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+        help="빠른 실행: 커버리지·뮤테이션 게이트와 전후 측정 생략 (ADR-0022)",
     )
     g.add_argument(
         "--runner",
         choices=["docker", "local"],
-        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+        help="실행 장치 — local(이 PC의 Maven·JDK, 기본) / docker(격리 컨테이너)",
     )
     g.add_argument("--non-interactive", action="store_true", help="질문 없이 자동 진행")
     g.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
@@ -210,12 +210,12 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument(
         "--fast",
         action="store_true",
-        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+        help="빠른 실행: 커버리지·뮤테이션 게이트와 전후 측정 생략 (ADR-0022)",
     )
     m.add_argument(
         "--runner",
         choices=["docker", "local"],
-        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+        help="실행 장치 — local(이 PC의 Maven·JDK, 기본) / docker(격리 컨테이너)",
     )
     m.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행 (CI)")
     m.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
@@ -252,12 +252,12 @@ def build_parser() -> argparse.ArgumentParser:
     rs.add_argument(
         "--fast",
         action="store_true",
-        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+        help="빠른 실행: 커버리지·뮤테이션 게이트와 전후 측정 생략 (ADR-0022)",
     )
     rs.add_argument(
         "--runner",
         choices=["docker", "local"],
-        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+        help="실행 장치 — local(이 PC의 Maven·JDK, 기본) / docker(격리 컨테이너)",
     )
     rs.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행")
     rs.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
@@ -287,6 +287,11 @@ def build_parser() -> argparse.ArgumentParser:
     x.set_defaults(func=_cmd_discard)
 
     gr = sub.add_parser("graph", help="프로젝트 분석 기능: 코드 그래프 빌드 (Neo4j)")
+    gr.add_argument(
+        "--runner",
+        choices=["docker", "local"],
+        help="--coverage 실측의 실행 장치 — local(기본) / docker(격리)",
+    )
     gr.add_argument("--project", help="생략 시 현재 위치에서 자동 인식")
     gr.add_argument("--coverage", action="store_true", help="JaCoCo 실측 COVERS까지 수집")
 
@@ -301,12 +306,12 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument(
         "--fast",
         action="store_true",
-        help="빠른 실행: Docker 대신 이 PC의 Maven·JDK로 실행 + 무거운 게이트 생략 (ADR-0019)",
+        help="빠른 실행: 커버리지·뮤테이션 게이트와 전후 측정 생략 (ADR-0022)",
     )
     e.add_argument(
         "--runner",
         choices=["docker", "local"],
-        help="실행 장치 — docker(격리, 기본) / local(이 PC, 격리 없음). 생략 시 --fast면 local",
+        help="실행 장치 — local(이 PC의 Maven·JDK, 기본) / docker(격리 컨테이너)",
     )
     e.add_argument("--cases", help="쉼표로 구분한 케이스 id (기본: 전체)")
     e.add_argument(
@@ -333,6 +338,11 @@ def build_parser() -> argparse.ArgumentParser:
     e.set_defaults(func=_eval)
 
     dm = sub.add_parser("demo", help="대표 시나리오 재생 시연 (LLM 비용 0)")
+    dm.add_argument(
+        "--runner",
+        choices=["docker", "local"],
+        help="재생 시연의 실행 장치 — local(기본) / docker(격리)",
+    )
 
     def _demo(args):
         from cta.cli.demo_cmd import run_demo

@@ -1,7 +1,7 @@
 # Code Test Agent — CLAUDE.md
 
 Java 소스 변경에 맞춰 테스트 코드를 자동 생성·유지보수하는 LLM 에이전트.
-Python + LangGraph, 사내 LLM 게이트웨이(Azure OpenAI 호환, 기본 deployment gpt-5 — ADR-0011·0013), Neo4j 코드 그래프, Docker 샌드박스.
+Python + LangGraph, 사내 LLM 게이트웨이(Azure OpenAI 호환, 기본 deployment gpt-5 — ADR-0011·0013), Neo4j 코드 그래프, 로컬 Maven 실행(격리 옵션 Docker — ADR-0022).
 
 ## 진실의 원천
 
@@ -24,7 +24,7 @@ v4에서 바뀐 결정 (구문서·구스킬과 다름):
 - **R3. refactor + 테스트 실패 → escalate** — 기대값을 갱신하는 분기를 만들지 않는다. 의도 분류가 불확실하면 추측하지 않고 사용자에게 묻는다
 - **R4. 도구는 정확히 6개** — `inspect_target`, `query_code_graph`, `write_test`, `run_tests`, `check_quality`, `report_finding`. 7번째가 필요하면 먼저 사용자에게 묻는다
 - **R5. 전체 테스트 실행 금지** — 어댑터가 빈 selector를 거부한다
-- **R6. 샌드박스 밖에서 대상 코드 실행 금지** — 기본값은 Docker 샌드박스. 예외는 사용자가 `--fast` 또는 `--runner local`로 **명시한 로컬 실행 모드**뿐이다(ADR-0019, 화면 경고 필수). 코드가 스스로 로컬로 폴백하지 않는다. 디버깅 목적의 임의 실행도 금지
+- **R6. 대상 코드는 실행 장치 안에서 도구를 통해서만 실행** — 기본은 이 PC의 Maven·JDK(`local`), 격리는 `--runner docker`(ADR-0022). 코드가 실행 장치를 스스로 바꾸지(폴백하지) 않는다. 디버깅 목적의 임의 실행 금지
 - **R7. LLM 호출은 `llm/` 계층만 경유** — record & replay가 작동해야 한다. CI는 replay 모드, 카세트 없으면 실패(실호출 폴백 금지)
 
 ## LLM 백엔드·시크릿 (ADR-0011)

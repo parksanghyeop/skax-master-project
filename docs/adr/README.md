@@ -17,9 +17,10 @@
 | [0016](ADR-0016-no-conversation-compaction.md) | 대화 압축을 구현하지 않는다 — 단발 프롬프트 구조 | 승인 |
 | [0017](ADR-0017-writer-skills.md) | 테스트 작성 워크플로우에 스킬 — 규칙 기반 선택, 도구 추가 없음 | 승인 |
 | [0018](ADR-0018-mcp-server.md) | MCP 서버는 CLI 껍데기 — 도구 5개, 동기, 선택 의존성 | 폐기 — 0021로 대체 |
-| [0019](ADR-0019-local-runner.md) | 로컬 실행 모드 — `--fast`는 Docker 없이 이 PC의 Maven·JDK (R6의 명시적 완화) | 승인 |
+| [0019](ADR-0019-local-runner.md) | 로컬 실행 모드 — `LocalSandbox`, 같은 `Sandbox` 프로토콜 | 일부 대체 — 기본값·`--fast` 의미는 0022 |
 | [0020](ADR-0020-intent-unclear-reduction.md) | 의도 모름(unclear) 축소 — 작성자 지정 의도(`--intent`/`--message`/`resolve --as`), 의도 세트 측정. 단서 확대·기준치는 보류 | 승인 |
 | [0021](ADR-0021-remove-mcp-server.md) | MCP 서버 제거 — 진입점은 CLI 하나(발표·시연 볼륨 축소) | 승인 |
+| [0022](ADR-0022-local-runner-default.md) | 실행 장치 기본값은 로컬 — Docker 샌드박스는 `--runner docker`, `--fast`는 게이트 생략만 (R6 재정의) | 승인 |
 
 > ⚠️ 0001~0009 원문은 미반입 상태다. 기존 결정과 충돌이 의심되면 사용자에게 원문을 요청해 확인한다.
-> 새 ADR은 0022부터.
+> 새 ADR은 0023부터.

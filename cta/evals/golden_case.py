@@ -19,7 +19,7 @@ from cta.adapters.java.writer import JavaTestWriter
 from cta.core.writer_graph import WriterPorts, WriterState
 from cta.llm.client import ChatMessage, ChatResponse
 from cta.llm.generation import PromptedGenerator
-from cta.sandbox.docker_sandbox import DockerSandbox
+from cta.sandbox.factory import RUNNER_LOCAL, make_sandbox
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # cta/evals/ → 리포 루트
 DEMO_PROJECT = REPO_ROOT / "examples" / "demo"
@@ -151,14 +151,17 @@ class ScriptedLlm:
         return ChatResponse(content=self._answers.pop(0))
 
 
-def make_ports(llm_client, model: str | None = None) -> WriterPorts:
+def make_ports(
+    llm_client, model: str | None = None, runner_kind: str = RUNNER_LOCAL
+) -> WriterPorts:
     """실물 어댑터 + 주어진 LLM 클라이언트로 서브그래프 포트를 조립한다.
 
     llm_client 자리에 RecordingClient(기록)나 ReplayClient(재생)를 꽂는다.
     model: 기록 시에는 사용할 모델을 명시하고, 재생 시에는 생략(기록값 사용).
+    runner_kind: 실행 장치 — 기본 local, 격리가 필요하면 "docker"(ADR-0022).
     """
     project = detect_maven_project(DEMO_PROJECT)
-    sandbox = DockerSandbox()
+    sandbox = make_sandbox(runner_kind)
     return WriterPorts(
         inspector=JavaSourceInspector(project),
         # 파싱 기반 CodeGraph: 저장된 호출 기록의 재생 호환(비슷한 테스트 답이 동일)을 보장한다

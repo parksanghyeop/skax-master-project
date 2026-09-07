@@ -32,15 +32,15 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `RunResult` | `passed: bool`, `summary: str` | frozen dataclass. summary는 모델에게 그대로 보여줄 요약 |
 | `EmptySelectorError` | (ValueError 하위) | 전체 테스트 실행 금지(R5)의 결정적 안전장치 |
 
-## 샌드박스 (sandbox/docker_sandbox.py — adapters가 사용하는 내부 계약)
+## 실행 장치 (sandbox/ — adapters가 사용하는 내부 계약)
 
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
 | `DockerSandbox.run` | `run(image, command, mounts, workdir, network_enabled=False, timeout_seconds=600) -> SandboxResult` | 기본 네트워크 차단. 실패는 exit_code로 전달(예외 아님), 시간 초과는 exit_code=124 |
 | `build_run_args` | `(image, command, mounts, workdir, network_enabled=False) -> list[str]` | `docker run` 인자 조립(순수 함수). `-e`/`--env`/`--env-file` 없음 — 호스트 환경변수(게이트웨이 키)가 컨테이너로 가는 경로가 없다(v4 6.6). `tests/test_secrets.py`가 고정 |
-| `Sandbox` (프로토콜) | `run(image, command, mounts, workdir, network_enabled=False, timeout_seconds=600) -> SandboxResult` | 어댑터가 보는 실행 장치 타입. 구현: `DockerSandbox`(격리, 기본) / `LocalSandbox`(격리 없음, ADR-0019) |
+| `Sandbox` (프로토콜) | `run(image, command, mounts, workdir, network_enabled=False, timeout_seconds=600) -> SandboxResult` | 어댑터가 보는 실행 장치 타입. 구현: `LocalSandbox`(기본, 격리 없음) / `DockerSandbox`(`--runner docker`, 격리) — ADR-0022 |
 | `LocalSandbox.run` (local_sandbox.py) | 같은 시그니처 | 이미지 무시, `translate_paths`(컨테이너 경로 → mounts의 호스트 경로, 경계에서만), `strip_sandbox_only_flags`(`-o`·`-Dmaven.repo.local=` 제거), 호스트 `mvn` 실행. mvn 없음 → `'mvn'`을 담은 FileNotFoundError |
-| `choose_runner` / `make_sandbox` (factory.py) | `(explicit: str \| None, fast: bool) -> "docker" \| "local"` / `(kind) -> Sandbox` | 명시한 `--runner`가 이기고, 없으면 `--fast`면 local. 모르는 이름 ValueError. 로컬 모드는 `ensure_prepared`를 건너뛰고 `LOCAL_MODE_WARNING`을 출력 |
+| `choose_runner` / `make_sandbox` (factory.py) | `(explicit: str \| None, fast: bool) -> "docker" \| "local"` / `(kind) -> Sandbox` | 명시한 `--runner`가 이기고, 없으면 항상 local(`fast`는 무관 — 게이트 생략만). 모르는 이름 ValueError. 로컬은 `ensure_prepared`를 건너뛰고 `LOCAL_MODE_NOTE`를 출력 |
 | `Mount` | `host_path, container_path, read_only=False` | read_only는 실행 단계의 의존성 캐시 보호용 |
 | `SandboxResult` | `exit_code: int, output: str` | output은 stdout·stderr 합본 |
 
@@ -153,7 +153,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
 | `run_maintain` / `run_resolve` / `run_eval_intents` | `(args: argparse.Namespace) -> int`(종료 코드) | 명령 진입점(`maintain_cmd.py`·`resolve_cmd.py`·`eval_intents.py`) |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
-| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="docker") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` local이면 준비 단계 없음 + 경고, 결과 `runner`(ADR-0019). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
+| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="local") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` docker면 준비 단계 + 격리, local(기본)은 준비 없음 + 안내 한 줄, 결과 `runner`(ADR-0022). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
 
 ## 결함 세트 (evals/defects — ADR-0014, v2)
 

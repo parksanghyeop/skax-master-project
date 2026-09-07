@@ -8,7 +8,7 @@
 cli      ──▶ (모든 층)   # cta 명령 — 조립·입출력만. 판단 로직 없음
 tests    ──▶ (모든 층)
 adapters ──▶ core, graph, sandbox # 구체 구현이 포트에 의존, 그래프를 채운다
-sandbox  ──▶ (독립)      # Docker / 로컬 실행 장치 (ADR-0019)
+sandbox  ──▶ (독립)      # 로컬(기본) / Docker 실행 장치 (ADR-0022)
 graph    ──▶ (독립)      # 코드 그래프 모델·저장소·질의 (M4). 언어를 모른다
 llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2)
 core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
@@ -28,7 +28,6 @@ docs/       설계·산출물 문서
 
 층 패키지들은 `cta/` 아래에 그대로 있고 import 경로만 `cta.core...` 형태다.
 아래 모듈 표의 경로도 `cta/` 생략 표기다(예: `core/ports.py` = `cta/core/ports.py`).
-v4 6.1의 목표 구조 중 `mcp_server/`는 구현했다가 제거했다(ADR-0021) — 진입점은 CLI 하나다.
 어댑터 실물은 `adapters/java/`로 들어간다(M1) — 새 언어 지원 = 폴더 추가.
 
 - **core는 언어를 모른다(R1)**: 언어·빌드 도구 이름 문자열 금지.
@@ -55,7 +54,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`는 구현했다가 제거했다(ADR-00
 | `adapters/fake.py` | 포트의 인메모리 Fake 구현 — 오프라인 테스트·데모용 | M0 |
 | `adapters/java/maven.py` | Maven 프로젝트 탐지 (pom.xml 확인, 표준 경로 계산) | M1 |
 | `adapters/java/runner.py` | TestRunner 포트 구현 — 2단계(준비/오프라인 실행) 샌드박스 호출 | M1 |
-| `sandbox/docker_sandbox.py` | 범용 Docker 실행 래퍼 — 기본 네트워크 차단, 마운트 통제 | M1 |
+| `sandbox/docker_sandbox.py` | 격리 실행 옵션(`--runner docker`) — Docker 실행 래퍼, 네트워크 차단, 마운트 통제 | M1 · ADR-0022 |
 | `examples/demo/` | 예제 Spring Boot 주문 CRUD 앱 — 시나리오 SC-001~004의 실험대 | ADR-0015 |
 | `llm/__init__.py` | llm 층 선언 — 모든 LLM 호출의 유일한 통로(R7) | M0 |
 | `llm/client.py` | 공용 타입(ChatMessage·ChatResponse[usage_tokens])과 LlmClient 포트 | M2 |
@@ -93,7 +92,7 @@ v4 6.1의 목표 구조 중 `mcp_server/`는 구현했다가 제거했다(ADR-00
 | `llm/masking.py` | 시크릿 가림 — 키 값·키 모양을 `****`로, CLI 출력 직전 2차 방어 | 3단계 A-3 |
 | `cli/hints.py` | 오류 안내 표 — 예외·문구 → "왜 / 할 일 / 명령" 세 줄. `main()`의 유일한 예외 출구 | 3단계 A-5 |
 | `adapters/java/skills/` | 테스트 작성 스킬 — `<이름>/SKILL.md` 2개(junit5-mockito·regression-test) + `select.py`(규칙표 선택·렌더링). core 무관, 도구 추가 없음 | ADR-0017 |
-| `sandbox/local_sandbox.py` · `sandbox/factory.py` | 로컬 실행 모드(`--fast` / `--runner local`) — Docker 없이 호스트 Maven·JDK, 같은 `Sandbox` 프로토콜. 선택 규칙 + 경고 문구 | ADR-0019 |
+| `sandbox/local_sandbox.py` · `sandbox/factory.py` | 로컬 실행(기본) — 호스트 Maven·JDK, 같은 `Sandbox` 프로토콜. 선택 규칙(`choose_runner`: 명시 없으면 local) + 안내 문구 | ADR-0019 · 0022 |
 | `scripts/check_defects.py` | 결함 세트 자기 검사 — 로컬 JDK로 버그 버전 컴파일 + probe 비교(동치 변이 탐지). CI check 잡 | 3단계 B-2 |
 | `.github/workflows/ci.yml` | CI — check(ruff·pytest 재생 모드, py 3.11/3.12) + integration(수동: docker·neo4j) | 3단계 A-1 |
 | `core/submit.py` | 생성→게이트 재시도 루프 (탈락 사유 반환, 소진 시 사람 확인) | M6 |

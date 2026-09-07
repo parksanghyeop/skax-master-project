@@ -41,7 +41,7 @@ from cta.graph.model import EDGE_COVERS
 from cta.llm.config import load_dotenv_into_env, make_llm_client
 from cta.llm.intent import PromptedIntentClassifier
 from cta.llm.metering import MeteredClient
-from cta.sandbox.factory import LOCAL_MODE_WARNING, RUNNER_LOCAL, choose_runner, make_sandbox
+from cta.sandbox.factory import LOCAL_MODE_NOTE, RUNNER_LOCAL, choose_runner, make_sandbox
 
 
 class GraphTestLocator:
@@ -97,7 +97,7 @@ def run_maintain(args: argparse.Namespace) -> int:
     cache_dir = project.root / CACHE_DIR_NAME
     runner = JavaTestRunner(project, sandbox, cache_dir)
     if runner_kind == RUNNER_LOCAL:
-        print(f"{INDENT}[!] {LOCAL_MODE_WARNING}")
+        print(f"{INDENT}{LOCAL_MODE_NOTE}")
     else:
         problem = ensure_prepared(project, runner, cache_dir, None)
         if problem:

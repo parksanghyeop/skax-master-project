@@ -34,12 +34,14 @@ class TestTranslation:
 
 
 class TestChooseRunner:
-    def test_기본은_docker이고_fast면_local이다(self):
-        assert choose_runner(None, fast=False) == RUNNER_DOCKER
+    def test_기본은_local이고_fast는_장치를_바꾸지_않는다(self):
+        # ADR-0022: 로컬이 기본, --fast는 게이트 생략만
+        assert choose_runner(None, fast=False) == RUNNER_LOCAL
         assert choose_runner(None, fast=True) == RUNNER_LOCAL
 
-    def test_명시한_runner가_fast보다_이긴다(self):
-        assert choose_runner("docker", fast=True) == RUNNER_DOCKER  # CI: 격리 유지 + 게이트만 생략
+    def test_docker는_명시했을_때만이다(self):
+        assert choose_runner("docker", fast=False) == RUNNER_DOCKER
+        assert choose_runner("docker", fast=True) == RUNNER_DOCKER  # CI: 격리 + 게이트만 생략
 
     def test_모르는_이름은_거부한다(self):
         with pytest.raises(ValueError):
