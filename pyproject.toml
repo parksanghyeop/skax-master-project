@@ -7,10 +7,15 @@ version = "0.1.0"
 description = "소스 변경에 맞춰 테스트 코드를 자동 생성·유지보수하는 LLM 에이전트 (PoC)"
 requires-python = ">=3.11"
 # langgraph: v4 5절이 확정한 오케스트레이션 프레임워크 (M3 서브그래프)
+# deepagents·langchain·langchain-openai: 메인+서브에이전트 하네스와 LangChain 모델 (ADR-0024).
+#   deepagents는 내장 프롬프트가 재생 대조 키에 들어가므로 0.7.x로 고정한다
 # neo4j: 코드 그래프 저장소 드라이버 (M4, v4 6.5)
-# 게이트웨이 호출은 표준 라이브러리 urllib — 별도 SDK 불필요 (ADR-0011)
+# 의도 분류의 게이트웨이 호출은 여전히 표준 라이브러리 urllib (ADR-0011·0024 결정 6)
 dependencies = [
-    "langgraph>=0.2",
+    "langgraph>=1.2",
+    "deepagents>=0.7.13,<0.8",
+    "langchain>=1.4,<2",
+    "langchain-openai>=1.1,<2",
     "neo4j>=5",
 ]
 
@@ -20,7 +25,7 @@ cta = "cta.cli.main:main"
 
 [tool.setuptools]
 # 제품 코드는 전부 cta/ 아래 — 층 패키지들을 명시한다 (디렉터리 정리, 2026-09-02)
-packages = ["cta", "cta.core", "cta.core.tools", "cta.core.pipeline",
+packages = ["cta", "cta.core", "cta.core.tools", "cta.core.pipeline", "cta.core.agent",
             "cta.adapters", "cta.adapters.java", "cta.adapters.java.skills",
             "cta.graph", "cta.llm", "cta.sandbox", "cta.cli", "cta.evals"]
 
@@ -29,6 +34,8 @@ packages = ["cta", "cta.core", "cta.core.tools", "cta.core.pipeline",
 "cta.llm" = ["prompts/*.md"]
 # 스킬 본문도 데이터 — 폴더별 SKILL.md (ADR-0017)
 "cta.adapters.java" = ["skills/*/SKILL.md"]
+# 메인·서브에이전트 프롬프트 (ADR-0024)
+"cta.core.agent" = ["prompts/*.md"]
 
 [dependency-groups]
 dev = [
