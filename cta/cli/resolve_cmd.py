@@ -30,6 +30,7 @@ from cta.cli.render import (
     display_target,
     render_result_status,
 )
+from cta.core.agent import ENGINE_LEGACY
 from cta.core.pipeline.decide import decide
 from cta.core.pipeline.models import (
     ACTION_CREATE_TEST,
@@ -145,6 +146,7 @@ def _resolve_as(project, escalation: Escalation, args) -> int:
         regression_sources=regression,
         quiet=getattr(args, "quiet", False),
         runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
+        engine=getattr(args, "engine", ENGINE_LEGACY),
     )
     if outcome.get("status") == "error":
         print(f"오류: {outcome.get('report')}")
@@ -222,6 +224,7 @@ def run_resolve(args: argparse.Namespace) -> int:
         authorized_tests=set(failed_names) if decision in ("intended", "test-issue") else None,
         quiet=getattr(args, "quiet", False),
         runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
+        engine=getattr(args, "engine", ENGINE_LEGACY),
     )
     if outcome.get("status") == "error":
         print(f"오류: {outcome.get('report')}")

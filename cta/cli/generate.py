@@ -54,18 +54,19 @@ from cta.cli.render import (
     format_token_breakdown,
     format_tokens,
 )
-from cta.core.config import load_config
+from cta.core.agent import ENGINE_DEEP, ENGINE_LEGACY, ENGINES
+from cta.core.agent.build import build_agent, run_agent
+from cta.core.agent.ports import AgentPorts
+from cta.core.config import CtaConfig, load_config
 from cta.core.ports import UserReply
 from cta.core.submit import generate_with_gates
-from cta.core.writer_graph import (
-    InterruptUserGate,
-    WriterPorts,
-    build_writer_graph,
-    invoke_with_interrupts,
-)
+from cta.core.user_gate import InterruptUserGate, invoke_with_interrupts
+from cta.core.writer_graph import WriterPorts, build_writer_graph
+from cta.llm.chat_model import NoCallChatModel, make_chat_model
 from cta.llm.config import make_llm_client
 from cta.llm.generation import PromptedGenerator
-from cta.llm.metering import MeteredClient
+from cta.llm.metering import MeteredClient, MeteringModelMiddleware
+from cta.llm.model_cassette import RecordingModelMiddleware, ReplayModelMiddleware
 from cta.sandbox.factory import LOCAL_MODE_NOTE, RUNNER_LOCAL, make_sandbox
 
 # 준비 단계에서 만드는 의존성 캐시 위치 — 대상 프로젝트 밑에 두어 지우기 쉽게 한다.
@@ -134,6 +135,9 @@ def run_generation(
     measure_before: bool = False,
     quiet: bool = False,
     runner_kind: str = RUNNER_LOCAL,
+    engine: str = ENGINE_LEGACY,
+    record: str | None = None,
+    replay: str | None = None,
 ) -> dict:
     """재료 수집→생성→게이트→제안 저장까지 수행한다. generate/maintain/resolve/eval 공용 진입점.
 
@@ -143,22 +147,36 @@ def run_generation(
       measure_before — 생성 전 기존 테스트의 버그 검출력을 먼저 재서 전후 비교(SC-002).
       quiet — 경과 시간이 붙는 진행 줄(`[ 113초] …`)을 끈다. CI 로그용(--quiet).
       runner_kind — "local"(이 PC의 Maven·JDK, 기본, 준비 단계 없음) 또는 "docker"(격리, ADR-0022).
+      engine — "legacy"(옛 작성 그래프) 또는 "deep"(Deep Agent, ADR-0024).
+      record / replay — deep 엔진의 LLM 호출 기록 파일: record는 실호출을 녹음, replay는 기록만으로
+        재생(게이트웨이 불필요, 어긋나면 실패 — R7). 둘 다 주면 ValueError.
     설정: 프로젝트 루트의 cta.toml(core/config.py) — 게이트 기준치·반복 상한·시간 초과·모델·예산.
     출력 dict: status(accepted/human_review/not_passed/error), status_label, proposal, attempts,
       writer_attempts, elapsed, tokens, test_rel, test_class, gate_results, failure_reasons,
       report, model, tests_run, new_tests, check_total, check_satisfied, mutation_before/after.
     """
     started = time.monotonic()
+    if engine not in ENGINES:
+        raise ValueError(f"모르는 엔진 {engine!r} — 허용: {ENGINES}")
+    if record and replay:
+        raise ValueError("record와 replay는 함께 쓸 수 없다 — 녹음이거나 재생이거나 하나다(R7)")
     project = detect_maven_project(project_path)
     config = load_config(project.root)
-    raw_client, model = make_llm_client(
-        model_default=config.model,
-        timeout_default=config.gateway_timeout_sec,
-        reasoning_effort_default=config.reasoning_effort,
-    )
-    client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
-    if model_override:
-        model = model_override
+    if engine == ENGINE_DEEP:
+        chat_model, model, meter, llm_middleware = _make_deep_llm(
+            config, model_override, record, replay
+        )
+        client = None
+    else:
+        raw_client, model = make_llm_client(
+            model_default=config.model,
+            timeout_default=config.gateway_timeout_sec,
+            reasoning_effort_default=config.reasoning_effort,
+        )
+        client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
+        meter = client
+        if model_override:
+            model = model_override
 
     class_name, method_field = parse_target(target)
     class_file = find_class_file(project, class_name)
@@ -284,37 +302,83 @@ def run_generation(
 
     code_graph, graph_note, graph_store = choose_code_graph(project)
     print(f"{INDENT}      유사 테스트 검색: {graph_note}")
-    ports = WriterPorts(
-        inspector=JavaSourceInspector(project),
-        graph=code_graph,
-        writer=JavaTestWriter(project, sandbox, cache_dir),
-        runner=runner,
-        checker=AssertCountChecker(project),
-        gate=InterruptUserGate(),
-        generator=PromptedGenerator(
-            client,
-            model,
-            "Java",
-            "JUnit 5",
-            "\n\n".join([BASE_STYLE_NOTE, render_skills(skills)]) if skills else BASE_STYLE_NOTE,
-            # 기존 테스트 파일이 있으면 새 멤버만 받아 합친다 — 출력 토큰 절감(ADR-0023)
-            existing_code=materials.existing_test_code,
-            merge=merge_test_members,
-        ),
-        progress=progress,
-    )
-    app = build_writer_graph(
-        ports,
-        checkpointer=MemorySaver(),
-        ask_every=config.retry.ask_every,
-        max_total=config.retry.max_total,
+    style_notes = (
+        "\n\n".join([BASE_STYLE_NOTE, render_skills(skills)]) if skills else BASE_STYLE_NOTE
     )
     ask = ask_user or (lambda q: UserReply(action="continue"))
     extra_context = render_materials(materials)
     graph_target = f"{class_name}#{','.join(m.name for m in methods)}"
+    inspector = JavaSourceInspector(project)
+    test_writer = JavaTestWriter(project, sandbox, cache_dir)
+    checker = AssertCountChecker(project)
 
-    def run_writer(state):
-        return invoke_with_interrupts(app, state, thread_id=str(uuid.uuid4()), ask_user=ask)
+    if engine == ENGINE_DEEP:
+        agent_ports = AgentPorts(
+            inspector=inspector,
+            graph=code_graph,
+            writer=test_writer,
+            runner=runner,
+            checker=checker,
+            gate=InterruptUserGate(),
+            model=chat_model,
+            project_root=project.root,
+            language="Java",
+            framework="JUnit 5",
+            style_notes=style_notes,
+            llm_middleware=llm_middleware,
+            progress=progress,
+        )
+
+        def run_writer(state):
+            # 실행마다 새로 조립한다 — 원장(시도 수)은 게이트 재시도 한 회차의 것이다
+            app, ledger = build_agent(
+                agent_ports,
+                ask_every=config.retry.ask_every,
+                max_total=config.retry.max_total,
+                checkpointer=MemorySaver(),
+            )
+            return run_agent(
+                app,
+                ledger,
+                agent_ports,
+                instruction=state["instruction"],
+                context=state["extra_context"],
+                target=state["target"],
+                test_path=state["test_path"],
+                selector=state["selector"],
+                thread_id=str(uuid.uuid4()),
+                ask_user=ask,
+            )
+
+    else:
+        ports = WriterPorts(
+            inspector=inspector,
+            graph=code_graph,
+            writer=test_writer,
+            runner=runner,
+            checker=checker,
+            gate=InterruptUserGate(),
+            generator=PromptedGenerator(
+                client,
+                model,
+                "Java",
+                "JUnit 5",
+                style_notes,
+                # 기존 테스트 파일이 있으면 새 멤버만 받아 합친다 — 출력 토큰 절감(ADR-0023)
+                existing_code=materials.existing_test_code,
+                merge=merge_test_members,
+            ),
+            progress=progress,
+        )
+        app = build_writer_graph(
+            ports,
+            checkpointer=MemorySaver(),
+            ask_every=config.retry.ask_every,
+            max_total=config.retry.max_total,
+        )
+
+        def run_writer(state):
+            return invoke_with_interrupts(app, state, thread_id=str(uuid.uuid4()), ask_user=ask)
 
     def make_state(current_instruction: str):
         return {
@@ -335,7 +399,10 @@ def run_generation(
             "history": [],
         }
 
-    print(f"\n{INDENT}[3/4] 테스트 작성  (모델: {model}, 실행: {runner_kind}, 결과: {test_rel})")
+    print(
+        f"\n{INDENT}[3/4] 테스트 작성  (엔진: {engine}, 모델: {model}, 실행: {runner_kind}, "
+        f"결과: {test_rel})"
+    )
     try:
         result = generate_with_gates(
             run_writer=run_writer,
@@ -422,8 +489,8 @@ def run_generation(
         run_state = "전체 통과" if result.final_state.get("status") == "passed" else "실패"
         print(f"{INDENT}테스트   {tests_run}개 / {run_state}")
     print(
-        f"{INDENT}소요     {format_duration(elapsed)} · {format_tokens(client.total_tokens)}"
-        f"{format_token_breakdown(client.breakdown())}"
+        f"{INDENT}소요     {format_duration(elapsed)} · {format_tokens(meter.total_tokens)}"
+        f"{format_token_breakdown(meter.breakdown())}"
     )
     print(f"\n{INDENT}결과 상태: {status_label}")
 
@@ -434,8 +501,8 @@ def run_generation(
         "attempts": result.attempts,
         "writer_attempts": result.final_state.get("attempts", 0),
         "elapsed": elapsed,
-        "tokens": client.total_tokens,
-        "tokens_breakdown": client.breakdown(),
+        "tokens": meter.total_tokens,
+        "tokens_breakdown": meter.breakdown(),
         "test_rel": test_rel,
         "test_class": test_class,
         "gate_results": gate_results,
@@ -450,7 +517,31 @@ def run_generation(
         "mutation_after": mutation_after,
         "skills": skill_names,
         "runner": runner_kind,
+        "engine": engine,
     }
+
+
+def _make_deep_llm(
+    config: CtaConfig, model_override: str | None, record: str | None, replay: str | None
+):
+    """deep 엔진의 (모델, deployment, 토큰 합산기, 미들웨어 목록).
+
+    재생이면 게이트웨이를 만들지 않는다. 미들웨어 순서: 합산기가 카세트보다 앞(바깥) —
+    재생은 실제 호출을 하지 않으므로 뒤에 두면 못 센다.
+    """
+    meter = MeteringModelMiddleware(max_tokens=config.max_tokens_per_run)
+    if replay:
+        replayer = ReplayModelMiddleware(replay)
+        model = NoCallChatModel(deployment_name=replayer.deployment)
+        return model, replayer.deployment, meter, [meter, replayer]
+    chat_model, model_name = make_chat_model(
+        model=model_override,
+        model_default=config.model,
+        timeout_default=config.gateway_timeout_sec,
+        reasoning_effort_default=config.reasoning_effort,
+    )
+    middleware = [meter, RecordingModelMiddleware(record)] if record else [meter]
+    return chat_model, model_name, meter, middleware
 
 
 def _restore_test_file(test_path: Path, original: str) -> None:

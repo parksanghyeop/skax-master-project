@@ -22,6 +22,7 @@ from cta.cli.proposals import (
     select_names,
 )
 from cta.cli.render import EXIT_CODES
+from cta.core.agent import ENGINE_LEGACY, ENGINES
 from cta.sandbox.factory import choose_runner
 
 # 전체 추적(traceback)을 보고 싶을 때 — 기본은 원인 한 줄 + 안내 세 줄만 낸다(cli/hints.py)
@@ -66,6 +67,9 @@ def _cmd_generate(args) -> int:
         include_all=args.all,
         quiet=args.quiet,
         runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
+        engine=args.engine,
+        record=args.record,
+        replay=args.replay,
     )
     if outcome["status"] == "error":
         print(render_error(outcome["report"]))
@@ -147,6 +151,16 @@ def _with_project(func):
     return run
 
 
+def _add_engine_arg(parser: argparse.ArgumentParser) -> None:
+    """generate/maintain/resolve 공통 — 작성 엔진 선택(ADR-0024 결정 7). 기본은 아직 legacy."""
+    parser.add_argument(
+        "--engine",
+        choices=ENGINES,
+        default=ENGINE_LEGACY,
+        help="테스트 작성 엔진: legacy(옛 작성 그래프, 기본) / deep(Deep Agent 메인+서브)",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cta",
@@ -185,6 +199,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     g.add_argument("--non-interactive", action="store_true", help="질문 없이 자동 진행")
     g.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
+    _add_engine_arg(g)
+    g.add_argument("--record", metavar="파일", help="(deep) LLM 호출을 이 파일에 녹음")
+    g.add_argument(
+        "--replay", metavar="파일", help="(deep) 녹음 파일만으로 재생 — 게이트웨이 불필요"
+    )
     g.set_defaults(func=_cmd_generate)
 
     m = sub.add_parser(
@@ -219,6 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     m.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행 (CI)")
     m.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
+    _add_engine_arg(m)
 
     def _maintain(args):
         from cta.cli.maintain_cmd import run_maintain
@@ -261,6 +281,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rs.add_argument("--non-interactive", action="store_true", help="작성 루프의 질문 없이 진행")
     rs.add_argument("--quiet", action="store_true", help="경과 시간 진행 줄 생략 (CI 로그용)")
+    _add_engine_arg(rs)
 
     def _resolve(args):
         from cta.cli.resolve_cmd import run_resolve

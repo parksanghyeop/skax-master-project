@@ -28,6 +28,7 @@ from cta.cli.render import (
     render_diff_excerpt,
     render_result_status,
 )
+from cta.core.agent import ENGINE_LEGACY
 from cta.core.config import load_config
 from cta.core.pipeline.maintain import ChangeAnalysis, analyze_changes
 from cta.core.pipeline.models import (
@@ -209,6 +210,7 @@ def _create_test(project, extractor, change_set, analysis: ChangeAnalysis, args)
         measure_before=not args.fast,
         quiet=getattr(args, "quiet", False),
         runner_kind=choose_runner(getattr(args, "runner", None), args.fast),
+        engine=getattr(args, "engine", ENGINE_LEGACY),
     )
     if outcome.get("status") == "error":
         print(f"{INDENT}   오류: {outcome.get('report')}")
