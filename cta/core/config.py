@@ -27,8 +27,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cta.core.agent.limits import ASK_EVERY_ATTEMPTS, MAX_TOTAL_ATTEMPTS
 from cta.core.gates import CONFIG_FILE_NAME, GateConfig, gate_config_from_toml
-from cta.core.writer_graph import ASK_EVERY_ATTEMPTS, MAX_TOTAL_ATTEMPTS
 
 # 추론 강도 허용값 — 게이트웨이 스펙(llm/gateway.py)과 같다. "none" = 보내지 않음.
 # core는 값의 뜻을 모른다 — 키 이름과 허용 범위만 검사한다(R1)

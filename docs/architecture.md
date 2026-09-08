@@ -10,8 +10,8 @@ tests    ──▶ (모든 층)
 adapters ──▶ core, graph, sandbox # 구체 구현이 포트에 의존, 그래프를 채운다
 sandbox  ──▶ (독립)      # 로컬(기본) / Docker 실행 장치 (ADR-0022)
 graph    ──▶ (독립)      # 코드 그래프 모델·저장소·질의 (M4). 언어를 모른다
-llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2)
-core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지
+llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2) — 옛 클라이언트 + LangChain 모델·카세트 v2 미들웨어 (ADR-0024)
+core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지. core/agent는 deepagents·langchain을 langgraph와 같은 자격으로 쓴다
 ```
 
 ## 디렉터리 배치
@@ -105,7 +105,13 @@ docs/       설계·산출물 문서
 | `cli/escalations.py` | 사람 확인 보관소 — 저장하고 멈춤, resolve가 재개 | ADR-0015 |
 | `cli/memos.py` | 판단 메모 — resolve 결정 기록, 다음 maintain의 참고 자료(키워드 검색) | ADR-0015 |
 | `cli/graph_access.py` | 코드 그래프 접속 선택 — Neo4j 접속 확인 후 실물, 아니면 파싱 폴백 (generate·maintain 공용) | ADR-0015 |
-| `cli/generate.py` | 재료 수집→생성→게이트→제안 조립 + 4단계 출력 | CLI화·ADR-0015 |
+| `cli/generate.py` | 재료 수집→생성→게이트→제안 조립 + 4단계 출력. `--engine legacy|deep`으로 작성 엔진 선택, deep은 `--record/--replay` 카세트 v2 | CLI화·ADR-0015·ADR-0024 |
+| `core/agent/` | **Deep Agent 작성 엔진**(ADR-0024) — `ports.py`(AgentPorts) · `tools.py`(고유 도구 6 + ask_user를 LangChain 도구로) · `limits.py`(RunLedger 상한·실패 분류, HideWriteTools) · `subagents.py`(explorer/writer/diagnoser + general-purpose 무력화) · `build.py`(create_deep_agent 조립, run_agent → WriterState 모양) · `prompts/`(test_lead·explorer·writer·diagnoser) | ADR-0024·0025 |
+| `core/user_gate.py` | 사람 개입 장치 — InterruptUserGate(interrupt)·invoke_with_interrupts(정지→답→재개). 옛 그래프와 Deep Agent 공용 | ADR-0012·0024 |
+| `llm/chat_model.py` | LangChain `AzureChatOpenAI` 생성(`make_chat_model`, 같은 환경변수·URL 규칙) + 재생 전용 `NoCallChatModel`(호출하면 예외) | ADR-0024 |
+| `llm/model_cassette.py` | 카세트 v2 — 모델 호출 미들웨어로 녹음(`RecordingModelMiddleware`)·재생(`ReplayModelMiddleware`). 요청 키 = deployment+시스템 프롬프트+정규화 메시지+도구 이름, 완전 일치, 폴백 없음 | ADR-0024 |
+| `llm/metering.py` `MeteringModelMiddleware` | Deep Agent 경로의 호출 수·토큰 합산·예산 — MeteredClient와 같은 숫자 | ADR-0024 |
+| `scripts/probe_tool_calling.py` | 게이트웨이 tool calling 실측(전환 사전 확인). 이 PC에서는 미실행 | ADR-0024 |
 | `cli/maintain_cmd.py` | 변경 대응 조립 + 판단 블록 출력 + 사람 확인 상자 | ADR-0015 |
 | `cli/resolve_cmd.py` | 판단 전달 — 사람 결정에 따른 지침·허용 목록으로 재개 | ADR-0015 |
 | `cli/file_mode.py` | `cta generate <파일명>` 파일 탐색·프로젝트 인식 | 사용성 |
@@ -123,6 +129,9 @@ docs/       설계·산출물 문서
 2. **포트는 Protocol** — Fake·실물 어댑터가 상속 없이 구조적으로 들어맞는다.
 3. **빈 selector 거부는 어댑터 책임** — R5 원문("어댑터가 빈 selector를 거부한다") 그대로.
    공통 계약이므로 어댑터 테스트가 반드시 검증한다.
+5. **작성 엔진은 둘이 공존한다**(ADR-0024 결정 7) — `writer_graph.py`(legacy, 기본)와 `core/agent/`(deep).
+   규칙표·게이트·제안·escalation은 엔진과 무관하게 하네스에 있다. `core/submit.py`의 게이트 루프는
+   두 엔진을 같은 `run_writer(state) -> WriterState 모양` 계약으로 부른다. 4단계 측정 뒤 기본값을 바꾸고 legacy를 지운다.
 4. **사람 개입의 재개 지점은 JSON 상태**(ADR-0015 D3) — LangGraph 체크포인트를 디스크에 두는
    대신 결정 단계 이후의 상태를 `.cta/escalations/`에 저장하고 resolve가 이어 간다.
    재개 지점이 "테스트 작성 단계 진입"으로 고정돼 있어 의존성을 늘리지 않고도 충분하다.

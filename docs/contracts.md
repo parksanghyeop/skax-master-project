@@ -92,7 +92,19 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `PromptedGenerator` (generation) | `(client, model, language, framework, style_notes="", existing_code="", merge=None)`; `.append_mode` | `existing_code`와 `merge`가 있으면 **추가 모드**(ADR-0023): 프롬프트 `write_test_append.md`로 새 import·멤버 조각만 받고 `merge(existing, fragment)`로 파일 전체를 돌려준다. 재시도의 "직전 시도 코드"는 직전 조각. 없으면 `write_test.md`(파일 전체) |
 | `mask_secrets` (masking) | `(text) -> str` | 환경변수의 키 값과 키 모양(`atl-…`)을 `****`로. CLI가 출력 직전에 적용(`cli/hints.render_error`) |
 
-기록 형식: `[{"request": {"model", "messages"}, "response": {"content", "usage_tokens"}}]` JSON 배열.
+기록 형식(v1): `[{"request": {"model", "messages"}, "response": {"content", "usage_tokens"}}]` JSON 배열.
+
+### Deep Agent 경로 (ADR-0024 결정 5) — LangChain 모델 + 카세트 v2
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `make_chat_model` (chat_model) | `(dotenv_path=None, *, model=None, model_default=None, timeout_default=None, reasoning_effort_default=None) -> (BaseChatModel, deployment)` | `AzureChatOpenAI`를 같은 환경변수(`CTA_GATEWAY_URL/API_KEY/API_VERSION/TIMEOUT`)로 만든다. `model`(`--model`)이 모든 설정보다 앞선다 — deployment가 모델 객체에 박히기 때문. 추론 강도는 추론 모델에만(ADR-0023). 주소·키 없으면 `GatewayConfigError`(값 미노출) |
+| `NoCallChatModel` | `(deployment_name="replay")` | 재생 전용 자리 채우기 — `bind_tools`는 자기 자신, 호출은 `RuntimeError`. 미들웨어를 비켜 간 호출(요약 미들웨어의 직접 호출)이 있으면 여기서 실패한다(R7) |
+| `RecordingModelMiddleware` (model_cassette) | `(cassette_path)` — `wrap_model_call` | 호출마다 `{"request": 키, "response": [message_to_dict…]}`를 누적해 `{"version": 2, "entries": […]}`로 저장 |
+| `ReplayModelMiddleware` | `(cassette_path)`; `.deployment` | 파일 없음·v2 아님·소진·불일치 → `CassetteError`(폴백 없음). `.deployment`는 기록 당시 모델 이름 — `NoCallChatModel(deployment_name=…)`에 넣는다 |
+| `request_key` | `(ModelRequest) -> {"model", "system", "messages", "tools"}` | 정규화: 메시지 type·content·tool_calls(name·args·id)·tool_call_id만. 메시지 id·메타데이터 제외. 도구는 이름 정렬 목록. **완전 일치** 대조 |
+| `MeteringModelMiddleware` (metering) | `(max_tokens=None)`; `.calls`, `.total_tokens`, `.breakdown()` | `usage_metadata`(input/output/total, `output_token_details.reasoning`, `input_token_details.cache_read`) 합산. 예산 검사는 호출 전(`BudgetExceededError`). 미들웨어 목록에서 카세트보다 **앞**에 둔다 |
+| 알려진 한계 | — | Deep Agents 요약 미들웨어는 모델을 직접 부른다(미들웨어 우회). 발동할 만큼 대화가 길어지면 재생이 깨진다 → 기록 재생성 대상 |
 
 ## 파이프라인 (core/pipeline)
 
@@ -115,6 +127,22 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 상한 | 기본 `MAX_TOTAL_ATTEMPTS = 8`, `ASK_EVERY_ATTEMPTS = 4` (SC-001 5단계). `build_writer_graph(ports, checkpointer=None, ask_every=4, max_total=8)` 인자로 조정 — 값은 cta.toml [retry](core/config.py). 1 미만은 ValueError |
 | `classify_failure` | `(last_run, prev_run) -> auto/ask/impossible` | 환경 표식→impossible, 동일 실패 반복→ask |
 | `InterruptUserGate` / `invoke_with_interrupts` | LangGraph interrupt 실연결 | 정지→질문→답(계속/중지/힌트)→같은 지점 재개. checkpointer 필수 |
+
+## Deep Agent 작성 엔진 (core/agent — ADR-0024·0025)
+
+| 항목 | 시그니처 | 계약 |
+|---|---|---|
+| `ENGINE_LEGACY` / `ENGINE_DEEP` / `ENGINES` (`core/agent/__init__`) | `"legacy"` / `"deep"` | CLI `--engine`의 허용값. 기본 legacy(4단계 측정 뒤 변경) |
+| `AgentPorts` (ports) | `inspector, graph, writer, runner, checker, gate, model: BaseChatModel, project_root: Path, language="", framework="", style_notes="", llm_middleware=[], progress` | 포트 + LangChain 모델 + llm 층 미들웨어 인스턴스. 언어 이름은 cli가 채운다(R1) |
+| `make_tools` (tools) | `(AgentPorts) -> dict[name, BaseTool]` | 고유 6개(`NATIVE_TOOL_NAMES`) + `ask_user`. 본체는 `core/tools/` 함수 — 여기서는 포트를 닫고 설명만. `ask_user` 답은 `"사용자 답: 계속. 힌트: …"` 또는 `"사용자 답: 중지 — …"`(`REPLY_STOP_PREFIX`) |
+| `RunLedger` (limits) | `(ask_every=4, max_total=8, progress=None)` — `wrap_tool_call`; `.attempts .history .last_run .prev_run .last_code .last_write_result .quality .report .needs_ask .blocked` | 결정적 상한(R2): `run_tests` 호출을 세고 하드 캡·소프트 한도(`needs_ask`)·환경 문제·사용자 중지(`blocked`) 상태에서는 실행하지 않고 "실행 거부: …"를 돌려준다. 실패 결과 뒤에 `[안내] …`를 붙인다(같은 실패 반복 / 소프트 한도 / 상한 / 통과 불가능). 메인·서브 전부에 같은 인스턴스. 1 미만 ValueError |
+| `classify_failure` / 상수 (limits) | `(last_run, prev_run) -> auto/ask/impossible`; `ASK_EVERY_ATTEMPTS=4`, `MAX_TOTAL_ATTEMPTS=8`, `PASSED_PREFIX="통과"` | writer_graph에서 옮겨 옴(재수출 유지) |
+| `HideWriteTools` (limits) | `wrap_model_call` | 모델에게 보이는 도구에서 `HIDDEN_TOOLS = (write_file, edit_file, delete)` 제거. 실제 실행 차단은 permissions deny |
+| `SUBAGENT_TOOLS` / `build_subagents` (subagents) | `{explorer: (inspect_target, query_code_graph), writer: (write_test, run_tests), diagnoser: (inspect_target, query_code_graph), general-purpose: ()}` / `(tools, ledger, ports) -> list[SubAgent dict]` | 서브 spec: name·description·system_prompt(`prompts/<name>.md`, `$language $framework $style`)·tools·middleware(`[ledger, HideWriteTools(), *llm_middleware]`). 모델은 메인 상속. `general-purpose`는 같은 이름 빈 spec으로 무력화 |
+| `build_agent` (build) | `(AgentPorts, *, ask_every, max_total, checkpointer=None) -> (app, RunLedger)` | `create_deep_agent(model, tools=[check_quality, report_finding, ask_user], middleware=[TodoListMiddleware, HideWriteTools, ledger, *llm_middleware], subagents, permissions=[deny write /**], backend=FilesystemBackend(project_root, virtual_mode=True), checkpointer)`. 실행마다 새로 만든다 |
+| `run_agent` (build) | `(app, ledger, ports, *, instruction, context, target, test_path, selector, thread_id, ask_user) -> dict` | `task_text`로 첫 메시지(지침서·재료·고정 값) → `invoke_with_interrupts`(recursion_limit 400). 반환은 WriterState 키 그대로. status: report_finding이 불렸거나 마지막 실행이 "통과"가 아니면 `reported`, 아니면 `passed`. 통과인데 check_quality가 안 불렸으면 하네스가 부른다 |
+| `invoke_with_interrupts` (core/user_gate) | `(app, initial_state, thread_id, ask_user, recursion_limit=None) -> dict` | writer_graph에서 옮겨 옴(재수출 유지). 옵션 `recursion_limit` 추가 |
+| 불변식 (`tests/test_agent_deep.py`) | — | 고유 도구 집합 = 6, `ask_user`는 메인만, 쓰기·실행은 writer만, 내장 쓰기 도구는 deny("permission denied")+숨김, 소프트 한도 뒤 `run_tests` 거부, 하드 캡·환경 문제·중지 뒤 거부 |
 
 ## 품질 게이트 (결정적, LLM 금지 R2)
 
@@ -155,7 +183,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 오류 안내 `hints.py` | `find_hint(error) -> Hint(why, todo, command) \| None` / `render_error(error) -> str`. 입력은 예외 또는 오류 문구. "오류: 원인" + 왜/할 일/명령 세 줄, 시크릿 가림. `main()`이 모든 예외를 받아 출력하고 종료 코드 1. `CTA_DEBUG=1`이면 전체 추적 |
 | `run_maintain` / `run_resolve` / `run_eval_intents` | `(args: argparse.Namespace) -> int`(종료 코드) | 명령 진입점(`maintain_cmd.py`·`resolve_cmd.py`·`eval_intents.py`) |
 | `choose_code_graph` (graph_access.py) | `(project) -> (CodeGraph, 안내 문구, store \| None)` | Neo4j 접속 가능하면 `GraphCodeGraph`(유사 테스트를 그래프에서), 아니면 `ParsingCodeGraph`. store는 호출부가 닫는다 |
-| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="local") -> dict` | generate/maintain/resolve/eval 공용. `runner_kind` docker면 준비 단계 + 격리, local(기본)은 준비 없음 + 안내 한 줄, 결과 `runner`(ADR-0022), `tokens_breakdown`(ADR-0023). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가 — 추가 모드로 새 멤버만 생성). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
+| `run_generation` (generate.py) | `(project_path, target, test_class=None, instruction_extra="", model_override=None, warmup_test=None, fast=False, ask_user=None, max_methods=4, include_all=False, regression_sources=None, authorized_tests=None, measure_before=False, quiet=False, runner_kind="local", engine="legacy", record=None, replay=None) -> dict` | `engine` deep이면 `core/agent`로 작성(결과 `engine`), `record`/`replay`는 deep의 카세트 v2 경로(둘 다 주면 ValueError, replay는 게이트웨이 불필요). 나머지: generate/maintain/resolve/eval 공용. `runner_kind` docker면 준비 단계 + 격리, local(기본)은 준비 없음 + 안내 한 줄, 결과 `runner`(ADR-0022), `tokens_breakdown`(ADR-0023). 기본 테스트 클래스 `<Class>Test`(있으면 메서드 추가 — 추가 모드로 새 멤버만 생성). 프로젝트 루트의 cta.toml(`load_config`)로 게이트·반복 상한·시간 초과·모델·예산 적용. quiet는 진행 줄 생략(`--quiet`). 스킬(ADR-0017)을 규칙표로 골라 프롬프트에 붙이고 결과 `skills`(이름 목록)로 돌려준다 |
 
 ## 결함 세트 (evals/defects — ADR-0014, v2)
 
@@ -206,3 +234,13 @@ v4 3절의 도구 표와 코드 식별자의 대응. 공통: 포트를 첫 인�
 | `run_tests` | 테스트 실행 | 실행할 테스트 목록 + 난수 시작값(seed) | 통과/실패 + 실패 내용 |
 | `check_quality` | 품질 확인 | 확인할 범위 | 커버리지·뮤테이션 지표 요약 |
 | `report_finding` | 한계 보고 | 발견한 문제 | 종료 |
+
+### 하네스 내장 도구 (Deep Agent 경로 — 고유 도구가 아니다, ADR-0025)
+
+| 도구 | 출처 | 누가 | 비고 |
+|---|---|---|---|
+| `task` | Deep Agents | 메인 | 서브에이전트 위임(`description`, `subagent_type`) |
+| `write_todos` | langchain `TodoListMiddleware` | 메인 | 계획 |
+| `ls` · `read_file` · `glob` · `grep` | Deep Agents 파일 도구 | 전부 | 프로젝트 루트 읽기(`virtual_mode` — `/src/...` 경로) |
+| `write_file` · `edit_file` · `delete` | Deep Agents 파일 도구 | 아무도 | `permissions` deny(전 경로) + `HideWriteTools`로 숨김 |
+| `ask_user` | `core/agent/tools.py` | 메인만 | 사람 개입 장치(interrupt). 7번째 고유 도구가 아니다 |

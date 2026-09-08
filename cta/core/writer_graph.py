@@ -14,8 +14,16 @@ from dataclasses import dataclass, field
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Command, interrupt
 
+from cta.core.agent.limits import (  # noqa: F401 — 옛 호출부(config·tests)가 이 이름으로 import한다
+    ASK_EVERY_ATTEMPTS,
+    FAILURE_ASK,
+    FAILURE_AUTO,
+    FAILURE_IMPOSSIBLE,
+    MAX_TOTAL_ATTEMPTS,
+    PASSED_PREFIX,
+    classify_failure,
+)
 from cta.core.ports import (
     CodeGraph,
     QualityChecker,
@@ -24,7 +32,6 @@ from cta.core.ports import (
     TestRunner,
     TestWriter,
     UserGate,
-    UserReply,
 )
 from cta.core.tools import (
     check_quality,
@@ -35,35 +42,10 @@ from cta.core.tools import (
     write_test,
 )
 from cta.core.tools.query_code_graph import QUERY_SIMILAR_TESTS
+from cta.core.user_gate import InterruptUserGate, invoke_with_interrupts  # noqa: F401 — 재수출
 
-# 반복 상한 — 그래프 상태의 숫자로 관리하고 사용자 허락 없이 초과하지 않는다(v4 2.2).
-ASK_EVERY_ATTEMPTS = 4  # 이 횟수 실패마다 사용자에게 묻는다 (v4 2.3 "한도 도달 → 멈추고 묻기")
-MAX_TOTAL_ATTEMPTS = 8  # 하드 캡 — SC-001 5단계 "최대 8번". 자동 "계속"의 무한 루프 방지
-
-# 실행 결과 문자열의 선두 표식. run_tests 도구의 출력 형식과 한 쌍이다.
-_PASSED_PREFIX = "통과"
-
-# 실패 분류 결과 (v4 2.3의 갈림길). 전부 결정적 문자열 검사다(R2).
-FAILURE_AUTO = "auto"  # 스스로 고칠 수 있는 실수 → 자동 재시도
-FAILURE_ASK = "ask"  # 판단이 필요한 실패 → 멈추고 사용자에게
-FAILURE_IMPOSSIBLE = "impossible"  # 통과 불가능이 명백 → 한계 보고
-
-# 환경 문제 표식 — 재시도해도 소용없는 실패의 결정적 신호.
-_IMPOSSIBLE_MARKERS = ("시간 초과", "실행 거부")
-
-
-def classify_failure(last_run: str, prev_run: str) -> str:
-    """실패의 성격을 분류한다 (v4 2.3 "어떤 실패인가?").
-
-    왜 LLM을 안 쓰나(R2): 세 가지 신호(환경 문제 표식, 같은 실패 반복, 그 외)는
-    문자열 비교로 판정된다. 같은 실패가 두 번 반복되면 모델이 스스로 못 고치는
-    문제로 보고 사용자 판단을 구한다.
-    """
-    if any(marker in last_run for marker in _IMPOSSIBLE_MARKERS):
-        return FAILURE_IMPOSSIBLE
-    if prev_run and last_run == prev_run:
-        return FAILURE_ASK
-    return FAILURE_AUTO
+# 반복 상한·실패 분류는 core/agent/limits로 옮겼다(ADR-0024) — 옛 호출부 호환용 재수출.
+_PASSED_PREFIX = PASSED_PREFIX
 
 
 class WriterState(TypedDict):
@@ -113,45 +95,6 @@ def gather_context(inspector: SourceInspector, graph: CodeGraph, target: str) ->
     found = inspect_target(inspector, target)
     similar = query_code_graph(graph, QUERY_SIMILAR_TESTS, target)
     return f"[대상 조사]\n{found}\n\n[비슷한 모양의 기존 테스트]\n{similar}"
-
-
-class InterruptUserGate:
-    """LangGraph interrupt로 실제 사용자에게 묻는 UserGate 구현 (M6 실연결).
-
-    ask가 호출되는 순간 그래프가 그 자리에서 **정지**하고 상태가 저장된다.
-    invoke_with_interrupts(아래)가 질문을 밖으로 전달하고, 사용자의 답으로
-    같은 지점부터 재개한다 — 답이 늦게 와도 손실이 없다(v4 2.3).
-    checkpointer가 있는 그래프 안에서만 동작한다.
-    """
-
-    def ask(self, question: str) -> UserReply:
-        payload = interrupt({"question": question})
-        # 재개 시 interrupt()가 사용자의 답(payload)을 그대로 돌려준다
-        return UserReply(
-            action=str(payload.get("action", "continue")),
-            hint=str(payload.get("hint", "")),
-        )
-
-
-def invoke_with_interrupts(
-    app,
-    initial_state: WriterState,
-    thread_id: str,
-    ask_user: Callable[[str], UserReply],
-) -> WriterState:
-    """그래프를 실행하되, 중단(interrupt)이 오면 ask_user로 답을 받아 재개한다.
-
-    입력: app — checkpointer와 함께 컴파일된 그래프, thread_id — 재개용 식별자,
-      ask_user — 질문 문자열을 받아 UserReply를 돌려주는 콜백(CLI는 stdin 입력).
-    출력: 최종 상태. 중단이 없으면 한 번의 invoke와 같다.
-    """
-    config = {"configurable": {"thread_id": thread_id}}
-    result = app.invoke(initial_state, config)
-    while "__interrupt__" in result:
-        question = result["__interrupt__"][0].value["question"]
-        reply = ask_user(question)
-        result = app.invoke(Command(resume={"action": reply.action, "hint": reply.hint}), config)
-    return result
 
 
 def build_writer_graph(
