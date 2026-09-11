@@ -18,6 +18,11 @@ core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지. core
 excalidraw.com 또는 VS Code Excalidraw 확장에서 연다. 실제 import에는 `llm → core`(포트 타입 참조)도 있어 그림은 그 방향을 포함한다.
 재생성: `python scripts/render_architecture.py docs/architecture.excalidraw`.
 
+draw.io 판: [architecture.drawio](architecture.drawio) — 페이지 1 "에이전트 구조"(작성 엔진 둘 · 고유 도구 6개 → 포트 → 어댑터 → 실행 장치 · llm 층 · 안전장치),
+페이지 2 "CLI 명령별 흐름"(generate / maintain / resolve / diff·apply·discard / graph·eval·demo 레인).
+PNG 내보내기: `docs/제출자료/diagrams/architecture-agent.png` · `architecture-cli.png`.
+재생성: `python scripts/render_drawio.py docs/architecture.drawio` (PNG는 draw.io 데스크톱 `-x -f png -p <페이지>`).
+
 ## 디렉터리 배치
 
 리포 루트는 역할별 5개 폴더로 나뉜다 — 제품 코드는 전부 `cta/` 아래에 있다:
@@ -126,6 +131,7 @@ docs/       설계·산출물 문서
 | `scripts/demo_scenarios.py` | SC-002/SC-003 재현용 임시 저장소 생성 (버그 수정 커밋 / 리팩터링 커밋) | ADR-0015 |
 | `scripts/render_capture.py` · `render_diagram.py` | 산출물 이미지 재생성 — 실행 로그 → 터미널 모양 PNG / mermaid → PNG(로컬 Chrome 헤드리스) | 산출물 |
 | `scripts/render_architecture.py` | 아키텍처 그림 재생성 — 층 구조·실행 흐름을 Excalidraw JSON(`docs/architecture.excalidraw`)으로 직접 쓴다. 외부 서비스 호출 없음 | 산출물 |
+| `scripts/render_drawio.py` | 아키텍처 draw.io 문서 재생성 — 에이전트 구조(페이지 1)·CLI 명령별 흐름(페이지 2)을 `docs/architecture.drawio`로 직접 쓴다. 외부 서비스 호출 없음 | 산출물 |
 
 ## 구조 결정 (v4 원문 대조 완료 — 충돌 없음)
 
