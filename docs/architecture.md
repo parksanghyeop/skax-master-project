@@ -23,6 +23,10 @@ draw.io 판: [architecture.drawio](architecture.drawio) — 페이지 1 "에이�
 PNG 내보내기: `docs/제출자료/diagrams/architecture-agent.png` · `architecture-cli.png`.
 재생성: `python scripts/render_drawio.py docs/architecture.drawio` (PNG는 draw.io 데스크톱 `-x -f png -p <페이지>`).
 
+인포그래픽 판(아이콘 위주, 발표용): [architecture-infographic.drawio](architecture-infographic.drawio) — "Agent Architecture" · "Agent Workflow" 두 페이지.
+PNG: `docs/제출자료/diagrams/architecture-infographic-agent.png` · `architecture-infographic-workflow.png`.
+재생성: `python scripts/render_drawio_infographic.py docs/architecture-infographic.drawio`.
+
 ## 디렉터리 배치
 
 리포 루트는 역할별 5개 폴더로 나뉜다 — 제품 코드는 전부 `cta/` 아래에 있다:
@@ -132,6 +136,7 @@ docs/       설계·산출물 문서
 | `scripts/render_capture.py` · `render_diagram.py` | 산출물 이미지 재생성 — 실행 로그 → 터미널 모양 PNG / mermaid → PNG(로컬 Chrome 헤드리스) | 산출물 |
 | `scripts/render_architecture.py` | 아키텍처 그림 재생성 — 층 구조·실행 흐름을 Excalidraw JSON(`docs/architecture.excalidraw`)으로 직접 쓴다. 외부 서비스 호출 없음 | 산출물 |
 | `scripts/render_drawio.py` | 아키텍처 draw.io 문서 재생성 — 에이전트 구조(페이지 1)·CLI 명령별 흐름(페이지 2)을 `docs/architecture.drawio`로 직접 쓴다. 외부 서비스 호출 없음 | 산출물 |
+| `scripts/render_drawio_infographic.py` | 인포그래픽 draw.io 재생성 — 아이콘(직접 그린 SVG 데이터 URI)과 짧은 이름만으로 Agent Architecture·Agent Workflow를 `docs/architecture-infographic.drawio`로 쓴다 | 산출물 |
 
 ## 구조 결정 (v4 원문 대조 완료 — 충돌 없음)
 
