@@ -14,6 +14,10 @@ llm      ──▶ (독립)      # 게이트웨이 호출 전용 통로 (M2) —
 core     ──▶ (없음)      # 가장 안쪽. 바깥 층 import 금지. core/agent는 deepagents·langchain을 langgraph와 같은 자격으로 쓴다
 ```
 
+그림: [architecture.excalidraw](architecture.excalidraw) — 층 구조·의존 방향(프레임 1)과 명령별 실행 흐름(프레임 2).
+excalidraw.com 또는 VS Code Excalidraw 확장에서 연다. 실제 import에는 `llm → core`(포트 타입 참조)도 있어 그림은 그 방향을 포함한다.
+재생성: `python scripts/render_architecture.py docs/architecture.excalidraw`.
+
 ## 디렉터리 배치
 
 리포 루트는 역할별 5개 폴더로 나뉜다 — 제품 코드는 전부 `cta/` 아래에 있다:
@@ -121,6 +125,7 @@ docs/       설계·산출물 문서
 | `scripts/record_golden.py` | 대표 시나리오의 LLM 호출 기록 생성 스크립트 (대본/실호출) | M3 |
 | `scripts/demo_scenarios.py` | SC-002/SC-003 재현용 임시 저장소 생성 (버그 수정 커밋 / 리팩터링 커밋) | ADR-0015 |
 | `scripts/render_capture.py` · `render_diagram.py` | 산출물 이미지 재생성 — 실행 로그 → 터미널 모양 PNG / mermaid → PNG(로컬 Chrome 헤드리스) | 산출물 |
+| `scripts/render_architecture.py` | 아키텍처 그림 재생성 — 층 구조·실행 흐름을 Excalidraw JSON(`docs/architecture.excalidraw`)으로 직접 쓴다. 외부 서비스 호출 없음 | 산출물 |
 
 ## 구조 결정 (v4 원문 대조 완료 — 충돌 없음)
 
