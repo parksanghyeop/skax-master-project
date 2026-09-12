@@ -3,11 +3,13 @@
 2026-09-13부터 새로 만드는 산출물은 전부 이 폴더에 둔다. `docs/` 아래 과거 문서는 더 이상 갱신하지 않는다
 (참고용으로만 남긴다). 설계 결정의 원문은 `docs/adr/ADR-0026-impact-calls-and-embedding.md`.
 
-| 파일 | 내용 | 재생성 |
-|---|---|---|
-| `architecture.drawio` | 상세 아키텍처 3페이지 — 1. 에이전트 구조 · 2. CLI 명령별 흐름 · 3. ADR-0026 변경분(영향 범위·임베딩 검색) | `python scripts/render_drawio.py 최종산출물/architecture.drawio` |
-| `architecture-agent.png` · `architecture-cli.png` · `architecture-impact.png` | 위 3페이지 PNG | draw.io 데스크톱 `-x -f png --width 2400 -p <1\|2\|3>` |
-| `architecture-infographic.drawio` | 인포그래픽 3페이지 — Agent Architecture · Agent Workflow · Impact & Memory | `python scripts/render_final_infographic.py 최종산출물/architecture-infographic.drawio` |
-| `infographic-architecture.png` · `infographic-workflow.png` · `infographic-impact.png` | 위 3페이지 PNG | 위와 같음 |
+| 파일 | 내용 |
+|---|---|
+| `cta-diagrams.drawio` | 그림 4장(4페이지). draw.io로 열어 편집 |
+| `1-agent-architecture.png` | 인포그래픽 — Agent 구조 아키텍처(사용자 → CLI → 에이전트(메인+서브 3, 도구 6, 안전장치) ↔ LLM, 실행 장치·코드 그래프·판단 메모, 게이트 → 제안 → 반영) |
+| `2-detailed-architecture.png` | 상세 아키텍처 — 층별 모듈(cli·core·adapters·graph·llm·sandbox), 작성 엔진 둘, 포트→어댑터, 안전장치, 상태 저장소 |
+| `3-user-command-flows.png` | 사용자 관점 명령어별 흐름 — generate / maintain(--impact) / resolve / diff·apply·discard / graph·eval·demo 레인 |
+| `4-graphdb-architecture.png` | 인포그래픽 — 코드 그래프(Neo4j) 구성: 채우기(정적 파싱·CALLS 추정·JaCoCo 실측) → 저장(GraphStore, 단일 라벨·관계) → 읽기(사전 정의 질의 4종, 도구·TestLocator·ImpactFinder), 폴백 |
 
-편집은 draw.io(데스크톱 또는 diagrams.net)로 `.drawio`를 열어 하거나, 생성 스크립트를 고쳐 다시 만든다.
+재생성: `python scripts/render_final_diagrams.py 최종산출물/cta-diagrams.drawio`
+PNG: draw.io 데스크톱 `-x -f png --width 2400 -p <1|2|3|4>`

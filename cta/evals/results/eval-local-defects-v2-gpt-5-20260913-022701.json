@@ -1,0 +1,199 @@
+{
+  "dataset": "local-defects-v2",
+  "model": "gpt-5",
+  "prompt_hash": "facea66e6e78",
+  "gates": "fast(3종)",
+  "runner": "local",
+  "ran_at": "2026-09-13T02:27:01",
+  "summary": {
+    "cases": 12,
+    "accepted": 12,
+    "detected": 10,
+    "detection_rate": 0.833,
+    "escalation_rate": 0.0,
+    "avg_writer_attempts": 1.0,
+    "total_elapsed_s": 251.6
+  },
+  "rows": [
+    {
+      "case": "clamp-lowerbound",
+      "target": "MathUtil#clamp",
+      "bug": "value < min 분기 삭제 — 하한 미적용",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 15.8,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "clamp-wrongop",
+      "target": "MathUtil#clamp",
+      "bug": "Math.min(value, max)를 Math.max(value, max)로 — 상한을 넘겨도 안 잘림",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 14.0,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": false
+    },
+    {
+      "case": "countwords-leading-space",
+      "target": "TextUtil#countWords",
+      "bug": "trim 삭제 — \"  a b\"가 3",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 12.8,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": false
+    },
+    {
+      "case": "fib-base",
+      "target": "MathUtil#fibonacci",
+      "bug": "n < 2에서 n 대신 1 반환 — 0번째 값이 틀린다",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 14.1,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "fib-loop-offbyone",
+      "target": "MathUtil#fibonacci",
+      "bug": "i <= n을 i < n으로 — fibonacci(5)가 3",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 13.6,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "median-unsorted",
+      "target": "MathUtil#median",
+      "bug": "Arrays.sort 삭제 — 입력 순서에 따라 결과가 달라진다",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 17.7,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "palindrome-case",
+      "target": "TextUtil#isPalindrome",
+      "bug": "toLowerCase 삭제 — \"Abba\"가 false",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 12.7,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "palindrome-empty",
+      "target": "TextUtil#isPalindrome",
+      "bug": "빈 문자열에서 true 반환 (사양: null·빈 문자열은 false)",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 15.8,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "percent-exception-type",
+      "target": "MathUtil#percent",
+      "bug": "total <= 0 검사 삭제 — 0으로 나눈 double이 Infinity, (int) 캐스트로 -1",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 12.8,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "rounding-negative",
+      "target": "MathUtil#divideRounded",
+      "bug": "음수 분기(q - 1) 제거 — 음수 결과의 반올림 방향이 틀린다",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 22.5,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "truncate-boundary",
+      "target": "TextUtil#truncate",
+      "bug": "substring(0, max)를 substring(0, max - 1)로 — 잘린 결과가 max-1 글자",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 19.6,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    },
+    {
+      "case": "truncate-null",
+      "target": "TextUtil#truncate",
+      "bug": "null 체크 삭제 — text가 null이면 NullPointerException",
+      "status": "accepted",
+      "gate_attempts": 1,
+      "writer_attempts": 1,
+      "elapsed": 31.3,
+      "gates": {
+        "assert": true,
+        "skip": true,
+        "scope": true
+      },
+      "detected": true
+    }
+  ]
+}
