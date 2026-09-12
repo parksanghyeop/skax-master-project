@@ -3,8 +3,10 @@
 페이지 1 "에이전트 구조": 작성 엔진 둘(legacy LangGraph 서브그래프 · Deep Agent 메인+서브 3),
 고유 도구 6개 → 포트 → 어댑터 → 실행 장치, llm 층, 안전장치(게이트·규칙표·반복 상한·사람 개입).
 페이지 2 "CLI 명령별 흐름": generate / maintain / resolve / diff·apply·discard / graph 레인.
+페이지 3 "ADR-0026 변경분": 영향 범위(CALLS 엣지·확신도 → 화면·지침서·--impact)와 판단 메모
+임베딩 하이브리드 검색 — 신규 모듈은 굵은 테두리, 수정 모듈은 "(수정)" 표기.
 근거: docs/architecture.md, cta/core/agent/*, cta/core/writer_graph.py, cta/core/submit.py,
-cta/core/pipeline/decide.py, cli/*. 외부 서비스에 아무것도 보내지 않고 XML을 직접 쓴다.
+cta/core/pipeline/decide.py, cli/*, docs/adr/ADR-0026. 외부 서비스에 아무것도 보내지 않고 XML을 직접 쓴다.
 
 사용:  python scripts/render_drawio.py docs/architecture.drawio
 PNG:   "C:/Program Files/draw.io/draw.io.exe" -x -f png --width 2400 -p 0 -o out.png docs/architecture.drawio
@@ -403,7 +405,7 @@ def page_agent() -> Page:
 
     # ── 포트 · 어댑터 · 실행 장치 ──
     ports = p.box(
-        "core/ports.py — Protocol 포트 (Fake·실물이 상속 없이 구조적으로 들어맞는다)\nSourceInspector · CodeGraph · TestWriter · TestRunner · QualityChecker · UserGate · TestCodeGenerator · IntentClassifier · TestLocator",
+        "core/ports.py — Protocol 포트 (Fake·실물이 상속 없이 구조적으로 들어맞는다)\nSourceInspector · CodeGraph · TestWriter · TestRunner · QualityChecker · UserGate · TestCodeGenerator · IntentClassifier · TestLocator · ImpactFinder(ADR-0026)",
         40,
         870,
         1100,
@@ -417,36 +419,55 @@ def page_agent() -> Page:
         "adapters/java — 포트의 구체 구현 (Java · Maven · JUnit 5). core는 이 이름들을 모른다(R1)",
         40,
         960,
-        700,
+        720,
         100,
         "adapters",
         cid="adapters",
     )
     ad_mods = [
         "inspector.py\n대상 조사",
-        "similar.py\n유사 테스트 검색",
+        "similar.py\n유사 테스트 검색\n+ callers 폴백",
+        "calls.py [신규]\nCALLS 추정(확신도)\nStaticImpactFinder",
         "writer.py + merge.py\n쓰기·컴파일 검사",
         "runner.py\n2단계(준비/오프라인)",
         "quality.py\nassert 수 비교",
         "skills/ SKILL.md\n작성 지식(ADR-0017)",
     ]
     for i, n in enumerate(ad_mods):
-        p.box(n, 15 + i * 114, 40, 106, 48, "adapters", parent=ad, font=10)
+        p.box(n, 15 + i * 100, 40, 94, 48, "adapters", parent=ad, font=9, bold=("신규" in n))
     p.edge(ports, ad, "구현", pin(0.3, 1, 0.5, 0))
 
     gr = p.lane("graph 층 — 코드 그래프 (언어를 모른다)", 780, 960, 360, 100, "graph", cid="graph")
     p.box(
-        "answers.py\nCodeGraph 구현 · 질의 → 답 문장", 15, 40, 160, 48, "graph", parent=gr, font=10
-    )
-    p.box(
-        "store.py 인메모리 / neo4j_store.py\nDECLARES · CREATES · COVERS",
-        185,
+        "answers.py\nCodeGraph 구현 · 질의 → 답 문장\ncallers = 정적 추정 표기",
+        15,
         40,
-        160,
+        105,
         48,
         "graph",
         parent=gr,
-        font=10,
+        font=9,
+    )
+    p.box(
+        "store.py / neo4j_store.py\nDECLARES·CREATES·COVERS\n+ CALLS(확신도·발췌)",
+        130,
+        40,
+        105,
+        48,
+        "graph",
+        parent=gr,
+        font=9,
+    )
+    p.box(
+        "impact.py [신규]\nCALLS → 호출자 목록\n(ImpactFinder 구현)",
+        245,
+        40,
+        105,
+        48,
+        "graph",
+        parent=gr,
+        font=9,
+        bold=True,
     )
     p.edge(ports, gr, "구현", pin(0.85, 1, 0.5, 0))
 
@@ -527,7 +548,7 @@ def page_agent() -> Page:
         cid="llm",
     )
     p.box(
-        "config.py make_llm_client() · chat_model.py make_chat_model()\n클라이언트 생성의 유일한 입구 · .env(CTA_GATEWAY_URL/API_KEY/LLM_MODEL)",
+        "config.py make_llm_client() · make_embedding_client() · chat_model.py make_chat_model()\n클라이언트 생성의 유일한 입구 · .env(CTA_GATEWAY_URL/API_KEY/LLM_MODEL/EMBEDDING_MODEL)",
         15,
         40,
         550,
@@ -540,34 +561,45 @@ def page_agent() -> Page:
         "generation.py\nTestCodeGenerator\n(legacy write 노드)",
         15,
         100,
-        170,
+        130,
         60,
         "llm",
         parent=llm,
-        font=10,
+        font=9,
     )
     p.box(
-        "AzureChatOpenAI 모델\n(deep 메인·서브가 공유)\n+ NoCallChatModel(재생 전용)",
-        200,
+        "AzureChatOpenAI 모델\n(deep 메인·서브 공유)\n+ NoCallChatModel(재생)",
+        155,
         100,
-        180,
+        130,
         60,
         "llm",
         parent=llm,
-        font=10,
+        font=9,
     )
     p.box(
         "intent.py\nIntentClassifier\n(maintain 의도 분류)",
-        395,
+        295,
         100,
-        170,
+        130,
         60,
         "llm",
         parent=llm,
-        font=10,
+        font=9,
     )
     p.box(
-        "replay.py 카세트 v1 · model_cassette.py 카세트 v2(미들웨어)\n요청 키 = deployment+시스템 프롬프트+메시지+도구 이름 · 완전 일치 · 폴백 없음",
+        "embeddings.py [신규]\n판단 메모 상황 임베딩\n(자연어만 · 코드 검색 금지)",
+        435,
+        100,
+        130,
+        60,
+        "llm",
+        parent=llm,
+        font=9,
+        bold=True,
+    )
+    p.box(
+        "replay.py 카세트 v1 · model_cassette.py 카세트 v2(미들웨어) · embeddings 기록(글→벡터)\n요청 키 = deployment+시스템 프롬프트+메시지+도구 이름 · 완전 일치 · 폴백 없음",
         15,
         175,
         370,
@@ -641,11 +673,11 @@ def page_agent() -> Page:
         align="left",
     )
     p.box(
-        "조치 결정 규칙표 core/pipeline/decide.py (maintain)\n(의도 × 기존 테스트 상태) → create_test / no_action / escalate / ask\nrefactor+실패 → escalate · unclear → ask · trivial → no_action. 기대값 자동 갱신 행 없음(R3)",
+        "조치 결정 규칙표 core/pipeline/decide.py (maintain)\n(의도 × 기존 테스트 상태) → create_test / no_action / escalate / ask\nrefactor+실패 → escalate · unclear → ask · trivial → no_action. 기대값 자동 갱신 행 없음(R3)\n영향 범위(호출자, 추정)는 지침서 내용에만 — 길(kind)에는 못 들어간다(ADR-0026 D2)",
         15,
         210,
         550,
-        60,
+        70,
         "core",
         parent=safe,
         font=10,
@@ -710,7 +742,16 @@ def page_agent() -> Page:
         parent=st,
         font=10,
     )
-    p.box("memos/ 판단 메모\n다음 maintain 참고", 395, 38, 170, 40, "state", parent=st, font=10)
+    p.box(
+        "memos/ 판단 메모 (수정)\n상황 요약 + 임베딩 벡터 저장",
+        395,
+        38,
+        170,
+        40,
+        "state",
+        parent=st,
+        font=9,
+    )
     p.edge(safe, st, "게이트 통과 → 제안 / 소진 → 사람 확인", pin(0.5, 1, 0.5, 0))
     p.edge(
         safe,
@@ -877,7 +918,7 @@ def page_cli() -> Page:
     b = flow(
         lb,
         [
-            ("cta maintain --diff HEAD~1\n[--plan-only] [--intent 의도]", "start", 150, False),
+            ("cta maintain --diff HEAD~1\n[--plan-only] [--intent 의도]\n[--impact]", "start", 150, False),
             (
                 "변경 추출 adapters/changes.py\ngit diff → 변경 심볼 + 단서\n(시그니처·접근 제어자·주석만·커밋 메시지·이슈) · 수정 전 소스",
                 "adapters",
@@ -891,7 +932,7 @@ def page_cli() -> Page:
                 True,
             ),
             (
-                "기존 테스트 찾기 + 검증 실행\nTestLocator(그래프 COVERS 실측 → 참조 파싱 폴백)\n선택 실행만(R5) → pass / fail / none",
+                "기존 테스트 찾기 + 검증 실행 + 영향 범위\nTestLocator(COVERS 실측 → 참조 파싱 폴백) → pass / fail / none\nImpactFinder(CALLS 추정 → 호출자·확신도) → 화면·지침서만",
                 "adapters",
                 230,
                 False,
@@ -947,7 +988,7 @@ def page_cli() -> Page:
         dec, b_esc, "refactor+fail · unclear", pin(0.5, 1, 0, 0.5), points=[(1240, 200)], parent=lb
     )
     p.text(
-        "화면에는 변경 건마다 ①의도 판단 ②조치 블록(판단·확신도·근거·할 일)을 적는다(ADR-0015 D2). 확신도는 표시용이며 코드는 이 값으로 분기하지 않는다. --plan-only는 규칙표까지만. 판단 메모(.cta/memos)에 비슷한 결정이 있으면 참고로 보여 준다. 사람 확인이 하나라도 있으면 종료 3.",
+        "화면에는 변경 건마다 ①의도 판단 ②조치 블록(판단·확신도·근거·영향 범위·할 일)을 적는다(ADR-0015 D2). 확신도는 표시용이며 코드는 이 값으로 분기하지 않는다. --plan-only는 규칙표까지만. 판단 메모(.cta/memos)는 이름 일치 + 상황 임베딩(하이브리드)으로 찾아 참고로 보여 준다. --impact: create_test인 건의 확신 high 호출자를 파생 건(↳)으로 추가해 같은 규칙표를 태운다(깊이 1, [impact] max_callers). 사람 확인이 하나라도 있으면 종료 3.",
         60,
         235,
         1600,
@@ -989,12 +1030,12 @@ def page_cli() -> Page:
                 280,
                 True,
             ),
-            (".cta/proposals 제안\n+ .cta/memos 판단 메모", "state", 170, False),
+            (".cta/proposals 제안\n+ .cta/memos 판단 메모\n(상황 요약 + 임베딩)", "state", 170, True),
             ("종료 0 / 2 / 3", "end", 110, False),
         ],
     )
     p.text(
-        "사람이 명시적으로 고른 선택지만 실행한다 — R3는 '사람 확인 없는' 기대값 갱신을 막는 규칙이다. 판단 메모는 다음 maintain에서 키워드 검색으로 참고 자료가 된다.",
+        "사람이 명시적으로 고른 선택지만 실행한다 — R3는 '사람 확인 없는' 기대값 갱신을 막는 규칙이다. 판단 메모는 상황 요약(커밋 메시지·대상·분석, 자연어)을 임베딩해 저장하고, 다음 maintain에서 이름 일치 + 코사인 유사도로 참고 자료가 된다(ADR-0026 D3).",
         60,
         135,
         1600,
@@ -1044,7 +1085,7 @@ def page_cli() -> Page:
         [
             ("cta graph [--coverage]", "start", 130, False),
             (
-                "Java 소스 파싱 adapters/graph_builder.py\n클래스·메서드·테스트 노드 · DECLARES · CREATES",
+                "Java 소스 파싱 adapters/graph_builder.py + calls.py\n노드 · DECLARES · CREATES · CALLS(확신도, main만)",
                 "adapters",
                 270,
                 False,
@@ -1062,7 +1103,7 @@ def page_cli() -> Page:
                 False,
             ),
             (
-                'query_code_graph 도구 · TestLocator\n"기존 테스트 찾기"가 실측 기준이 된다',
+                'query_code_graph(callers 포함) · TestLocator · ImpactFinder\n"기존 테스트 찾기"는 실측, 영향 범위는 추정 표기',
                 "core",
                 250,
                 False,
@@ -1103,9 +1144,270 @@ def page_cli() -> Page:
     return p
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# 페이지 3 — ADR-0026 변경분: 영향 범위(코드 그래프) · 판단 메모 임베딩 검색
+# ═══════════════════════════════════════════════════════════════════════
+NEW = "strokeWidth=3;"  # 신규 모듈 표시 — 굵은 테두리
+
+
+def page_impact() -> Page:
+    p = Page("3. ADR-0026 변경분 — 영향 범위 · 임베딩 검색")
+    p.text(
+        "ADR-0026 — \"코드 RAG는 벡터가 아니라 그래프\": 영향 범위(누가 호출하나)는 코드 그래프의 CALLS 엣지(정적 추정 + 확신도)로, 임베딩 검색은 자연어(판단 메모)에만. 굵은 테두리 = 신규 모듈, (수정) = 기존 모듈 변경.",
+        40,
+        20,
+        1700,
+        40,
+        font=13,
+        bold=True,
+    )
+
+    def nbox(label, x, y, w, h, key, parent="1", font=10, new=False):
+        fill, stroke = C[key]
+        style = (
+            f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};fontSize={font};align=left;spacingLeft=6;"
+            + (NEW + "fontStyle=1;" if new else "")
+        )
+        return p.vertex(label, x, y, w, h, style, parent)
+
+    # ── 공통 시작점 (두 구역 사이 높이) ──
+    change = p.ellipse(
+        "변경된 메서드\n(git diff → ChangedSymbol)\n예: OrderService#findById", 40, 370, 220, 90, "cli", font=11
+    )
+
+    # ── 구역 A: 영향 범위 — 코드 그래프 ──
+    la = p.lane(
+        "A. 영향 범위 — 코드 그래프가 답한다 (구조 질의 = 정답, 확정 관계 3종 + 추정 CALLS 1종)",
+        320,
+        80,
+        1440,
+        340,
+        "graph",
+        cid="laneA",
+    )
+    a1 = nbox(
+        "adapters/java/graph_builder.py (수정)\nmain 트리 클래스·메서드 파싱\n→ ClassSource",
+        20,
+        50,
+        230,
+        60,
+        "adapters",
+        parent=la,
+    )
+    a2 = nbox(
+        "adapters/java/calls.py  [신규]\nextract_calls — CALLS 추정, 확신도 규칙:\n· 같은 클래스 `이름(` → high\n· 선언 타입이 프로젝트 클래스 X, X에 이름 있음 → high\n· 타입 미상 + 이름 유일 → medium\n· 그 밖(밖 타입·중복·생성자·재귀) → 엣지 없음",
+        320,
+        40,
+        320,
+        110,
+        "adapters",
+        parent=la,
+        new=True,
+    )
+    a3 = nbox(
+        "graph/model.py · store.py · neo4j_store.py (수정)\nGraphEdge(kind=CALLS, confidence, excerpt)\nedges_in(project, key, kind)",
+        710,
+        50,
+        270,
+        60,
+        "graph",
+        parent=la,
+    )
+    a4 = nbox(
+        "graph/answers.py (수정)\ncallers 쿼리 실응답 — \"정적 추정\" 표기 + [high/medium]\n(query_code_graph 도구 · 도구 수 6 그대로, R4)",
+        1050,
+        40,
+        300,
+        55,
+        "graph",
+        parent=la,
+    )
+    a5 = nbox(
+        "graph/impact.py  [신규]\nGraphImpactFinder → list[Caller]\n(폴백: calls.StaticImpactFinder)",
+        1050,
+        105,
+        300,
+        55,
+        "graph",
+        parent=la,
+        new=True,
+    )
+    a6 = nbox(
+        "core/pipeline (수정) — Caller · ImpactFinder 포트\nmaintain.analyze_changes: 건마다 호출자 수집\n--impact: create_test 건의 high 호출자 → 파생 건 ↳ (의도 상속, 깊이 1, [impact] max_callers=3)\ndecide: 호출자는 지침서 내용에만 → kind·reason 불변",
+        20,
+        200,
+        520,
+        90,
+        "core",
+        parent=la,
+    )
+    a7 = nbox(
+        "cli (수정) — maintain --impact · render \"영향 범위\" 줄 · ↳ 파생 건 표시\n지침서: \"영향 범위(정적 추정): OrderController#get [high] — return service.findById(id); …\"\n\"호출자를 거쳐 변경된 동작이 드러나는 시나리오를 1개 이상 시험하라\"",
+        610,
+        200,
+        520,
+        90,
+        "cli",
+        parent=la,
+    )
+    a8 = p.box(
+        "규칙표 decide()\n(의도 × 테스트 상태)\n✗ CALLS는 넣지 않는다 (R2)",
+        1200,
+        200,
+        150,
+        90,
+        "state",
+        parent=la,
+        font=10,
+        dashed=True,
+    )
+    p.text(
+        "→ 테스트 작성 엔진: 호출자 경유 케이스 포함 → 제안(.cta/proposals)",
+        20,
+        300,
+        700,
+        30,
+        font=10,
+        parent=la,
+    )
+    p.edge(a1, a2, "", pin(1, 0.5, 0, 0.5), parent=la)
+    p.edge(a2, a3, "CALLS", pin(1, 0.5, 0, 0.5), parent=la)
+    p.edge(a3, a4, "", pin(1, 0.3, 0, 0.5), parent=la)
+    p.edge(a3, a5, "", pin(1, 0.7, 0, 0.5), parent=la)
+    p.edge(a5, a6, "list[Caller]", pin(0.5, 1, 0.9, 0), parent=la, points=[(1200, 180), (488, 180)])
+    p.edge(a6, a7, "", pin(1, 0.5, 0, 0.5), parent=la)
+    p.edge(a7, a8, "", pin(1, 0.5, 0, 0.5) + "dashed=1;strokeColor=#b85450;", parent=la)
+    p.edge(change, la, "대상 Class#method", pin(1, 0.3, 0, 0.5))
+
+    # ── 구역 B: 임베딩 검색 — 판단 메모 ──
+    lb = p.lane(
+        "B. 판단 메모 검색 — 임베딩은 자연어에만 (v4 4.1 ④). 참고일 뿐 규칙표를 우회하지 못한다",
+        320,
+        450,
+        1440,
+        300,
+        "llm",
+        cid="laneB",
+    )
+    b1 = nbox(
+        "cli/resolve_cmd.py (수정)\n사람 결정 시 상황 요약 생성\nsituation_text = 커밋 메시지 첫 줄 + 대상 + 분석 (코드·diff 제외)",
+        20,
+        50,
+        330,
+        70,
+        "cli",
+        parent=lb,
+    )
+    b2 = nbox(
+        "llm/embeddings.py  [신규]\nEmbeddingClient · GatewayEmbeddingClient(/embeddings)\nRecording/ReplayEmbeddingClient(글→벡터 기록, 폴백 없음 R7)\ncosine() 순수 파이썬 — 새 의존성 0",
+        420,
+        40,
+        360,
+        90,
+        "llm",
+        parent=lb,
+        new=True,
+    )
+    b3 = nbox(
+        "llm/config.py (수정)\nmake_embedding_client() — 미설정이면 None\nCTA_EMBEDDING_MODEL (기본 text-embedding-3-small)",
+        850,
+        50,
+        300,
+        70,
+        "llm",
+        parent=lb,
+    )
+    b4 = nbox(
+        "사내 LLM 게이트웨이\n/openai/deployments/{dep}/embeddings\n주소·키는 .env로만",
+        1220,
+        50,
+        200,
+        70,
+        "ext",
+        parent=lb,
+        font=9,
+    )
+    b5 = nbox(
+        ".cta/memos/*.json (수정)\nMemo(target, category, decision, note, created_at,\n     situation, embedding)",
+        20,
+        170,
+        330,
+        70,
+        "state",
+        parent=lb,
+    )
+    b6 = nbox(
+        "cli/memos.py find_similar (수정) — 하이브리드\n① 이름 일치(같은 메서드 → 같은 클래스, 결정적)\n② 빈 자리 = 코사인 ≥ SIMILARITY_MIN(0.35) 높은 순 · 최대 3건",
+        420,
+        170,
+        360,
+        70,
+        "cli",
+        parent=lb,
+    )
+    b7 = nbox(
+        "cli/maintain_cmd.py (수정)\n질의 = situation_text(커밋 메시지, 대상) 임베딩\n임베딩할 메모·설정 없으면 이름 일치만(화면 표시)",
+        850,
+        170,
+        300,
+        70,
+        "cli",
+        parent=lb,
+    )
+    b8 = p.box(
+        "classify_intent 프롬프트\n[비슷한 과거 판단 사례]\n참고용 — decide()는\nmemos를 받지 않는다",
+        1220,
+        170,
+        200,
+        70,
+        "llm",
+        parent=lb,
+        font=9,
+        dashed=True,
+    )
+    p.text(
+        "예: 과거 메모 \"fix: 간헐적 실패 수정 / RetryPolicy.backoff\" ← 새 변경 \"chore: flaky 테스트 대응 / OrderService.pay\" — 이름은 다르지만 상황이 닮아 검색된다 (tests/test_embeddings.py, 로컬 가짜 게이트웨이 실측)",
+        20,
+        255,
+        1400,
+        40,
+        font=10,
+        parent=lb,
+    )
+    p.edge(b1, b2, "situation", pin(1, 0.5, 0, 0.5), parent=lb)
+    p.edge(b2, b3, "", pin(1, 0.5, 0, 0.5), parent=lb)
+    p.edge(b3, b4, "HTTPS", pin(1, 0.5, 0, 0.5) + "dashed=1;", parent=lb)
+    p.edge(b2, b5, "벡터 저장", pin(0.1, 1, 0.5, 0), parent=lb, points=[(456, 150), (185, 150)])
+    p.edge(b5, b6, "", pin(1, 0.5, 0, 0.5), parent=lb)
+    p.edge(b7, b6, "질의 벡터", pin(0, 0.5, 1, 0.5), parent=lb)
+    p.edge(b6, b8, "최대 3건 (참고)", pin(0.5, 1, 0.5, 1) + "dashed=1;", parent=lb, points=[(600, 250), (1320, 250)])
+    p.edge(change, lb, "커밋 메시지 + 대상 (자연어)", pin(1, 0.7, 0, 0.5))
+
+    # ── 하지 않는 것 · 검증 (아래 줄) ──
+    p.box(
+        "하지 않는 것 (ADR-0026): 코드 본문 임베딩 + 벡터 유사도로 영향 범위 찾기(유사도 ≠ 의존 관계, v4 4.1 ④ 위반) · 벡터 DB·임베딩 라이브러리 신규 의존성 · CALLS를 규칙표·로케이터 입력으로 · 깊이 2 이상 전이 영향 · 7번째 도구",
+        320,
+        780,
+        1000,
+        50,
+        "human",
+        font=10,
+        align="left",
+    )
+    p.text(
+        "검증: pytest 306건(신규 33건) · 데모 실측 findById 호출자 4곳(high) · 로컬 가짜 게이트웨이로 임베딩 경로 실측. 미확인: 실제 게이트웨이 임베딩 실호출·유사도 기준치 보정(키 있는 환경).",
+        1340,
+        780,
+        420,
+        50,
+        font=9,
+    )
+    return p
+
+
 def main() -> None:
     out = Path(sys.argv[1])
-    pages = [page_agent(), page_cli()]
+    pages = [page_agent(), page_cli(), page_impact()]
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n<mxfile host="drawio" version="26.0.0" type="device">'
         + "".join(pg.xml() for pg in pages)
