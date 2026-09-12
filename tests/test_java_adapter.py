@@ -124,3 +124,39 @@ class TestMergeIndentation:
         fragment = "        @Test\n        void b() {\n            x();\n        }\n"
         merged = merge_test_members(self.EXISTING, fragment)
         assert "    @Test\n    void b() {\n        x();\n    }\n}" in merged
+
+
+class TestMergeReplacesSameNameMethods:
+    """조각에 기존 메서드와 같은 이름이 있으면 교체한다 — resolve --intended의 기대값 갱신."""
+
+    EXISTING = (
+        "package a;\n\nimport org.junit.jupiter.api.Test;\n\nclass T {\n"
+        "    /** 첫째 */\n    @Test\n    void a() {\n        assertEquals(1, f());\n    }\n\n"
+        "    @Test\n    void b() {\n        assertEquals(2, g());\n    }\n}\n"
+    )
+
+    def test_같은_이름_메서드는_어노테이션까지_지우고_조각으로_바꾼다(self):
+        from cta.adapters.java.merge import merge_test_members
+
+        merged = merge_test_members(
+            self.EXISTING, "@Test\nvoid b() {\n    assertEquals(20, g());\n}\n"
+        )
+        assert merged.count("void b()") == 1 and merged.count("@Test") == 2
+        assert "assertEquals(20, g())" in merged and "assertEquals(2, g())" not in merged
+        assert "/** 첫째 */\n    @Test\n    void a()" in merged  # 다른 메서드는 그대로
+
+    def test_이름이_겹치지_않으면_기존_내용은_한_글자도_안_바뀐다(self):
+        from cta.adapters.java.merge import merge_test_members
+
+        merged = merge_test_members(self.EXISTING, "@Test\nvoid c() {}\n")
+        assert merged.startswith(self.EXISTING[: self.EXISTING.rfind("}")].rstrip("\n"))
+
+    def test_교체는_제자리에서_일어나_메서드_순서가_유지된다(self):
+        from cta.adapters.java.merge import merge_test_members
+
+        merged = merge_test_members(
+            self.EXISTING, "@Test\nvoid a() {\n    assertEquals(10, f());\n}\n@Test\nvoid c() {}\n"
+        )
+        assert merged.index("void a()") < merged.index("void b()") < merged.index("void c()")
+        assert "assertEquals(10, f())" in merged and "/** 첫째 */" not in merged
+        assert merged.count("@Test") == 3

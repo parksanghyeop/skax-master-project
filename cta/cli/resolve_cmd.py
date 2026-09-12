@@ -229,6 +229,14 @@ def run_resolve(args: argparse.Namespace) -> int:
     if outcome.get("status") == "error":
         print(f"오류: {outcome.get('report')}")
         return 1
+    if outcome.get("status") == "not_passed":
+        # 제안이 안 나왔다 — 항목을 지우면 사람이 내린 결정까지 사라진다(2026-09-13 실측).
+        # 유지하고 지시를 보태 다시 시도하게 한다
+        print(
+            f"{INDENT}재개 실패 — 테스트를 통과시키지 못했다. 항목 {escalation.id}는 유지한다: "
+            f"cta resolve {escalation.id} --{decision} --hint '…'로 지시를 보태 다시 시도"
+        )
+        return EXIT_CODES[outcome["status_label"]]
     _remember(project, escalation, decision, note)
     discard_escalation(project, escalation.id)
     if outcome.get("proposal"):

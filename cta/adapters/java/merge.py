@@ -7,6 +7,8 @@
 
 import re
 
+from cta.adapters.java.parsing import extract_methods
+
 # 조각 안의 package 문은 버린다 — 기존 파일의 것이 진실이다
 _PACKAGE_LINE = re.compile(r"^\s*package\s+[\w.]+\s*;\s*$")
 _IMPORT_LINE = re.compile(r"^\s*import\s+(static\s+)?[\w.*]+\s*;\s*$")
@@ -78,7 +80,11 @@ def merge_test_members(existing: str, fragment: str) -> str:
     """기존 테스트 파일에 조각의 import(중복 제외)와 멤버를 넣어 파일 전체를 만든다.
 
     입력: existing — 기존 파일 전체, fragment — 모델 출력(코드 블록 안쪽).
-    출력: 파일 전체. 기존 내용은 한 글자도 바꾸지 않고, 멤버는 마지막 `}` 앞에 들어간다.
+    출력: 파일 전체. 멤버는 마지막 `}` 앞에 들어간다. 조각에 **기존 메서드와 같은 이름**의 메서드가
+      있으면 기존 것(앞의 어노테이션·주석 포함)을 지우고 조각의 것으로 바꾼다 — resolve --intended /
+      --test-issue가 실패한 테스트의 기대값을 고칠 때 필요하다(2026-09-13 실측: 교체 없이 붙이면
+      "already defined" 컴파일 오류와 "기존 그대로라 실패"를 번갈아 반복했다). 허용되지 않은
+      교체는 assert 게이트가 잡는다(기존 assert 변경 = 탈락).
     실패 시 동작: 기존 파일에 `}`가 없으면(클래스가 아니면) ValueError — 조용히 이어붙이지 않는다.
     """
     imports, body = split_fragment(fragment)
@@ -86,7 +92,8 @@ def merge_test_members(existing: str, fragment: str) -> str:
     if close_idx < 0:
         raise ValueError("기존 테스트 파일에서 클래스 닫는 중괄호를 찾지 못했다")
 
-    merged = existing
+    merged, body = _replace_members(existing, body)
+    close_idx = merged.rfind("}")
     new_imports = [imp for imp in imports if imp not in existing]
     if new_imports:
         merged = _insert_imports(merged, new_imports)
@@ -97,6 +104,56 @@ def merge_test_members(existing: str, fragment: str) -> str:
         tail = merged[close_idx:]
         merged = f"{head}\n\n{_indent_members(body)}\n{tail}"
     return merged
+
+
+def _replace_members(existing: str, body: str) -> tuple[str, str]:
+    """조각의 메서드 중 기존 파일에 같은 이름이 있는 것은 **제자리에서** 교체한다.
+
+    출력: (교체가 반영된 기존 파일, 교체된 메서드를 뺀 나머지 조각). 나머지는 호출부가 끝에 붙인다.
+    제자리 교체인 이유: 끝으로 옮기면 cta diff가 "삭제 + 추가"로 보여 검토가 어렵다(실측).
+    기존 메서드 앞의 어노테이션·주석은 조각의 것으로 대체되고, 앞 빈 줄 수는 유지한다.
+    """
+    frag_methods = extract_methods(body)
+    if not frag_methods:
+        return existing, body
+    existing_methods = {m.name: m for m in extract_methods(existing)}
+    result = existing
+    rest = body
+    for fm in frag_methods:
+        old = existing_methods.get(fm.name)
+        if old is None:
+            continue
+        old_idx = result.find(old.text)
+        frag_idx = rest.find(fm.text)
+        if old_idx < 0 or frag_idx < 0:
+            continue
+        # 조각에서 어노테이션 포함 블록을 떼어 낸다
+        frag_start = _member_start(rest, frag_idx)
+        block = rest[frag_start : frag_idx + len(fm.text)].strip("\n")
+        rest = rest[:frag_start] + rest[frag_idx + len(fm.text) :]
+        # 기존 파일의 같은 자리(앞 빈 줄은 그대로)에 넣는다
+        old_start = _member_start(result, old_idx)
+        lead = result[old_start:old_idx]
+        blank_lines = len(lead) - len(lead.lstrip("\n"))
+        result = (
+            result[:old_start]
+            + "\n" * blank_lines
+            + _indent_members(block)
+            + result[old_idx + len(old.text) :]
+        )
+    return result, rest.strip("\n")
+
+
+def _member_start(text: str, sig_idx: int) -> int:
+    """시그니처에서 위로 올라가며 어노테이션(@…)·주석·빈 줄을 멤버에 포함한 시작 인덱스."""
+    pos = text.rfind("\n", 0, sig_idx) + 1  # 시그니처 줄의 시작
+    while pos > 0:
+        prev_start = text.rfind("\n", 0, pos - 1) + 1
+        line = text[prev_start : pos - 1].strip()
+        if line and not line.startswith(("@", "*", "/**", "*/", "//")):
+            break
+        pos = prev_start
+    return pos
 
 
 def _insert_imports(existing: str, new_imports: list[str]) -> str:

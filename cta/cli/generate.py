@@ -446,9 +446,11 @@ def run_generation(
         summary = describe_attempt(entry.get("write_result", ""), entry.get("run_result", ""))
         print(f"{INDENT}      {entry.get('attempt', '?')}차  {summary}")
     if result.status == "not_passed":
-        print(
-            f"{INDENT}      한계 보고: {result.final_state.get('report', '').splitlines()[0][:80]}"
-        )
+        report_text = result.final_state.get("report", "").strip()
+        if report_text.startswith("한계 보고:"):  # 도구 반환 문구가 이미 접두사를 달고 온다
+            report_text = report_text[len("한계 보고:") :].strip()
+        first_line = next((ln for ln in report_text.splitlines() if ln.strip()), "(내용 없음)")
+        print(f"{INDENT}      한계 보고: {first_line[:80]}")
 
     gate_results = [
         (g.name, g.passed, g.reason)
