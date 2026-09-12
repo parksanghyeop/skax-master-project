@@ -20,7 +20,7 @@ excalidraw.com 또는 VS Code Excalidraw 확장에서 연다. 실제 import에�
 
 draw.io 판: [architecture.drawio](architecture.drawio) — 페이지 1 "에이전트 구조"(작성 엔진 둘 · 고유 도구 6개 → 포트 → 어댑터 → 실행 장치 · llm 층 · 안전장치),
 페이지 2 "CLI 명령별 흐름"(generate / maintain / resolve / diff·apply·discard / graph·eval·demo 레인).
-PNG 내보내기: `docs/제출자료/diagrams/architecture-agent.png` · `architecture-cli.png` · `architecture-impact.png`(페이지 3 — ADR-0026 변경분: 영향 범위·임베딩 검색).
+PNG 내보내기: `docs/제출자료/diagrams/architecture-agent.png` · `architecture-cli.png`.
 재생성: `python scripts/render_drawio.py docs/architecture.drawio` (PNG는 draw.io 데스크톱 `-x -f png -p <페이지>`).
 
 인포그래픽 판(아이콘 위주, 발표용): [architecture-infographic.drawio](architecture-infographic.drawio) — "Agent Architecture" · "Agent Workflow" 두 페이지.
