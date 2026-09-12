@@ -1,6 +1,6 @@
 # ADR-0026: 영향 범위 분석 — 호출 관계(CALLS) 엣지 도입, 임베딩 검색은 자연어 자리에만
 
-- 상태: **승인** (2026-09-13). D1·D2 구현 완료(같은 날), D3 진행 중
+- 상태: **승인·구현 완료** (2026-09-13). D1·D2·D3 구현. 임베딩 실호출은 게이트웨이 키가 있는 환경에서 확인해야 한다(아래 검증 계획 D3 비고)
 - 관련: v4 4.1 ①(엣지 4종 중 "호출한다"는 추정+확신도) · v4 4.1 ④(임베딩 검색은 커밋 메시지·판단 메모 두 곳에만) ·
   `docs/코드그래프.md` 4절·7절(CALLS 후순위) · ADR-0011·0013(게이트웨이 임베딩 API 존재, text-embedding-3-small 1차 후보) ·
   ADR-0020 D2(보류된 `callers` 단서) · `docs/E2E/작업목록.md` B-5(판단 메모 임베딩 검색) · R2·R4·R7
@@ -75,7 +75,7 @@
 
 - `llm/embeddings.py`: `EmbeddingClient` 프로토콜 + 게이트웨이 구현(`/openai/deployments/{deployment}/embeddings`, deployment 기본
   `text-embedding-3-small` — ADR-0013 3번). 생성은 `llm/config.py`의 `make_embedding_client()`만 경유(ADR-0011)
-- **기록·재생(R7)**: 임베딩 호출도 기록한다 — 키는 deployment + 입력 텍스트, 값은 벡터. CI는 재생, 없으면 실패
+- **기록·재생(R7)**: 임베딩 호출도 기록한다 — 키는 deployment + 입력 텍스트, 값은 벡터(`RecordingEmbeddingClient`/`ReplayEmbeddingClient`). 재생은 없는 글이면 실패(실호출 폴백 없음). 구현 비고: `maintain`·`resolve`는 재생 옵션이 없는 명령이라(CI는 이 명령을 실호출로 돌리지 않는다) CLI에는 실호출 클라이언트만 연결했고, 기록·재생 클라이언트는 테스트와 향후 시연 기록용이다
 - **메모에 상황 요약을 저장**: `Memo`에 `situation`(그때의 커밋 메시지 첫 줄 + 분류 analysis 요약)과 `embedding`(벡터)을 추가.
   `resolve` 시점에 한 번 임베딩한다. 검색 질의는 지금 건의 커밋 메시지 + 단서 + analysis — 전부 자연어다
 - **검색은 하이브리드**: 이름 일치(현행, 결정적) 결과를 먼저, 그 다음 코사인 상위 건을 채워 최대 3건. 코사인은 순수 파이썬으로 계산한다
@@ -102,7 +102,7 @@
 | D1 추출기 | 단위 테스트(인메모리): 같은 클래스 호출 high · 필드 타입 호출 high · 이름 유일 medium · 이름 중복은 엣지 없음. 데모 프로젝트 실측: `findById` 호출자 = `updateAmount`·`pay`·`cancel`(같은 클래스) + `OrderController#get`(필드 타입) |
 | D1 쿼리 | `callers` 답에 "추정" 문구·확신도 포함, 800토큰 상한 |
 | D2 | `cta maintain --diff HEAD~1`로 SC-002(버그 수정) 재현 → 화면에 영향 범위 줄, 지침서에 호출자 절. `--impact`로 파생 건이 규칙표를 그대로 타는지 테스트. 결함 세트(`cta eval`) 검출률 전/후 비교 — 떨어지면 되돌린다 |
-| D3 | 임베딩 기록으로 재생 테스트. 이름이 다르고 상황이 같은 메모 2건을 심고 코사인 상위에 오는지. 불변식 테스트. 게이트웨이 없이 폴백 동작 |
+| D3 | 임베딩 기록으로 재생 테스트. 이름이 다르고 상황이 같은 메모 2건을 심고 코사인 상위에 오는지. 불변식 테스트. 게이트웨이 없이 폴백 동작. **비고**: 개발 PC에 게이트웨이 키가 없어 실호출·`SIMILARITY_MIN`(0.35) 보정은 미확인 — 키가 있는 환경에서 `cta resolve` 1회 후 `.cta/memos/*.json`에 `embedding`이 생기는지, `cta maintain` 화면 "판단 메모 검색: 이름 일치 + 상황 임베딩" 줄을 확인한다 |
 | 공통 | `ruff check . && pytest -q` 초록(현재 277건), `tests/test_layering.py`(core에 언어 문자열 금지) |
 
 ## 같이 갱신할 문서

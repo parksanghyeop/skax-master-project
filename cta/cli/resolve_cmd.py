@@ -21,7 +21,7 @@ from cta.cli.escalations import (
     list_escalations,
 )
 from cta.cli.generate import ask_on_terminal, run_generation
-from cta.cli.memos import Memo, save_memo
+from cta.cli.memos import Memo, save_memo, situation_text
 from cta.cli.render import (
     EXIT_CODES,
     INDENT,
@@ -43,7 +43,7 @@ from cta.core.pipeline.models import (
     ChangedSymbol,
     Intent,
 )
-from cta.llm.config import load_dotenv_into_env
+from cta.llm.config import load_dotenv_into_env, make_embedding_client
 from cta.sandbox.factory import choose_runner
 
 
@@ -237,6 +237,19 @@ def run_resolve(args: argparse.Namespace) -> int:
 
 
 def _remember(project, escalation: Escalation, decision: str, note: str) -> None:
+    """판단 메모 저장 — 상황 요약(자연어)과 그 임베딩을 함께 남긴다(ADR-0026 D3).
+
+    임베딩은 게이트웨이가 설정돼 있을 때만, 실패해도 메모는 저장한다(벡터 없이) — 사람의 결정을
+    잃는 것이 임베딩 없는 것보다 나쁘다.
+    """
+    situation = situation_text(escalation.commit_message, escalation.target, escalation.analysis)
+    embedding = None
+    embedder = make_embedding_client()
+    if embedder is not None:
+        try:
+            embedding = embedder[0].embed([situation], embedder[1])[0]
+        except Exception as e:  # 참고 자료용 벡터 — 실패는 알리되 저장은 계속한다
+            print(f"{INDENT}   (상황 임베딩 실패 — 벡터 없이 저장: {e})")
     save_memo(
         project,
         Memo(
@@ -245,5 +258,7 @@ def _remember(project, escalation: Escalation, decision: str, note: str) -> None
             decision=decision,
             note=note,
             created_at=datetime.now().isoformat(timespec="seconds"),
+            situation=situation,
+            embedding=embedding,
         ),
     )

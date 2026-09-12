@@ -73,6 +73,7 @@ docs/       설계·산출물 문서
 | `llm/client.py` | 공용 타입(ChatMessage·ChatResponse[usage_tokens])과 LlmClient 포트 | M2 |
 | `llm/gateway.py` | 사내 게이트웨이 실호출 클라이언트 (Azure OpenAI 호환, 환경변수로만 설정, usage 수집) | M2 |
 | `llm/replay.py` | record & replay 장치 — 재생 실패 시 폴백 없음 | M2 |
+| `llm/embeddings.py` | 임베딩 클라이언트(게이트웨이·기록·재생) + 코사인 — 판단 메모 검색 전용, 코드 검색 금지 | ADR-0026 |
 | `llm/metering.py` | 호출 수·토큰 합산 래퍼 — "소요 … 토큰" 출력 + 입력·출력·추론·캐시 내역 | ADR-0015 · 0023 |
 | `llm/config.py` | .env 로딩·deployment 선택 — 클라이언트 생성의 유일한 입구 | ADR-0011 |
 | `llm/prompts/` | 프롬프트 파일 보관소 (system.md, write_test.md, write_test_append.md, classify_intent.md) | M0 · ADR-0023 |
@@ -118,7 +119,7 @@ docs/       설계·산출물 문서
 | `cli/render.py` | 화면 출력 형식 — 시나리오 기대 출력(①② 판단 블록, 상자, 결과 상태·종료 코드) | ADR-0015 |
 | `cli/proposals.py` | 제안 보관소 — 생성물은 apply 전까지 소스에 반영 안 됨(v4 Step 3) | CLI화 |
 | `cli/escalations.py` | 사람 확인 보관소 — 저장하고 멈춤, resolve가 재개 | ADR-0015 |
-| `cli/memos.py` | 판단 메모 — resolve 결정 기록, 다음 maintain의 참고 자료(키워드 검색) | ADR-0015 |
+| `cli/memos.py` | 판단 메모 — resolve 결정 기록(상황 요약+벡터), 다음 maintain의 참고 자료(이름 일치 + 임베딩 하이브리드 검색) | ADR-0015·0026 |
 | `cli/graph_access.py` | 코드 그래프 접속 선택 — Neo4j 접속 확인 후 실물, 아니면 파싱 폴백 (generate·maintain 공용) | ADR-0015 |
 | `cli/generate.py` | 재료 수집→생성→게이트→제안 조립 + 4단계 출력. `--engine legacy|deep`으로 작성 엔진 선택, deep은 `--record/--replay` 카세트 v2 | CLI화·ADR-0015·ADR-0024 |
 | `core/agent/` | **Deep Agent 작성 엔진**(ADR-0024) — `ports.py`(AgentPorts) · `tools.py`(고유 도구 6 + ask_user를 LangChain 도구로) · `limits.py`(RunLedger 상한·실패 분류, HideWriteTools) · `subagents.py`(explorer/writer/diagnoser + general-purpose 무력화) · `build.py`(create_deep_agent 조립, run_agent → WriterState 모양) · `prompts/`(test_lead·explorer·writer·diagnoser) | ADR-0024·0025 |

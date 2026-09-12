@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 from cta.llm.client import LlmClient
+from cta.llm.embeddings import EmbeddingClient
 
 # 설정 키 이름. 값은 코드에 절대 넣지 않는다.
 ENV_MODEL = "CTA_LLM_MODEL"  # 게이트웨이 deployment 이름. 미설정 시 기본값
@@ -98,3 +99,27 @@ def make_llm_client(
         timeout_default=timeout_default,
         reasoning_effort=None if effort.lower() == "none" else effort,
     ), model
+
+
+def make_embedding_client(
+    dotenv_path: str | Path | None = None,
+) -> tuple[EmbeddingClient, str] | None:
+    """(임베딩 클라이언트, deployment 이름) — 게이트웨이가 설정돼 있지 않으면 None (ADR-0026 D3).
+
+    chat과 달리 None을 돌려주는 이유: 임베딩 검색은 참고 자료(판단 메모)를 더 잘 찾는 보조 수단이라
+    없어도 파이프라인은 돌아야 한다 — 호출부는 None이면 이름 일치 검색(현행)으로 폴백한다.
+    설정: 주소·키는 chat과 같은 환경변수, deployment는 CTA_EMBEDDING_MODEL
+      (기본 text-embedding-3-small).
+    """
+    load_dotenv_into_env(dotenv_path)
+    from cta.llm.embeddings import (
+        DEFAULT_EMBEDDING_MODEL,
+        ENV_EMBEDDING_MODEL,
+        GatewayEmbeddingClient,
+    )
+    from cta.llm.gateway import ENV_API_KEY, ENV_BASE_URL
+
+    if not os.environ.get(ENV_BASE_URL) or not os.environ.get(ENV_API_KEY):
+        return None
+    model = os.environ.get(ENV_EMBEDDING_MODEL, "").strip() or DEFAULT_EMBEDDING_MODEL
+    return GatewayEmbeddingClient(), model

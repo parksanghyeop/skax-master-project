@@ -15,7 +15,7 @@ from cta.adapters.java.runner import JavaTestRunner
 from cta.cli.escalations import Escalation, make_id, save_escalation
 from cta.cli.generate import CACHE_DIR_NAME, ask_on_terminal, ensure_prepared, run_generation
 from cta.cli.graph_access import FALLBACK_NOTE, GRAPH_NOTE, try_open_store
-from cta.cli.memos import find_similar, render_memos
+from cta.cli.memos import find_similar, list_memos, render_memos, situation_text
 from cta.cli.render import (
     EXIT_CODES,
     INDENT,
@@ -41,7 +41,7 @@ from cta.core.pipeline.models import (
 )
 from cta.graph.impact import GraphImpactFinder
 from cta.graph.model import EDGE_COVERS
-from cta.llm.config import load_dotenv_into_env, make_llm_client
+from cta.llm.config import load_dotenv_into_env, make_embedding_client, make_llm_client
 from cta.llm.intent import PromptedIntentClassifier
 from cta.llm.metering import MeteredClient
 from cta.sandbox.factory import LOCAL_MODE_NOTE, RUNNER_LOCAL, choose_runner, make_sandbox
@@ -120,8 +120,30 @@ def run_maintain(args: argparse.Namespace) -> int:
             print(f"오류: {problem}")
             return 1
 
+    # 판단 메모 검색(ADR-0026 D3): 이름 일치 + 상황 요약 임베딩. 임베딩할 메모가 없거나 게이트웨이가
+    # 없으면 이름 일치만 — 참고 자료라 없어도 파이프라인은 돈다
+    embedder = make_embedding_client() if any(m.embedding for m in list_memos(project)) else None
+    query_texts = {
+        s.target: situation_text(change_set.commit_message, s.target) for s in change_set.symbols
+    }
+    memo_note = (
+        f"이름 일치 + 상황 임베딩({embedder[1]})"
+        if embedder
+        else "이름 일치만 (임베딩할 메모·설정 없음)"
+    )
+    print(f"{INDENT}판단 메모 검색: {memo_note}")
+    embed_failed = False
+
     def memo_lookup(target: str) -> str:
-        return render_memos(find_similar(project, target))
+        nonlocal embed_failed
+        vector = None
+        if embedder is not None and not embed_failed:
+            try:
+                vector = embedder[0].embed([query_texts.get(target, target)], embedder[1])[0]
+            except Exception as e:  # 참고 자료 검색 실패는 파이프라인을 멈출 이유가 아니다
+                embed_failed = True
+                print(f"{INDENT}   (임베딩 검색 실패 — 이름 일치만 사용: {e})")
+        return render_memos(find_similar(project, target, vector))
 
     def progress(msg: str) -> None:
         if getattr(args, "quiet", False):
