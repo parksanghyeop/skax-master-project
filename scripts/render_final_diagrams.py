@@ -1,10 +1,11 @@
-"""최종산출물/cta-diagrams.drawio — 현재 프로젝트 기준 그림 4장(4페이지)을 생성한다.
+"""최종산출물/cta-diagrams.drawio — 현재 프로젝트 기준 그림 5장(5페이지)을 생성한다.
 
 1. Agent Architecture (인포그래픽)   — render_final_infographic.page_architecture_v2
 2. Detailed Architecture (상세 설명)  — render_drawio.page_agent + 오늘 수정 반영(같은 이름 교체·제안 이어붙임)
 3. User Command Flows (명령어별 흐름) — render_drawio.page_cli + 오늘 수정 반영
 4. Graph DB Architecture (인포그래픽) — 이 파일에서 새로 그린다: 노드 2종·엣지 4종, 채우는 쪽(파싱·JaCoCo·CALLS 추정),
    질의 4종과 소비처(도구·TestLocator·ImpactFinder), Neo4j 없을 때의 폴백, 샌드박스 밖 배치·단일 라벨 설계.
+5. CLI Flows (인포그래픽 간소화)      — 명령 한 줄 = 카드 몇 장. 3페이지의 상세 레인을 발표용으로 줄인 판.
 외부 서비스·이미지 파일 의존 없음.
 
 사용:  python scripts/render_final_diagrams.py 최종산출물/cta-diagrams.drawio
@@ -20,10 +21,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import render_drawio as detail  # noqa: E402
 from render_drawio_infographic import (  # noqa: E402
     AMBER,
+    BLUE,
     GRAY,
     GREEN,
     INK,
+    PINK,
     PURPLE,
+    RED,
     Page,
     pin,
 )
@@ -316,11 +320,128 @@ def page_graphdb() -> Page:
     return p
 
 
+def page_cli_infographic() -> Page:
+    """5. CLI 명령별 흐름 — 인포그래픽 간소화 판. 명령 한 줄 = 카드 몇 장, 글은 최소."""
+    p = Page("5. CLI Flows (Infographic)")
+    p.text("Code Test Agent — CLI Flows", 40, 20, 900, 34, font=26, color=INK, bold=True)
+    p.text(
+        "명령 하나 = 한 줄. 빨간 LLM 표시가 붙은 카드만 모델을 부른다. 생성물은 언제나 '제안'이고 apply를 쳐야 소스에 닿는다",
+        40,
+        58,
+        1300,
+        24,
+        font=14,
+    )
+    W, H, GAP, Y0, ROW = 180, 112, 40, 110, 185
+
+    def row(index, title, color, cards, note="", arrows=None):
+        """arrows: 화살표로 이을 카드 수(None=전부). 독립 명령(D의 discard, E 전부)은 잇지 않는다."""
+        zone = p.zone(40, Y0 + index * ROW, 1700, 165, title, color, cid=f"row{index}")
+        ids = []
+        for i, (icon, name, sub, c, llm) in enumerate(cards):
+            x = 30 + i * (W + GAP)
+            ids.append(
+                p.card(x, 42, W, H, icon, name, sub, c, parent=zone, icon_size=30, title_size=13)
+            )
+            if llm:
+                p.llm_tag(x + W - 46, 36, parent=zone)
+        linked = ids if arrows is None else ids[:arrows]
+        for a, b in zip(linked, linked[1:], strict=False):
+            p.edge(a, b, "", pin(1, 0.5, 0, 0.5), parent=zone)
+        if note:
+            p.text(
+                note,
+                30 + len(cards) * (W + GAP),
+                54,
+                1700 - 60 - len(cards) * (W + GAP),
+                90,
+                font=11,
+                parent=zone,
+            )
+        return zone, ids
+
+    row(
+        0,
+        "A · cta generate --class C  [--max-methods N] [--fast]",
+        BLUE,
+        [
+            ("search", "재료 수집", "테스트 없는 메서드 · 확인 항목", AMBER, False),
+            ("robot", "테스트 작성", "쓰기 → 실행 → 진단 (≤8회)", GREEN, True),
+            ("shield", "게이트 6개", "assert · 스킵 · 범위 · 커버리지 · 뮤테이션", GRAY, False),
+            ("folder", "제안", ".cta/proposals (소스 미반영)", GRAY, False),
+            ("check", "종료 0 / 2 / 3", "완료 · 품질 미달 · 사람 확인", BLUE, False),
+        ],
+        "게이트 탈락 → 사유를 붙여 재생성(≤3회). 같은 테스트 클래스의 대기 제안이 있으면 그 위에 이어서 생성한다.",
+    )
+    row(
+        1,
+        "B · cta maintain --diff HEAD~1  [--intent 의도] [--message …] [--impact]",
+        AMBER,
+        [
+            ("git", "변경 추출", "git diff → 바뀐 메서드 + 단서", AMBER, False),
+            ("chip", "의도 판단", "버그 수정·리팩터링·새 기능·불확실", RED, True),
+            ("play", "기존 테스트 실행", "통과/실패/없음 · 영향 범위", AMBER, False),
+            ("table", "규칙표", "의도 × 테스트 상태 → 조치 (LLM 없음)", GRAY, False),
+            ("robot", "테스트 만들기", "A의 작성·게이트 → 제안", GREEN, True),
+            ("pause", "사람 확인", "리팩터링+실패 · 불확실 → 저장 후 멈춤(종료 3)", PINK, False),
+        ],
+        "--impact: 확신 high 호출자에도 생성(↳ 파생 건). 판단 메모(이름 일치 + 임베딩)를 참고로 보여 준다.",
+    )
+    row(
+        2,
+        "C · cta resolve <id>  --intended | --test-issue | --proceed | --as 의도 | --skip",
+        PINK,
+        [
+            ("user", "사람 판단", "선택지 하나를 명시", PINK, False),
+            ("folder", "저장 항목 읽기", ".cta/escalations/<id>", GRAY, False),
+            ("robot", "재개", "실패 테스트만 제자리 교체", GREEN, True),
+            ("shield", "게이트", "허용 목록 밖 assert 변경은 탈락", GRAY, False),
+            ("vector", "판단 메모", "상황 요약 + 임베딩 저장", PINK, True),
+            ("folder", "제안", "실패 시 항목 유지 → --hint", GRAY, False),
+        ],
+    )
+    row(
+        3,
+        "D · cta diff [이름]  ·  cta apply [이름 | --all]  ·  cta discard",
+        GREEN,
+        [
+            ("eye", "diff 검토", "현재 파일 vs 제안", GRAY, False),
+            ("user", "사람 결정", "반영할까 / 버릴까", PINK, False),
+            ("check", "apply", "src/test에 쓰기 (이때만 반영)", BLUE, False),
+            ("flag", "discard", "제안 폐기 (소스 무변경)", GRAY, False),
+        ],
+        "생성물은 apply 전까지 소스에 닿지 않는다(v4 Step 3). CI는 종료 코드로 분기한다.",
+        arrows=3,
+    )
+    row(
+        4,
+        "E · cta graph [--coverage]  ·  cta eval [--intents]  ·  cta demo",
+        PURPLE,
+        [
+            ("db", "graph", "정적 파싱 + 실측 → Neo4j(선택)", PURPLE, False),
+            ("pulse", "eval", "검출률 · 의도 분류 정확도", AMBER, True),
+            ("record", "demo", "저장된 호출 기록 재생 — 비용 0", RED, False),
+        ],
+        "graph는 '기존 테스트 찾기'를 실측 기준으로 바꾼다(없으면 파싱 폴백). eval·demo는 개발·시연용.",
+        arrows=0,
+    )
+    p.text(
+        "종료 코드: 0 정상 완료 · 3 사람 확인 필요(실패 아님) · 2 품질 미달 · 1 오류      공통 옵션: --non-interactive · --quiet · --runner docker · --engine deep",
+        40,
+        Y0 + 5 * ROW + 10,
+        1700,
+        24,
+        font=13,
+        color=INK,
+    )
+    return p
+
+
 def main() -> None:
     out = Path(sys.argv[1])
     p1 = page_architecture_v2()
     p1.name = "1. Agent Architecture"
-    pages = [p1, page_detail(), page_flows(), page_graphdb()]
+    pages = [p1, page_detail(), page_flows(), page_graphdb(), page_cli_infographic()]
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n<mxfile host="drawio" version="26.0.0" type="device">'
         + "".join(pg.xml() for pg in pages)
