@@ -1,4 +1,4 @@
-"""최종산출물/cta-diagrams.drawio — 현재 프로젝트 기준 그림 5장(5페이지)을 생성한다.
+"""최종산출물/cta-diagrams.drawio — 현재 프로젝트 기준 그림 6장(6페이지)을 생성한다.
 
 1. Agent Architecture (인포그래픽)   — render_final_infographic.page_architecture_v2
 2. Detailed Architecture (상세 설명)  — render_drawio.page_agent + 오늘 수정 반영(같은 이름 교체·제안 이어붙임)
@@ -6,6 +6,7 @@
 4. Graph DB Architecture (인포그래픽) — 이 파일에서 새로 그린다: 노드 2종·엣지 4종, 채우는 쪽(파싱·JaCoCo·CALLS 추정),
    질의 4종과 소비처(도구·TestLocator·ImpactFinder), Neo4j 없을 때의 폴백, 샌드박스 밖 배치·단일 라벨 설계.
 5. CLI Flows (인포그래픽 간소화)      — 명령 한 줄 = 카드 몇 장. 3페이지의 상세 레인을 발표용으로 줄인 판.
+6. Project Structure (간소화)         — 층별 구역 + '파일 — 한 줄 설명' 칩, 핵심 파일만.
 외부 서비스·이미지 파일 의존 없음.
 
 사용:  python scripts/render_final_diagrams.py 최종산출물/cta-diagrams.drawio
@@ -437,11 +438,244 @@ def page_cli_infographic() -> Page:
     return p
 
 
+def page_structure() -> Page:
+    """6. 프로젝트 파일 구조 — 층별 구역 + '파일 — 한 줄 설명' 칩. 간소화(핵심 파일만)."""
+    p = Page("6. Project Structure")
+    p.text("Code Test Agent — Project Structure", 40, 20, 900, 34, font=26, color=INK, bold=True)
+    p.text(
+        "cta/ 아래 층 6개 + 테스트·스크립트·문서·예제. 의존 방향은 cli → core ← adapters · graph · llm · sandbox (core는 java·maven 같은 이름을 모른다, R1)",
+        40,
+        58,
+        1500,
+        24,
+        font=14,
+    )
+
+    def block(x, y, w, title, color, items, icon="code"):
+        h = 48 + len(items) * 34
+        zone = p.zone(x, y, w, h, title, color)
+        for i, (name, desc, ic) in enumerate(items):
+            p.chip(
+                16,
+                40 + i * 34,
+                w - 32,
+                ic or icon,
+                f"<b>{name}</b> — {desc}",
+                color,
+                parent=zone,
+                h=28,
+                font=11,
+            )
+        return h
+
+    # 열 1
+    y = 110
+    y += (
+        block(
+            40,
+            y,
+            560,
+            "cta/core — 핵심 로직 (언어를 모른다)",
+            GREEN,
+            [
+                ("ports.py", "포트(인터페이스) 9종 — 바깥 세계와 만나는 경계", None),
+                (
+                    "pipeline/ decide.py · maintain.py",
+                    "규칙표(의도 × 테스트 상태)와 변경 대응 분석",
+                    "table",
+                ),
+                (
+                    "tools/ 6개",
+                    "inspect · query_code_graph · write · run · check_quality · report_finding",
+                    "gear",
+                ),
+                ("writer_graph.py", "legacy 작성 루프 (LangGraph 서브그래프, ≤8회)", "loop"),
+                (
+                    "agent/ build.py · subagents.py · limits.py",
+                    "Deep Agent 메인 + 서브 3, 반복 상한 원장",
+                    "robot",
+                ),
+                ("gates.py · submit.py", "게이트 계약과 생성→게이트 재시도 루프(≤3회)", "shield"),
+                ("config.py", "cta.toml 읽기 — 기준치·상한·모델·예산·[impact]", "list"),
+            ],
+        )
+        + 20
+    )
+    y += (
+        block(
+            40,
+            y,
+            560,
+            "cta/graph — 코드 그래프 (Neo4j 선택)",
+            PURPLE,
+            [
+                ("model.py", "노드 2종 · 엣지 4종(DECLARES·CREATES·COVERS + CALLS 확신도)", "db"),
+                ("store.py · neo4j_store.py", "GraphStore 포트 — 인메모리 / Neo4j 실물", "db"),
+                (
+                    "answers.py · impact.py",
+                    "질의 → 답 문장 · CALLS → 호출자 목록(ImpactFinder)",
+                    "search",
+                ),
+            ],
+        )
+        + 20
+    )
+    block(
+        40,
+        y,
+        560,
+        "cta/sandbox — 실행 장치 (R6)",
+        AMBER,
+        [
+            ("local_sandbox.py", "이 PC의 Maven·JDK (기본)", "gear"),
+            (
+                "docker_sandbox.py · factory.py",
+                "네트워크 차단 컨테이너 (--runner docker) · 선택기",
+                "box",
+            ),
+        ],
+    )
+
+    # 열 2
+    y = 110
+    y += (
+        block(
+            640,
+            y,
+            560,
+            "cta/adapters/java — 포트의 Java·Maven 구현",
+            AMBER,
+            [
+                (
+                    "parsing.py · materials.py",
+                    "정규식 파서 · 재료 수집(메서드 선정·확인 항목·생성법)",
+                    None,
+                ),
+                ("changes.py", "git diff → 변경 심볼 + 단서, 참조 파싱 TestLocator", "git"),
+                ("graph_builder.py · calls.py", "소스 → 노드·엣지, 호출 관계 추정(확신도)", "link"),
+                (
+                    "coverage.py · mutation.py · regression.py",
+                    "JaCoCo 실측 · PIT 뮤테이션 · 수정 전 코드 회귀",
+                    "pulse",
+                ),
+                ("gates.py", "게이트 구현 — assert·스킵·범위·커버리지(줄 원문 첨부)", "shield"),
+                (
+                    "writer.py · merge.py",
+                    "테스트 쓰기·컴파일 검사 · 조각 병합(같은 이름은 제자리 교체)",
+                    "pen",
+                ),
+                (
+                    "runner.py · inspector.py · similar.py",
+                    "선택 실행(R5) · 대상 조사 · 유사 테스트(폴백)",
+                    "play",
+                ),
+                ("skills/ SKILL.md", "작성 지식 규칙(junit5-mockito · regression-test)", "list"),
+            ],
+        )
+        + 20
+    )
+    block(
+        640,
+        y,
+        560,
+        "cta/llm — LLM 호출의 유일한 통로 (R7)",
+        RED,
+        [
+            (
+                "config.py · gateway.py · chat_model.py",
+                "클라이언트 생성 입구 · HTTP · LangChain 모델",
+                "chip",
+            ),
+            ("generation.py · intent.py", "테스트 작성 · 의도 분류 (LLM이 있는 두 자리)", "chip"),
+            ("embeddings.py", "판단 메모 상황 임베딩 — 자연어만, 기록·재생 포함", "vector"),
+            (
+                "replay.py · model_cassette.py",
+                "호출 기록·재생 — 어긋나면 실패, 실호출 폴백 없음",
+                "record",
+            ),
+            (
+                "metering.py · masking.py · prompts/",
+                "토큰 합산·예산 · 시크릿 가림 · 프롬프트 파일",
+                "list",
+            ),
+        ],
+    )
+
+    # 열 3
+    y = 110
+    y += (
+        block(
+            1240,
+            y,
+            520,
+            "cta/cli — 명령 조립·입출력 (판단 로직 없음)",
+            BLUE,
+            [
+                ("main.py", "진입점 cta <명령>, UTF-8 콘솔, 오류 안내", "terminal"),
+                ("generate.py", "재료 → 엔진 → 게이트 → 제안 (모든 생성의 공용 진입)", "robot"),
+                (
+                    "maintain_cmd.py · resolve_cmd.py",
+                    "변경 대응(--impact) · 사람 판단 재개",
+                    "table",
+                ),
+                (
+                    "proposals.py · escalations.py · memos.py",
+                    ".cta/ 제안 · 사람 확인 항목 · 판단 메모(임베딩)",
+                    "folder",
+                ),
+                (
+                    "render.py · hints.py · locate.py",
+                    "화면 형식 · 오류 3줄 안내 · 프로젝트 탐색",
+                    "eye",
+                ),
+                ("graph_cmd.py · eval_cmd.py · demo_cmd.py", "cta graph · eval · demo", "db"),
+            ],
+        )
+        + 20
+    )
+    block(
+        1240,
+        y,
+        520,
+        "그 밖",
+        GRAY,
+        [
+            (
+                "tests/ (39 파일, 314건)",
+                "Fake 어댑터·기록 재생으로 도는 단위 테스트 + 층 규칙 검사",
+                "check",
+            ),
+            (
+                "cta/evals/",
+                "결함 세트 12건 · 의도 세트 10건 · 대표 시나리오 기록 · 결과 JSON",
+                "pulse",
+            ),
+            ("examples/ demo · evalbench", "대상 Maven 프로젝트 예제", "code"),
+            ("scripts/", "그림 생성 · 기록 재생성 · 결함 점검", "pen"),
+            ("docs/ · docs/adr/", "설계(v4)·계약·ADR-0010~0026 — 과거 문서는 동결", "list"),
+            ("최종산출물/", "이 그림들 (cta-diagrams.drawio + PNG)", "folder"),
+            (
+                "pyproject.toml · CLAUDE.md · .env.example",
+                "의존성·진입점 · 절대 규칙 · 설정 키",
+                "list",
+            ),
+        ],
+    )
+    return p
+
+
 def main() -> None:
     out = Path(sys.argv[1])
     p1 = page_architecture_v2()
     p1.name = "1. Agent Architecture"
-    pages = [p1, page_detail(), page_flows(), page_graphdb(), page_cli_infographic()]
+    pages = [
+        p1,
+        page_detail(),
+        page_flows(),
+        page_graphdb(),
+        page_cli_infographic(),
+        page_structure(),
+    ]
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n<mxfile host="drawio" version="26.0.0" type="device">'
         + "".join(pg.xml() for pg in pages)
