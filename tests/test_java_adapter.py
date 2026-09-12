@@ -104,3 +104,23 @@ class TestJavaTestRunnerResults:
 
         assert result.passed is True
         assert result.summary == "Tests run: 2, Failures: 0, Errors: 0"
+
+
+class TestMergeIndentation:
+    """모델 조각의 들여쓰기가 들쭉날쭉해도 합친 결과는 클래스 본문 4칸이다(2026-09-13 실측 버그)."""
+
+    EXISTING = "package a;\n\nclass T {\n    void a() {}\n}\n"
+
+    def test_첫_줄만_들여쓰기_없는_조각도_4칸으로_맞춘다(self):
+        from cta.adapters.java.merge import merge_test_members
+
+        fragment = "@Test\n    void b() {\n        x();\n    }\n"
+        merged = merge_test_members(self.EXISTING, fragment)
+        assert "    @Test\n    void b() {\n        x();\n    }\n}" in merged
+
+    def test_전부_8칸인_조각은_4칸으로_줄인다(self):
+        from cta.adapters.java.merge import merge_test_members
+
+        fragment = "        @Test\n        void b() {\n            x();\n        }\n"
+        merged = merge_test_members(self.EXISTING, fragment)
+        assert "    @Test\n    void b() {\n        x();\n    }\n}" in merged

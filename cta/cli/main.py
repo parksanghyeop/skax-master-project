@@ -9,6 +9,7 @@ diff로 검토 → apply로만 소스 트리에 반영된다(v4 Step 3). 층: cl
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 from cta.cli.hints import render_error
@@ -380,7 +381,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_console() -> None:
+    """Windows 콘솔(cp949)에서 한글·기호(—, ①)를 찍다 UnicodeEncodeError로 죽지 않게 한다.
+
+    왜 여기서: 모든 명령의 출력이 이 진입점을 지난다. PYTHONUTF8=1 없이 `cta --help`만 쳐도
+    죽던 문제(2026-09-13 실측). 못 그리는 글자는 '?'로 대체하고 실행은 계속한다.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):  # 닫힌 스트림·리다이렉션 등 — 출력 자체를 막지 않는다
+                pass
+
+
 def main() -> int:
+    _force_utf8_console()
     args = build_parser().parse_args()
     try:
         return args.func(args)

@@ -61,6 +61,26 @@ def save_proposal(
     return proposal
 
 
+def pending_proposal_code(project: MavenProject, name: str, test_rel: str) -> str | None:
+    """같은 테스트 클래스·경로를 겨냥한 대기 제안이 있으면 그 코드를 돌려준다. 없으면 None.
+
+    왜 필요한가(2026-09-13 실측): 한 번의 maintain에서 같은 테스트 클래스를 겨냥한 생성이
+    여러 건이면
+    (변경 메서드 여럿·--impact 파생 건) 뒤 제안이 앞 제안을 덮어써 먼저 만든 테스트가 사라졌다.
+    새 생성은 대기 제안을 "기존 파일"로 삼아 그 위에 이어 붙이고, 결과가 제안을 대체한다.
+    경로가 다른 동명 제안은 이어 붙이지 않는다(다른 파일이다).
+    """
+    d = _dir(project)
+    meta = d / f"{name}.json"
+    code = d / f"{name}.java"
+    if not meta.is_file() or not code.is_file():
+        return None
+    data = json.loads(meta.read_text(encoding="utf-8"))
+    if data.get("test_rel") != test_rel:
+        return None
+    return code.read_text(encoding="utf-8")
+
+
 def list_proposals(project: MavenProject) -> list[Proposal]:
     d = _dir(project)
     if not d.is_dir():

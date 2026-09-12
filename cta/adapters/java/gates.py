@@ -239,20 +239,53 @@ class CoverageGate:
             sum(c["cb"] for c in relevant.values()) / total_branches if total_branches else 1.0
         )
         problems = []
+        # 왜 줄 내용까지 적나: 번호만 주면 모델이 어느 경로가 빠졌는지 몰라 같은 테스트를 다시 낸다
+        # (2026-09-13 실측: delete의 정상 경로가 3회 재생성 내내 빠짐).
+        # 줄 원문이 곧 "무엇을 실행할지"다
+        texts = describe_source_lines(self._project, self._source_file)
         if line_pct < self._config.line_min:
             problems.append(
-                f"라인 {line_pct:.0%} < 기준 {self._config.line_min:.0%} (미실행 라인: {uncovered})"
+                f"라인 {line_pct:.0%} < 기준 {self._config.line_min:.0%} "
+                f"(미실행 라인: {uncovered} — {texts(uncovered)})"
             )
         if branch_pct < self._config.branch_min:
             problems.append(
                 f"분기 {branch_pct:.0%} < 기준 {self._config.branch_min:.0%} "
-                f"(미실행 분기가 있는 라인: {missed_branch_lines})"
+                f"(미실행 분기가 있는 라인: {missed_branch_lines} — {texts(missed_branch_lines)})"
             )
         if problems:
-            return GateResult(self.name, False, "; ".join(problems))
+            return GateResult(
+                self.name,
+                False,
+                "; ".join(problems)
+                + " → 위 줄이 실행되는 입력(예: 정상 경로·반대 분기)을 시험하는 "
+                "테스트를 추가하라",
+            )
         return GateResult(
             self.name, True, f"라인 {line_pct:.0%}, 분기 {branch_pct:.0%} (기준 충족)"
         )
+
+
+def describe_source_lines(project: MavenProject, source_file: str):
+    """(줄 번호 목록) → "88 `repository.deleteById(id);` · 89 `}`" 문자열을 만드는 함수를 돌려준다.
+
+    소스 파일은 main 트리에서 이름으로 찾는다(커버리지 리포트의 sourcefile name과 같은 기준).
+    못 찾으면 번호만 남긴다 — 게이트는 판정이 우선이고 설명은 보조다. 한 줄은 80자에서 자른다.
+    """
+    lines: list[str] = []
+    main_root = project.root / "src" / "main" / "java"
+    hits = sorted(main_root.rglob(source_file)) if main_root.is_dir() else []
+    if hits:
+        lines = hits[0].read_text(encoding="utf-8", errors="replace").splitlines()
+
+    def render(wanted: list[int]) -> str:
+        parts = []
+        for n in wanted:
+            text = lines[n - 1].strip()[:80] if 0 < n <= len(lines) else ""
+            parts.append(f"{n} `{text}`" if text else str(n))
+        return " · ".join(parts) or "(없음)"
+
+    return render
 
 
 def parse_source_lines(jacoco_xml: str, source_file: str) -> dict[int, dict]:

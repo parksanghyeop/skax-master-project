@@ -218,7 +218,12 @@ def run_maintain(args: argparse.Namespace) -> int:
     if escalations:
         options = "--intended | --test-issue | --proceed | --as <의도> | --skip"
         print(f"{INDENT}판단 전달    cta resolve {escalations[0]} {options}")
-    print(f"{INDENT}소요 토큰    {client.total_tokens:,}")
+    # 분류(이 클라이언트) + 생성(run_generation의 클라이언트) — 둘을 더해야 실제 비용이다
+    generated_tokens = sum(int(o.get("tokens") or 0) for o in outcomes)
+    print(
+        f"{INDENT}소요 토큰    {client.total_tokens + generated_tokens:,}"
+        f"  (분류 {client.total_tokens:,} · 생성 {generated_tokens:,})"
+    )
 
     if escalations:
         status = STATUS_HUMAN

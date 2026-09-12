@@ -36,14 +36,19 @@ from cta.adapters.java.materials import (
 from cta.adapters.java.maven import MavenProject, detect_maven_project, find_existing_test_class
 from cta.adapters.java.merge import merge_test_members
 from cta.adapters.java.mutation import MutationGate, measure_mutation
-from cta.adapters.java.parsing import find_class_file, parse_methods, parse_target
+from cta.adapters.java.parsing import find_class_file, parse_methods, parse_target, read_package
 from cta.adapters.java.quality import AssertCountChecker
 from cta.adapters.java.regression import BugReproductionGate
 from cta.adapters.java.runner import JavaTestRunner
 from cta.adapters.java.skills.select import render_skills, select_skills, signals_from
 from cta.adapters.java.writer import JavaTestWriter
 from cta.cli.graph_access import choose_code_graph
-from cta.cli.proposals import STATUS_ACCEPTED, STATUS_NEEDS_REVIEW, save_proposal
+from cta.cli.proposals import (
+    STATUS_ACCEPTED,
+    STATUS_NEEDS_REVIEW,
+    pending_proposal_code,
+    save_proposal,
+)
 from cta.cli.render import (
     INDENT,
     STATUS_ERROR,
@@ -183,6 +188,19 @@ def run_generation(
     if class_file is None:
         return _error(f"클래스 {class_name!r}를 찾지 못했다")
     only = parse_methods(method_field) or None
+    test_class = test_class or default_test_class(class_name)
+    package = read_package(class_file.read_text(encoding="utf-8", errors="replace"))
+    test_path = locate_test_file(project, package, test_class)
+    test_rel = test_path.relative_to(project.root).as_posix()
+    # 소스 트리의 원문 — 생성이 끝나면(또는 도중에 죽으면) 반드시 이 내용으로 되돌린다
+    original_disk = test_path.read_text(encoding="utf-8") if test_path.is_file() else ""
+    # 같은 테스트 클래스를 겨냥한 대기 제안이 있으면 그 위에 이어 붙인다 — 앞 제안의 테스트가
+    # 뒤 제안에 덮여 사라지지 않게(2026-09-13 실측). 제안을 잠시 소스 자리에 놓아 "기존 파일"로
+    # 다룬다
+    pending = pending_proposal_code(project, test_class, test_rel)
+    if pending is not None:
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.write_text(pending, encoding="utf-8")
     methods, skipped = select_methods(
         project,
         class_file,
@@ -190,11 +208,7 @@ def run_generation(
         only=only,
         include_all=include_all,
     )
-    test_class = test_class or default_test_class(class_name)
     materials = collect_materials(project, class_file, methods, skipped, test_class)
-    package = materials.package
-    test_path = locate_test_file(project, package, test_class)
-    test_rel = test_path.relative_to(project.root).as_posix()
     fq = f"{package}.{{}}" if package else "{}"
 
     print(f"\n{INDENT}대상: {fq.format(class_name)}\n")
@@ -203,6 +217,7 @@ def run_generation(
         print(f"{INDENT}      건너뜀 {class_name}.{name} — {why}")
     if not methods:
         print(f"{INDENT}      테스트 만들 메서드가 없다 (전부 강제하려면 --all)")
+        _restore_test_file(test_path, original_disk)
         return _error("테스트 만들 메서드가 없다")
     names = ", ".join(m.name for m in methods)
     print(f"{INDENT}      테스트 만들 메서드 {len(methods)}개 선정: {names}")
@@ -216,7 +231,12 @@ def run_generation(
     for hint in materials.constructions:
         print(f"{INDENT}      {hint.type_name:<16}→ {hint.strategy} ({hint.reason})")
     existing_tests = materials.existing_test_code.count("@Test")
-    if materials.existing_test_code:
+    if pending is not None:
+        print(
+            f"{INDENT}      대기 중인 제안 {test_class!r} 위에 이어서 생성 "
+            f"(제안의 테스트 {existing_tests}개 유지, 결과가 제안을 대체)"
+        )
+    elif materials.existing_test_code:
         print(
             f"{INDENT}      기존 테스트 파일 있음 → {test_class}에 메서드 추가 "
             f"(기존 {existing_tests}개 유지)"
@@ -236,6 +256,7 @@ def run_generation(
     else:
         problem = ensure_prepared(project, runner, cache_dir, warmup_test)
         if problem:
+            _restore_test_file(test_path, original_disk)
             return _error(problem)
 
     baseline = snapshot_baseline(project)  # 게이트 기준선 — 생성 시작 전에 뜬다
@@ -415,7 +436,7 @@ def run_generation(
     except BaseException:
         # 도중에 죽어도(게이트웨이 시간 초과, Ctrl+C, Docker 오류) 생성물이 소스 트리에 남으면
         # 안 된다 — 기존 파일은 원문으로, 새 파일은 삭제로 되돌린다(v4 Step 3: 반영은 apply만)
-        _restore_test_file(test_path, materials.existing_test_code)
+        _restore_test_file(test_path, original_disk)
         raise
     finally:
         if graph_store is not None:
@@ -458,10 +479,7 @@ def run_generation(
     generated = ""
     if test_path.is_file():
         generated = test_path.read_text(encoding="utf-8")
-        if materials.existing_test_code:
-            test_path.write_text(materials.existing_test_code, encoding="utf-8")
-        else:
-            test_path.unlink()
+        _restore_test_file(test_path, original_disk)  # 소스 트리는 언제나 원문으로(v4 Step 3)
         if result.status in ("accepted", "human_review"):
             status = STATUS_ACCEPTED if result.status == "accepted" else STATUS_NEEDS_REVIEW
             save_proposal(

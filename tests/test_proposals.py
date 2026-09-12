@@ -73,3 +73,32 @@ class TestProposalLifecycle:
             raise AssertionError("예외가 나야 한다")
         except FileNotFoundError as e:
             assert "cta diff" in str(e)
+
+
+class TestPendingProposalCode:
+    """같은 테스트 클래스를 겨냥한 대기 제안 위에 이어서 생성하기 위한 조회(2026-09-13 실측)."""
+
+    def test_같은_이름_같은_경로의_대기_제안_코드를_돌려준다(self, tmp_path):
+        from cta.adapters.java.maven import detect_maven_project
+        from cta.cli.proposals import pending_proposal_code, save_proposal
+
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        project = detect_maven_project(tmp_path)
+        assert pending_proposal_code(project, "CalcTest", "src/test/java/CalcTest.java") is None
+        save_proposal(
+            project,
+            "CalcTest",
+            "Calc#add",
+            "src/test/java/CalcTest.java",
+            "class CalcTest {}",
+            "accepted",
+            [],
+        )
+        assert (
+            pending_proposal_code(project, "CalcTest", "src/test/java/CalcTest.java")
+            == "class CalcTest {}"
+        )
+        # 경로가 다르면 다른 파일이다 — 이어 붙이지 않는다
+        assert (
+            pending_proposal_code(project, "CalcTest", "src/test/java/other/CalcTest.java") is None
+        )

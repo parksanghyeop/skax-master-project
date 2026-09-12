@@ -47,12 +47,31 @@ def _unwrap_class(body: str) -> str:
 
 
 def _indent_members(body: str) -> str:
-    """멤버 본문이 클래스 안 들여쓰기가 아니면 4칸을 붙인다(빈 줄은 그대로)."""
+    """멤버 본문을 클래스 안 들여쓰기(4칸)에 맞춘다 — 공통 들여쓰기를 벗기고 4칸을 다시 붙인다.
+
+    함정(2026-09-13 실측): 모델 조각의 첫 줄(`@Test`)만 들여쓰기가 없고 나머지는 4칸이면,
+    첫 줄만 보고 4칸을 더 얹어 본문이 8칸이 됐다. 그래서 첫 줄을 제외한 줄들의 최소 들여쓰기를
+    기준으로 벗긴다(첫 줄은 왼쪽 공백을 전부 벗긴다). 빈 줄은 빈 줄로 둔다.
+    """
     lines = body.splitlines()
-    first = next((ln for ln in lines if ln.strip()), "")
-    if first.startswith((" ", "\t")):
+    non_empty = [ln for ln in lines if ln.strip()]
+    if not non_empty:
         return body
-    return "\n".join(MEMBER_INDENT + ln if ln.strip() else ln for ln in lines)
+    widths = [len(ln) - len(ln.lstrip()) for ln in non_empty[1:]] or [
+        len(non_empty[0]) - len(non_empty[0].lstrip())
+    ]
+    base = min(widths)
+    out = []
+    first_seen = False
+    for ln in lines:
+        if not ln.strip():
+            out.append("")
+            continue
+        width = len(ln) - len(ln.lstrip())
+        stripped = ln.lstrip() if not first_seen else ln[min(width, base) :]
+        first_seen = True
+        out.append(MEMBER_INDENT + stripped)
+    return "\n".join(out)
 
 
 def merge_test_members(existing: str, fragment: str) -> str:
