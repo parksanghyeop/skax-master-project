@@ -227,6 +227,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     m.add_argument("--plan-only", action="store_true", help="판단만 출력하고 처리하지 않음")
     m.add_argument(
+        "--impact",
+        action="store_true",
+        help="영향 범위까지 생성: 변경 메서드를 호출하는 곳(정적 추정, 확신 high)에도 테스트 생성 "
+        "— 깊이 1, 상한 cta.toml [impact] max_callers (기본 3)",
+    )
+    m.add_argument(
         "--fast",
         action="store_true",
         help="빠른 실행: 커버리지·뮤테이션 게이트와 전후 측정 생략 (ADR-0022)",

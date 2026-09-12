@@ -49,7 +49,16 @@ class Neo4jGraphStore:
 
     def replace_project(self, project: str, nodes: list[GraphNode], edges: list[GraphEdge]) -> None:
         node_rows = [{"key": n.key, "kind": n.kind, "props": n.props} for n in nodes]
-        edge_rows = [{"kind": e.kind, "src": e.src, "dst": e.dst} for e in edges]
+        edge_rows = [
+            {
+                "kind": e.kind,
+                "src": e.src,
+                "dst": e.dst,
+                "confidence": e.confidence,
+                "excerpt": e.excerpt,
+            }
+            for e in edges
+        ]
         with self._driver.session() as s:
             s.run("MATCH (n:CodeNode {project:$p}) DETACH DELETE n", p=project)
             s.run(
@@ -61,7 +70,7 @@ class Neo4jGraphStore:
             s.run(
                 "UNWIND $rows AS r "
                 "MATCH (a:CodeNode {project:$p, key:r.src}), (b:CodeNode {project:$p, key:r.dst}) "
-                "CREATE (a)-[:REL {kind:r.kind}]->(b)",
+                "CREATE (a)-[:REL {kind:r.kind, confidence:r.confidence, excerpt:r.excerpt}]->(b)",
                 p=project,
                 rows=edge_rows,
             )
@@ -92,6 +101,27 @@ class Neo4jGraphStore:
                 t=is_test,
             )
             return [_to_node(r["n"]) for r in records]
+
+    def edges_in(self, project: str, node_key: str, edge_kind: str) -> list[GraphEdge]:
+        with self._driver.session() as s:
+            records = s.run(
+                "MATCH (a:CodeNode {project:$p})-[r:REL {kind:$k}]->"
+                "(b:CodeNode {project:$p, key:$key}) RETURN a.key AS src, r",
+                p=project,
+                k=edge_kind,
+                key=node_key,
+            )
+            return [
+                GraphEdge(
+                    kind=edge_kind,
+                    src=r["src"],
+                    dst=node_key,
+                    # 구 그래프(ADR-0026 이전 빌드)에는 속성이 없다 — 빈 값으로 읽는다
+                    confidence=r["r"].get("confidence") or "",
+                    excerpt=r["r"].get("excerpt") or "",
+                )
+                for r in records
+            ]
 
 
 def _to_node(record) -> GraphNode:

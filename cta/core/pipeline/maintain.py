@@ -6,10 +6,12 @@
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 from cta.core.pipeline.decide import decide
 from cta.core.pipeline.models import (
+    ACTION_CREATE_TEST,
+    CONFIDENCE_HIGH,
     INTENT_TRIVIAL,
     INTENT_UNCLEAR,
     KNOWN_INTENTS,
@@ -17,11 +19,12 @@ from cta.core.pipeline.models import (
     TESTS_NONE,
     TESTS_PASS,
     ActionDecision,
+    Caller,
     ChangedSymbol,
     ChangeSet,
     Intent,
 )
-from cta.core.ports import IntentClassifier, TestLocator, TestRunner
+from cta.core.ports import ImpactFinder, IntentClassifier, TestLocator, TestRunner
 
 # 주석·공백만 바뀐 변경의 고정 판정 — LLM을 부르지 않는다(ADR-0015 D2). 확신도 1.0은
 # "결정적으로 판정했다"는 뜻이지 모델의 추정치가 아니다.
@@ -68,6 +71,8 @@ class ChangeAnalysis:
     run_summary: str  # 기존 테스트 실행 요약(실패 상세 포함). 실행 안 했으면 빈 값
     decision: ActionDecision
     memos: str  # 비슷한 과거 판단 사례(참고용 문자열). 없으면 빈 값
+    callers: list[Caller] = field(default_factory=list)  # 영향 범위(정적 추정). 안 찾았으면 빈 값
+    derived_from: str = ""  # 파생 건이면 원본 변경 대상("Class#method"). 원본 건은 빈 값
 
 
 def analyze_changes(
@@ -78,19 +83,39 @@ def analyze_changes(
     memo_lookup: Callable[[str], str] | None = None,
     progress: Callable[[str], None] | None = None,
     author_intent: str | None = None,
+    impact: ImpactFinder | None = None,
+    impact_max: int = 0,
 ) -> list[ChangeAnalysis]:
     """변경 건마다 (의도, 기존 테스트 상태, 조치)를 정한다.
 
     입력: change_set 변경 추출 결과, classifier 의도 분류(LLM), locator 검증 테스트 찾기,
       runner 테스트 실행(샌드박스), memo_lookup 대상 → 과거 사례 문자열(없으면 빈 값),
-      author_intent 작성자가 지정한 의도(--intent, 없으면 None) — 주석만 변경은 그래도 trivial.
-    출력: 심볼 순서대로의 ChangeAnalysis 목록.
+      author_intent 작성자가 지정한 의도(--intent, 없으면 None) — 주석만 변경은 그래도 trivial,
+      impact 영향 범위 찾기(없으면 호출자를 찾지 않는다), impact_max 파생 생성 건 상한
+      (0이면 파생 건 없음 — 호출자는 화면·지침서에만 쓰인다. ADR-0026 D2 ③).
+    출력: 심볼 순서대로의 ChangeAnalysis 목록. 파생 건은 원본 바로 뒤에 온다.
     같은 테스트 묶음은 한 번만 실행한다(여러 변경이 같은 테스트 클래스에 걸리는 흔한 경우).
     """
     report = progress or (lambda _msg: None)
     lookup = memo_lookup or (lambda _target: "")
     run_cache: dict[str, tuple[str, str]] = {}
     analyses: list[ChangeAnalysis] = []
+    changed_targets = {c.target for c in change_set.symbols}
+    derived_targets: set[str] = set()
+
+    def run_tests_for(target: str, intent: Intent) -> tuple[list[str], str, str]:
+        tests = locator.find(target)
+        if not tests or intent.category == INTENT_TRIVIAL:
+            # 의미 없는 변경은 테스트를 돌려 볼 이유가 없다 — 규칙표가 상태와 무관하게 no_action
+            return list(tests), TESTS_NONE, ""
+        selector = ",".join(tests)
+        if selector not in run_cache:
+            report(f"기존 테스트 실행 중 — {selector}")
+            result = runner.run(selector)
+            run_cache[selector] = (TESTS_PASS if result.passed else TESTS_FAIL, result.summary)
+        status, summary = run_cache[selector]
+        return list(tests), status, summary
+
     for change in change_set.symbols:
         memos = lookup(change.target)
         if change.comment_only:
@@ -100,30 +125,65 @@ def analyze_changes(
             intent = classifier.classify(change, change_set, memos)
             if author_intent:
                 intent = with_author_intent(intent, author_intent)
-        tests = locator.find(change.target)
-        if not tests or intent.category == INTENT_TRIVIAL:
-            # 의미 없는 변경은 테스트를 돌려 볼 이유가 없다 — 규칙표가 상태와 무관하게 no_action
-            status, summary = TESTS_NONE, ""
-        else:
-            selector = ",".join(tests)
-            if selector not in run_cache:
-                report(f"기존 테스트 실행 중 — {selector}")
-                result = runner.run(selector)
-                run_cache[selector] = (
-                    TESTS_PASS if result.passed else TESTS_FAIL,
-                    result.summary,
-                )
-            status, summary = run_cache[selector]
-        decision = decide(change, intent, status)
+        callers: list[Caller] = []
+        if impact is not None and intent.category != INTENT_TRIVIAL:
+            callers = list(impact.find(change.target))
+        tests, status, summary = run_tests_for(change.target, intent)
+        # 규칙표는 callers를 받지 않는다 — 지침서 내용에만 들어간다(ADR-0026 D2, R2)
+        decision = decide(change, intent, status, callers)
         analyses.append(
             ChangeAnalysis(
                 change=change,
                 intent=intent,
-                tests=list(tests),
+                tests=tests,
                 tests_status=status,
                 run_summary=summary,
                 decision=decision,
                 memos=memos,
+                callers=callers,
             )
         )
+        if impact_max <= 0 or decision.kind != ACTION_CREATE_TEST:
+            continue
+        # 파생 생성 건(ADR-0026 D2 ③): 확신 high 호출자에 원본 의도를 물려주고 규칙표를 그대로
+        # 태운다. 원본이 create_test(bug_fix·new_feature)일 때만 — 그 두 의도의 행은 상태와
+        # 무관하게 create_test라 파생 건도 언제나 create_test다
+        picked = [
+            c
+            for c in callers
+            if c.confidence == CONFIDENCE_HIGH
+            and c.target not in changed_targets
+            and c.target not in derived_targets
+        ][:impact_max]
+        for caller in picked:
+            derived_targets.add(caller.target)
+            derived_change = ChangedSymbol(
+                target=caller.target,
+                lines_added=0,
+                lines_removed=0,
+                signature_changed=False,
+                diff_excerpt=caller.excerpt,
+            )
+            d_tests, d_status, d_summary = run_tests_for(caller.target, intent)
+            base = decide(derived_change, intent, d_status)
+            analyses.append(
+                ChangeAnalysis(
+                    change=derived_change,
+                    intent=intent,
+                    tests=d_tests,
+                    tests_status=d_status,
+                    run_summary=d_summary,
+                    decision=replace(
+                        base,
+                        reason=f"영향 범위({change.target} 변경의 호출자) → {base.reason}",
+                        briefing=(
+                            f"파생 건: {change.target}의 변경이 호출자 {caller.target}를 "
+                            f"거쳐 드러나는지 시험한다. "
+                            f"호출 줄: {caller.excerpt or '(발췌 없음)'}\n" + base.briefing
+                        ),
+                    ),
+                    memos=lookup(caller.target),
+                    derived_from=change.target,
+                )
+            )
     return analyses

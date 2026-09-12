@@ -87,7 +87,10 @@ def render_analysis(index: int, analysis: ChangeAnalysis) -> str:
     """변경 한 건의 판단 블록 — 사용자가 의도 분석 결과를 반드시 볼 수 있게 전부 적는다."""
     label = INTENT_LABELS.get(analysis.intent.category, analysis.intent.category)
     confidence = f"(확신도 {analysis.intent.confidence:.0%})"
-    lines = [f"{INDENT}{circled(index)} {display_target(analysis.change.target)}"]
+    head = f"{INDENT}{circled(index)} {display_target(analysis.change.target)}"
+    if analysis.derived_from:
+        head += f"  ↳ 영향 범위 ({display_target(analysis.derived_from)} 변경의 호출자)"
+    lines = [head]
     lines.append(f"{INDENT}   판단   {label:<18}{confidence}")
     evidence = list(analysis.intent.evidence) or ["(근거 없음)"]
     lines.append(f"{INDENT}   근거   · {evidence[0]}")
@@ -99,6 +102,12 @@ def render_analysis(index: int, analysis: ChangeAnalysis) -> str:
     status = _STATUS_LABELS.get(analysis.tests_status, analysis.tests_status)
     if analysis.intent.category != INTENT_TRIVIAL:
         lines.append(f"{INDENT}   기존 테스트   {tests}  → {status}")
+        if analysis.callers:
+            # 영향 범위(ADR-0026 D2 ①) — 정적 추정임을 함께 적는다
+            shown = ", ".join(
+                f"{display_target(c.target)} [{c.confidence}]" for c in analysis.callers
+            )
+            lines.append(f"{INDENT}   영향 범위     {shown}  (정적 추정)")
     lines.append(f"{INDENT}   참고   {analysis.memos or '비슷한 과거 사례 없음'}")
     lines.append(f"{INDENT}   할 일  {action_label(analysis)}")
     return "\n".join(lines)

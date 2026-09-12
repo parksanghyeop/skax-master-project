@@ -13,9 +13,12 @@ from cta.core.pipeline.models import (
     ACTION_CREATE_TEST,
     ACTION_ESCALATE,
     ACTION_NO_ACTION,
+    CONFIDENCE_HIGH,
+    CONFIDENCE_MEDIUM,
     INTENT_TRIVIAL,
     TESTS_FAIL,
     TESTS_NONE,
+    Caller,
     ChangedSymbol,
     ChangeSet,
     Intent,
@@ -215,3 +218,127 @@ class TestMemosCannotBypassRules:
         import inspect
 
         assert "memo" not in " ".join(inspect.signature(decide).parameters)
+
+
+class FakeImpact:
+    """대상 → 호출자 목록 (ImpactFinder 구현). 호출 기록을 남긴다."""
+
+    def __init__(self, mapping):
+        self._mapping = mapping
+        self.calls: list[str] = []
+
+    def find(self, target):
+        self.calls.append(target)
+        return list(self._mapping.get(target, []))
+
+
+CALLERS = [
+    Caller("OrderService#pay", CONFIDENCE_HIGH, "Order order = findById(id);"),
+    Caller("OrderController#get", CONFIDENCE_HIGH, "return service.findById(id);"),
+    Caller("Report#render", CONFIDENCE_MEDIUM, "svc.applyDiscount(o);"),
+]
+
+
+class TestImpactRange:
+    """영향 범위(ADR-0026 D2) — 지침서·화면·파생 건에만 쓰이고 규칙표는 손대지 않는다."""
+
+    def test_호출자는_지침서에만_들어가고_길과_사유는_그대로다(self):
+        intent = Intent("refactor", "정리", 0.9)
+        for status in (TESTS_FAIL, TESTS_NONE, "pass"):
+            plain = decide(FIX, intent, status)
+            with_callers = decide(FIX, intent, status, CALLERS)
+            assert (plain.kind, plain.reason) == (with_callers.kind, with_callers.reason)
+            assert "영향 범위(정적 추정" in with_callers.briefing
+            assert "OrderService#pay [high]" in with_callers.briefing
+            assert "호출자를 거쳐" in with_callers.briefing
+            assert "영향 범위" not in plain.briefing
+
+    def test_impact_max가_0이면_호출자를_화면용으로만_모으고_파생_건은_없다(self):
+        classifier = ScriptedClassifier({"OrderService#applyDiscount": Intent("bug_fix", "a", 0.9)})
+        impact = FakeImpact({"OrderService#applyDiscount": CALLERS})
+        analyses = analyze_changes(
+            ChangeSet([FIX, COMMENT], "fix: x"),
+            classifier,
+            FakeLocator({}),
+            FakeTestRunner(),
+            impact=impact,
+        )
+        assert len(analyses) == 2 and all(not a.derived_from for a in analyses)
+        assert analyses[0].callers == CALLERS
+        assert impact.calls == ["OrderService#applyDiscount"]  # 주석만 변경은 찾지 않는다
+        text = render_analysis(1, analyses[0])
+        assert "영향 범위     OrderService.pay [high], OrderController.get [high]" in text
+        assert "(정적 추정)" in text
+
+    def test_impact이면_확신_high_호출자에_원본_의도를_물려준_파생_건이_뒤따른다(self):
+        classifier = ScriptedClassifier({"OrderService#applyDiscount": Intent("bug_fix", "a", 0.9)})
+        impact = FakeImpact({"OrderService#applyDiscount": CALLERS})
+        runner = FakeTestRunner({"OrderControllerTest": RunResult(True, "ok")})
+        analyses = analyze_changes(
+            ChangeSet([FIX], "fix: x"),
+            classifier,
+            FakeLocator({"OrderController#get": ["OrderControllerTest"]}),
+            runner,
+            impact=impact,
+            impact_max=3,
+        )
+        assert [a.change.target for a in analyses] == [
+            "OrderService#applyDiscount",
+            "OrderService#pay",
+            "OrderController#get",  # medium(Report#render)은 파생 대상이 아니다
+        ]
+        derived = analyses[2]
+        assert derived.derived_from == "OrderService#applyDiscount"
+        assert derived.intent.category == "bug_fix"  # 의도 상속 — 분류기 추가 호출 없음
+        assert classifier.calls == ["OrderService#applyDiscount"]
+        assert derived.decision.kind == ACTION_CREATE_TEST
+        assert derived.decision.reason.startswith("영향 범위(OrderService#applyDiscount")
+        assert derived.decision.briefing.startswith("파생 건:")
+        assert derived.tests == ["OrderControllerTest"] and derived.tests_status == "pass"
+        assert "↳ 영향 범위 (OrderService.applyDiscount 변경의 호출자)" in render_analysis(
+            3, derived
+        )
+
+    def test_파생_건은_상한을_지키고_이미_변경된_대상과_중복을_뺀다(self):
+        pay = ChangedSymbol("OrderService#pay", 1, 0, False, "+x")
+        classifier = ScriptedClassifier(
+            {
+                "OrderService#applyDiscount": Intent("bug_fix", "a", 0.9),
+                "OrderService#pay": Intent("new_feature", "b", 0.9),
+            }
+        )
+        impact = FakeImpact(
+            {
+                "OrderService#applyDiscount": CALLERS,
+                "OrderService#pay": [Caller("OrderController#get", CONFIDENCE_HIGH, "x")],
+            }
+        )
+        analyses = analyze_changes(
+            ChangeSet([FIX, pay]),
+            classifier,
+            FakeLocator({}),
+            FakeTestRunner(),
+            impact=impact,
+            impact_max=1,
+        )
+        # applyDiscount의 high 호출자 중 pay는 이미 변경 건이라 제외 → get 1건(상한 1).
+        # pay의 호출자 get은 이미 파생됐으므로 다시 만들지 않는다
+        assert [(a.change.target, a.derived_from) for a in analyses] == [
+            ("OrderService#applyDiscount", ""),
+            ("OrderController#get", "OrderService#applyDiscount"),
+            ("OrderService#pay", ""),
+        ]
+
+    def test_원본이_create_test가_아니면_파생_건을_만들지_않는다(self):
+        classifier = ScriptedClassifier(
+            {"OrderService#applyDiscount": Intent("refactor", "a", 0.9)}
+        )
+        analyses = analyze_changes(
+            ChangeSet([FIX], "refactor: x"),
+            classifier,
+            FakeLocator({"OrderService#applyDiscount": ["OrderServiceTest"]}),
+            FakeTestRunner({"OrderServiceTest": RunResult(True, "ok")}),
+            impact=FakeImpact({"OrderService#applyDiscount": CALLERS}),
+            impact_max=3,
+        )
+        assert [a.decision.kind for a in analyses] == [ACTION_NO_ACTION]

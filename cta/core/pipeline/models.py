@@ -31,6 +31,12 @@ ACTION_NO_ACTION = "no_action"
 ACTION_ESCALATE = "escalate"  # 사람에게 넘긴다 (예: refactor인데 테스트 실패)
 ACTION_ASK = "ask"  # 사람에게 묻는다 (분류 불확실 등)
 
+# 호출 관계(영향 범위)의 확신도 — 정적 추정이라 반드시 붙는다(v4 4.1 ①, ADR-0026 D1).
+# high: 호출자 소스에서 타입이 읽힌다 / medium: 타입은 못 읽었지만 메서드 이름이 프로젝트에서 유일.
+# 파생 생성 건(--impact)은 high만 쓴다 — medium은 화면·지침서 참고용.
+CONFIDENCE_HIGH = "high"
+CONFIDENCE_MEDIUM = "medium"
+
 
 @dataclass(frozen=True)
 class ChangedSymbol:
@@ -60,6 +66,19 @@ class ChangeSet:
     symbols: list[ChangedSymbol]
     commit_message: str = ""  # 비교 범위의 커밋 메시지들(미커밋 변경이면 빈 값)
     issue_refs: tuple[str, ...] = ()  # 메시지에서 뽑은 이슈 참조 (예: "#4821")
+
+
+@dataclass(frozen=True)
+class Caller:
+    """영향 범위 한 건 — 변경된 메서드를 호출하는 곳 (ADR-0026 D1, 정적 추정).
+
+    target: 호출자 식별자("Class#method"). confidence: CONFIDENCE_HIGH/MEDIUM.
+    excerpt: 호출 줄 발췌 한 줄 — 지침서에서 "어떻게 부르는지"를 보여 준다.
+    """
+
+    target: str
+    confidence: str
+    excerpt: str = ""
 
 
 @dataclass(frozen=True)

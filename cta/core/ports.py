@@ -11,6 +11,8 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from cta.core.pipeline.models import Caller
+
 
 class EmptySelectorError(ValueError):
     """빈(또는 공백뿐인) selector로 테스트 실행을 요청하면 어댑터가 던지는 예외.
@@ -152,6 +154,18 @@ class TestLocator(Protocol):
     """
 
     def find(self, target: str) -> list[str]: ...
+
+
+class ImpactFinder(Protocol):
+    """영향 범위 포트 — "이 메서드를 누가 호출하나" (ADR-0026 D1, v4 4.1 쿼리 "호출하는 곳은?").
+
+    입력: target 대상 식별자. 출력: Caller 목록(확신도 포함, 없으면 빈 목록). 결정적이다 —
+      같은 소스면 같은 답. 구현: 그래프 CALLS 엣지(graph/impact) 또는 그 자리 파싱(adapters).
+    쓰임의 경계(ADR-0026 D2): 화면·작업 지침서·파생 생성 건에만 쓰고, 규칙표와
+      기존 테스트 상태 판정에는 넣지 않는다 — 추정 관계가 안전장치 입력이 되면 안 된다(R2).
+    """
+
+    def find(self, target: str) -> list[Caller]: ...
 
 
 class TestCodeGenerator(Protocol):

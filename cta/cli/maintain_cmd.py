@@ -7,6 +7,7 @@
 
 import argparse
 
+from cta.adapters.java.calls import StaticImpactFinder
 from cta.adapters.java.changes import GitChangeExtractor, ReferencingTestLocator
 from cta.adapters.java.failures import parse_failed_tests
 from cta.adapters.java.maven import MavenProject, detect_maven_project
@@ -38,6 +39,7 @@ from cta.core.pipeline.models import (
     INTENT_BUG_FIX,
     TESTS_FAIL,
 )
+from cta.graph.impact import GraphImpactFinder
 from cta.graph.model import EDGE_COVERS
 from cta.llm.config import load_dotenv_into_env, make_llm_client
 from cta.llm.intent import PromptedIntentClassifier
@@ -61,11 +63,16 @@ class GraphTestLocator:
 
 
 def _make_locator(project: MavenProject):
-    """그래프가 있으면 실측, 없으면 소스 참조 파싱 폴백 — 어느 쪽인지 화면에 알린다."""
+    """그래프가 있으면 실측, 없으면 소스 참조 파싱 폴백 — 어느 쪽인지 화면에 알린다.
+
+    출력: (검증 테스트 찾기, 화면 문구, 영향 범위 찾기). 영향 범위(ADR-0026)는 같은 그래프의
+    CALLS 엣지를 쓰고, 그래프가 없으면 그 자리에서 파싱한다 — 그래프 DB가 필수가 되지 않는다.
+    """
     store = try_open_store(str(project.root))
     if store is None:
-        return ReferencingTestLocator(project), FALLBACK_NOTE
-    return GraphTestLocator(store, str(project.root)), GRAPH_NOTE
+        return ReferencingTestLocator(project), FALLBACK_NOTE, StaticImpactFinder(project)
+    key = str(project.root)
+    return GraphTestLocator(store, key), GRAPH_NOTE, GraphImpactFinder(store, key)
 
 
 def run_maintain(args: argparse.Namespace) -> int:
@@ -93,8 +100,14 @@ def run_maintain(args: argparse.Namespace) -> int:
     )
     client = MeteredClient(raw_client, max_tokens=config.max_tokens_per_run)
     classifier = PromptedIntentClassifier(client, model)
-    locator, locator_note = _make_locator(project)
-    print(f"{INDENT}기존 테스트 찾기: {locator_note}\n")
+    locator, locator_note, impact = _make_locator(project)
+    print(f"{INDENT}기존 테스트 찾기: {locator_note}")
+    impact_note = (
+        f"호출자에도 생성 (--impact, 상한 {config.impact_max_callers}건)"
+        if getattr(args, "impact", False)
+        else "화면·지침서에만 (생성은 --impact)"
+    )
+    print(f"{INDENT}영향 범위(정적 추정): {impact_note}\n")
     runner_kind = choose_runner(getattr(args, "runner", None), args.fast)
     sandbox = make_sandbox(runner_kind)
     cache_dir = project.root / CACHE_DIR_NAME
@@ -124,6 +137,8 @@ def run_maintain(args: argparse.Namespace) -> int:
             memo_lookup,
             progress,
             author_intent=args.intent,
+            impact=impact,
+            impact_max=config.impact_max_callers if getattr(args, "impact", False) else 0,
         )
     finally:
         if hasattr(locator, "close"):

@@ -21,6 +21,8 @@ cta.toml 값은 cli가 `make_llm_client(model_default=…, timeout_default=…)`
     reasoning_effort = "low"   # minimal/low/medium/high/none (ADR-0023)
     [budget]
     max_tokens_per_run = 50000
+    [impact]
+    max_callers = 3            # --impact 파생 생성 건 상한 (ADR-0026 D2)
 """
 
 import tomllib
@@ -33,6 +35,9 @@ from cta.core.gates import CONFIG_FILE_NAME, GateConfig, gate_config_from_toml
 # 추론 강도 허용값 — 게이트웨이 스펙(llm/gateway.py)과 같다. "none" = 보내지 않음.
 # core는 값의 뜻을 모른다 — 키 이름과 허용 범위만 검사한다(R1)
 REASONING_EFFORT_CHOICES = ("minimal", "low", "medium", "high", "none")
+
+# --impact 파생 생성 건 상한 기본값 — 호출자가 많은 메서드에서 생성이 폭주하지 않게(ADR-0026 D2 ③)
+IMPACT_MAX_CALLERS = 3
 
 
 @dataclass(frozen=True)
@@ -53,6 +58,7 @@ class CtaConfig:
     model: str | None = None  # None → CTA_LLM_MODEL 또는 llm/config.py 기본값
     reasoning_effort: str | None = None  # None → CTA_LLM_REASONING_EFFORT 또는 llm 기본값 low
     max_tokens_per_run: int | None = None  # None → 무제한. 넘으면 MeteredClient가 실행을 멈춘다
+    impact_max_callers: int = IMPACT_MAX_CALLERS  # --impact일 때 파생 생성 건 상한(깊이 1)
 
 
 def load_config(project_root: str | Path) -> CtaConfig:
@@ -84,6 +90,11 @@ def load_config(project_root: str | Path) -> CtaConfig:
             f"중 하나여야 한다: {effort!r}"
         )
     budget = data.get("budget", {}).get("max_tokens_per_run")
+    impact_max = int(data.get("impact", {}).get("max_callers", IMPACT_MAX_CALLERS))
+    if impact_max < 0:
+        raise ValueError(
+            f"{CONFIG_FILE_NAME} [impact] max_callers는 0 이상이어야 한다: {impact_max}"
+        )
     return CtaConfig(
         gates=gate_config_from_toml(data.get("gates", {})),
         retry=retry,
@@ -91,4 +102,5 @@ def load_config(project_root: str | Path) -> CtaConfig:
         model=str(model).strip() or None if model is not None else None,
         reasoning_effort=str(effort).strip().lower() if effort is not None else None,
         max_tokens_per_run=int(budget) if budget is not None else None,
+        impact_max_callers=impact_max,
     )

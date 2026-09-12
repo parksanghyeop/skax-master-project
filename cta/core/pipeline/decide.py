@@ -6,6 +6,8 @@
 틀리면 테스트 품질이 떨어질 뿐, 사고는 아니다.
 """
 
+from collections.abc import Sequence
+
 from cta.core.pipeline.models import (
     ACTION_ASK,
     ACTION_CREATE_TEST,
@@ -20,9 +22,13 @@ from cta.core.pipeline.models import (
     TESTS_NONE,
     TESTS_PASS,
     ActionDecision,
+    Caller,
     ChangedSymbol,
     Intent,
 )
+
+# 지침서에 적는 호출자 수 상한 — 그 이상은 토큰만 늘고 작성 품질에 기여하지 않는다(경험칙)
+MAX_BRIEFING_CALLERS = 5
 
 # 경로 규칙표 (v4 2.1의 표를 코드로 옮긴 것). (대분류, 기존 테스트 상태) → 조치.
 # "기대값을 자동으로 고친다"는 행은 여기 존재하지 않는다 — 추가 금지(R3).
@@ -57,31 +63,54 @@ _TABLE: dict[tuple[str, str], tuple[str, str]] = {
 }
 
 
-def decide(change: ChangedSymbol, intent: Intent, tests_status: str) -> ActionDecision:
+def decide(
+    change: ChangedSymbol,
+    intent: Intent,
+    tests_status: str,
+    callers: Sequence[Caller] = (),
+) -> ActionDecision:
     """규칙표에서 길을 찾고, 지침서를 조립한다.
 
     입력: change 변경 심볼, intent 의도 분류 결과, tests_status 기존 테스트 상태
-      (TESTS_PASS/FAIL/NONE — 대상을 실측 커버하는 테스트의 실행 결과).
+      (TESTS_PASS/FAIL/NONE — 대상을 실측 커버하는 테스트의 실행 결과),
+      callers 영향 범위(정적 추정 호출자, ADR-0026) — **지침서 내용에만** 들어가고 길(kind)에는
+      관여하지 않는다. 추정 관계가 안전장치 입력이 되면 안 되기 때문이다(R2, ADR-0026 D2).
     출력: ActionDecision. 분류가 불확실(unclear)하면 표를 보기 전에 ASK다.
     """
     if intent.category == INTENT_UNCLEAR or (intent.category, tests_status) not in _TABLE:
         return ActionDecision(
             kind=ACTION_ASK,
             target=change.target,
-            briefing=_briefing(change, intent),
+            briefing=_briefing(change, intent, callers),
             reason="분류 불확실 → 추측하지 않고 사람에게 묻는다(R3)",
         )
     kind, reason = _TABLE[(intent.category, tests_status)]
     return ActionDecision(
-        kind=kind, target=change.target, briefing=_briefing(change, intent), reason=reason
+        kind=kind,
+        target=change.target,
+        briefing=_briefing(change, intent, callers),
+        reason=reason,
     )
 
 
-def _briefing(change: ChangedSymbol, intent: Intent) -> str:
+def _briefing(change: ChangedSymbol, intent: Intent, callers: Sequence[Caller] = ()) -> str:
     """작업 지침서 — LLM의 구체 분석을 결정적 틀에 끼워 넣는다 (내용만, 길은 못 바꾼다)."""
     signature_note = " (시그니처 변경됨)" if change.signature_changed else ""
-    return (
+    text = (
         f"대상: {change.target}{signature_note}\n"
         f"변경 규모: +{change.lines_added}/-{change.lines_removed} 줄\n"
         f"분석과 시험 지침: {intent.analysis}"
     )
+    if callers:
+        # 영향 범위(ADR-0026 D2 ②): 호출자와 호출 줄을 보여 주고, 호출자 경유 시나리오를 요구한다
+        listed = "; ".join(
+            f"{c.target} [{c.confidence}]" + (f" — {c.excerpt}" if c.excerpt else "")
+            for c in callers[:MAX_BRIEFING_CALLERS]
+        )
+        hidden = len(callers) - MAX_BRIEFING_CALLERS
+        more = f" 외 {hidden}곳" if hidden > 0 else ""
+        text += (
+            f"\n영향 범위(정적 추정, 이 메서드를 호출하는 곳): {listed}{more}"
+            "\n영향 시험 지침: 호출자를 거쳐 변경된 동작이 드러나는 시나리오를 1개 이상 시험하라"
+        )
+    return text

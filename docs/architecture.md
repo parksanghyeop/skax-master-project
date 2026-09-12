@@ -94,12 +94,14 @@ docs/       설계·산출물 문서
 | `graph/model.py` | 그래프 노드·엣지 모델 (확정 엣지 3종) | M4 |
 | `graph/store.py` | GraphStore 인터페이스 + 인메모리 구현 | M4 |
 | `graph/neo4j_store.py` | Neo4j 실물 저장소 (샌드박스 밖 별도 컨테이너, v4 6.5) | M4 |
-| `graph/answers.py` | 그래프 질의 → 답 문장 (CodeGraph 구현) | M4 |
-| `adapters/java/graph_builder.py` | Java 소스 → 노드·엣지 (DECLARES·CREATES) | M4 |
+| `graph/answers.py` | 그래프 질의 → 답 문장 (CodeGraph 구현) — `callers`는 CALLS 추정, "추정" 표기 | M4·ADR-0026 |
+| `adapters/java/graph_builder.py` | Java 소스 → 노드·엣지 (DECLARES·CREATES + CALLS) | M4·ADR-0026 |
+| `adapters/java/calls.py` | 호출 관계(CALLS) 정적 추정 — 확신도 규칙, 그 자리 파싱 폴백 `StaticImpactFinder` | ADR-0026 |
+| `graph/impact.py` | CALLS 엣지 → 호출자 목록 (`ImpactFinder` 구현 `GraphImpactFinder`) | ADR-0026 |
 | `adapters/java/coverage.py` | JaCoCo 실측 실행·파싱 — COVERS 근거, 커버리지 게이트 재사용 | M4 |
 | `core/pipeline/models.py` | 파이프라인 데이터 모델 (변경 심볼·변경 묶음·의도·조치) | M5 |
-| `core/pipeline/decide.py` | 조치 결정 규칙표(+trivial 행) + 지침서 조립 — LLM 금지(R2) | M5 |
-| `core/pipeline/maintain.py` | 변경 대응 분석 — 건별 분류→검증 테스트 실행→규칙표 (포트만 사용) | ADR-0015 |
+| `core/pipeline/decide.py` | 조치 결정 규칙표(+trivial 행) + 지침서 조립 — LLM 금지(R2). 영향 범위(callers)는 지침서 내용에만 | M5·ADR-0026 |
+| `core/pipeline/maintain.py` | 변경 대응 분석 — 건별 분류→검증 테스트 실행→규칙표 (포트만 사용). `--impact` 파생 건(확신 high 호출자, 깊이 1) | ADR-0015·0026 |
 | `adapters/java/changes.py` | git diff → 변경 심볼 + 단서(시그니처·접근 제어자·주석만·커밋 메시지·이슈), 수정 전 소스, 참조 파싱 TestLocator | M5·ADR-0015 |
 | `core/gates.py` | 게이트 실행기·설정(cta.toml [gates]) — 검문소의 언어 무관 틀 | M6 |
 | `core/config.py` | cta.toml 전체 설정 — 게이트·반복 상한·시간 초과·모델·토큰 예산. 우선순위 환경변수 > .env > cta.toml | 3단계 A-2 |

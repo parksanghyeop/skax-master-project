@@ -86,3 +86,17 @@ class TestPrecedence:
         dotenv.write_text("CTA_LLM_MODEL=gpt-4.1\n", encoding="utf-8")
         _, model = make_llm_client(dotenv, model_default="gpt-5")
         assert model == "gpt-4.1"
+
+
+class TestImpactConfig:
+    """[impact] max_callers — --impact 파생 생성 건 상한 (ADR-0026 D2 ③)."""
+
+    def test_기본값은_3이고_적으면_그_값이다(self, tmp_path):
+        assert load_config(tmp_path).impact_max_callers == 3
+        (tmp_path / "cta.toml").write_text("[impact]\nmax_callers = 1\n", encoding="utf-8")
+        assert load_config(tmp_path).impact_max_callers == 1
+
+    def test_음수면_시작_시점에_멈춘다(self, tmp_path):
+        (tmp_path / "cta.toml").write_text("[impact]\nmax_callers = -1\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="max_callers"):
+            load_config(tmp_path)

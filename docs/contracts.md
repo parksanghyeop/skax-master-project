@@ -17,10 +17,11 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `SimilarTestFinder` | `find(target: str) -> str` | 모양이 닮은 기존 테스트 발췌. 없으면 안내 문자열 |
 | `QualityChecker` | `check(path: str) -> str` | "통과"/"탈락" 선두의 결정적 검사 결과(R2) |
 | `UserGate` | `ask(question: str) -> UserReply` | 반복 중단 지점. interrupt 실연결(InterruptUserGate) |
-| `CodeGraph` | `answer(query: str, target: str) -> str` | 그래프 질의(M4). 구현: GraphCodeGraph(그래프 실물)/ParsingCodeGraph(파싱 폴백). 답 상한 800토큰(도구 층 clip) |
+| `CodeGraph` | `answer(query: str, target: str) -> str` | 그래프 질의(M4). 구현: GraphCodeGraph(그래프 실물)/ParsingCodeGraph(파싱 폴백 — `callers`는 그 자리 정적 그래프로 답한다, ADR-0026). 답 상한 800토큰(도구 층 clip) |
 | `TestCodeGenerator` | `generate(instruction, context, current_code, last_failure) -> str` | LLM은 이 포트 뒤(llm/generation.py)에만 있다 |
 | `ChangeExtractor` | `extract() -> ChangeSet` | 결정적 — 같은 diff면 같은 출력. 구현 `GitChangeExtractor` |
 | `IntentClassifier` | `classify(change: ChangedSymbol, change_set: ChangeSet, memos: str = "") -> Intent` | 변경 **한 건당** LLM 1회. 구현 `llm/intent.PromptedIntentClassifier`. memos는 참고 자료일 뿐 규칙표를 우회 못 함 |
+| `ImpactFinder` | `find(target: str) -> list[Caller]` | 영향 범위 — 대상을 호출하는 곳(정적 추정, 확신도 포함, ADR-0026). 구현: `graph/impact.GraphImpactFinder(store, project_key)`(CALLS 엣지) / `adapters/java/calls.StaticImpactFinder(project)`(그 자리 파싱 폴백). **규칙표·기존 테스트 상태에는 쓰지 않는다**(D2) |
 | `TestLocator` | `find(target: str) -> list[str]` | 대상을 검증하는 기존 테스트 selector. 구현: `GraphTestLocator(store, project_key)`(COVERS 실측, cli) / `ReferencingTestLocator`(소스 참조 파싱 폴백, adapters). 선택은 `cli/graph_access.try_open_store`(접속 확인 질의 후 결정) |
 
 `target`·`selector` 문법은 어댑터가 해석한다 — core는 불투명 문자열로 취급.
@@ -113,11 +114,12 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | `ChangedSymbol` | `target, lines_added, lines_removed, signature_changed, diff_excerpt, access_changed=False, comment_only=False, file_rel="", change_line=0` | 변경 추출 출력 + 단서. comment_only면 LLM 없이 trivial |
 | `ChangeSet` | `symbols: list[ChangedSymbol], commit_message="", issue_refs=()` | 변경 단위 공통 단서. 미커밋 변경이면 commit_message 빈 값 |
 | `Intent` | `category(bug_fix/refactor/new_feature/trivial/unclear), analysis, confidence(0~1), evidence: tuple[str]` | 파싱 실패·모르는 값 → unclear(confidence 0). **화면에 전부 출력된다** |
-| `decide` | `(ChangedSymbol, Intent, tests_status) -> ActionDecision` | **규칙표 조회, LLM 금지(R2)**. tests_status: pass/fail/none |
+| `Caller` | `target, confidence(CONFIDENCE_HIGH/MEDIUM), excerpt=""` | 영향 범위 한 건(ADR-0026). excerpt는 호출 줄 발췌(지침서용) |
+| `decide` | `(ChangedSymbol, Intent, tests_status, callers=()) -> ActionDecision` | **규칙표 조회, LLM 금지(R2)**. tests_status: pass/fail/none. callers는 **지침서 내용에만** 들어간다 — kind·reason은 callers와 무관(ADR-0026 D2, 테스트 `TestImpactRange`) |
 | `ActionDecision` | `kind(create_test/no_action/escalate/ask), target, briefing, reason` | 기대값 자동 수정 행은 표에 없다(R3). refactor+fail→escalate, unclear→ask, refactor+none→ask, trivial→no_action |
-| `analyze_changes` (maintain) | `(change_set, classifier, locator, runner, memo_lookup=None, progress=None, author_intent=None) -> list[ChangeAnalysis]` | 건별 분류 → 검증 테스트 실행(같은 묶음 1회) → 규칙표. comment_only는 분류기 호출 없이 `TRIVIAL_INTENT`. author_intent(--intent)가 있으면 분류를 그 값으로 덮어쓴다(comment_only는 예외) |
+| `analyze_changes` (maintain) | `(change_set, classifier, locator, runner, memo_lookup=None, progress=None, author_intent=None, impact=None, impact_max=0) -> list[ChangeAnalysis]` | 건별 분류 → 검증 테스트 실행(같은 묶음 1회) → 규칙표. comment_only는 분류기 호출 없이 `TRIVIAL_INTENT`. author_intent(--intent)가 있으면 분류를 그 값으로 덮어쓴다(comment_only는 예외). impact가 있으면 건마다 호출자를 모아 지침서·화면에 넣고, impact_max>0(`--impact`)이면 원본이 create_test일 때 확신 high 호출자를 **파생 건**으로 원본 뒤에 추가한다(의도 상속, LLM 추가 호출 없음, 깊이 1, 이미 변경된 대상·중복 제외, ADR-0026 D2 ③) |
 | `with_author_intent` / `AUTHOR_INTENTS` (maintain) | `(Intent, category) -> Intent` / `(bug_fix, refactor, new_feature)` | 작성자 지정 의도(ADR-0020 D1): category·확신도 1.0·근거 첫 줄 "작성자 지정 의도". LLM 근거·분석은 유지. trivial·unclear 지정은 ValueError |
-| `ChangeAnalysis` | `change, intent, tests, tests_status, run_summary, decision, memos` | 화면 블록(①②…)과 후속 처리의 단위 |
+| `ChangeAnalysis` | `change, intent, tests, tests_status, run_summary, decision, memos, callers=[], derived_from=""` | 화면 블록(①②…)과 후속 처리의 단위. callers는 영향 범위(정적 추정), derived_from은 파생 건의 원본 대상(원본 건은 빈 값) |
 
 ## 테스트 작성 서브그래프 (core/writer_graph)
 
@@ -166,7 +168,7 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
 | `load_config` | `(project_root) -> CtaConfig` | 없으면 전부 기본값. [retry] 값이 1 미만이면 ValueError(시작 시점에 멈춤) |
-| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, reasoning_effort: str \| None, max_tokens_per_run: int \| None` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
+| `CtaConfig` | `gates: GateConfig, retry: RetryConfig(ask_every=4, max_total=8), gateway_timeout_sec: int \| None, model: str \| None, reasoning_effort: str \| None, max_tokens_per_run: int \| None, impact_max_callers: int = 3` | None = "설정 안 함"(환경변수·코드 기본값 사용). 시크릿(주소·키)은 이 파일로 받지 않는다(ADR-0011) |
 | 우선순위 | 환경변수 > `.env` > `cta.toml` > 코드 기본값 | cta.toml 값은 `make_llm_client(model_default, timeout_default, reasoning_effort_default)` 인자로만 들어간다(환경변수 미기록) — 커밋되는 프로젝트 설정이 개인 설정을 덮지 않고, 오래 사는 프로세스가 프로젝트를 바꿔도 이전 값이 남지 않는다 |
 
 절 5개: `[gates]` line_min·branch_min·max_retries·mutation_min / `[retry]` ask_every·max_total / `[gateway]` timeout_sec / `[llm]` model·reasoning_effort(허용값 minimal/low/medium/high/none, 아니면 ValueError) / `[budget]` max_tokens_per_run.
@@ -206,13 +208,15 @@ core가 바깥 세계와 만나는 인터페이스. 구현은 adapters/에만 �
 | 항목 | 시그니처 | 계약 |
 |---|---|---|
 | `GraphNode` | `kind("Class"/"Method"), key, props` | key: 클래스 `Calc`, 메서드 `Calc#add` (오버로드 미구분 — 알려진 한계) |
-| `GraphEdge` | `kind, src, dst` | 확정 3종: DECLARES(클래스→메서드), CREATES(메서드→생성 클래스), COVERS(테스트 클래스→실측 실행 메서드) |
-| `GraphStore` | `replace_project(project, nodes, edges)` / `neighbors(project, key, edge_kind, direction)` / `methods_by_kind(project, is_test)` | 구현: InMemoryGraphStore(테스트·폴백), Neo4jGraphStore(실물, 환경변수 `CTA_NEO4J_URI/USER/PASSWORD`) |
-| `build_graph` (adapters/java) | `(MavenProject) -> (nodes, edges)` | 정적 파싱으로 DECLARES·CREATES. COVERS는 `JacocoCoverageCollector.collect_edges` |
+| `GraphEdge` | `kind, src, dst, confidence="", excerpt=""` | 확정 3종: DECLARES(클래스→메서드), CREATES(메서드→생성 클래스), COVERS(테스트 클래스→실측 실행 메서드). 추정 1종: CALLS(메서드→호출하는 메서드, `confidence`=high/medium 필수, `excerpt`=호출 줄 — ADR-0026). 확정 3종은 두 필드가 빈 값 |
+| `GraphStore` | `replace_project(project, nodes, edges)` / `neighbors(project, key, edge_kind, direction)` / `methods_by_kind(project, is_test)` / `edges_in(project, key, edge_kind) -> list[GraphEdge]` | 구현: InMemoryGraphStore(테스트·폴백), Neo4jGraphStore(실물, 환경변수 `CTA_NEO4J_URI/USER/PASSWORD`) |
+| `build_graph` (adapters/java) | `(MavenProject) -> (nodes, edges)` | 정적 파싱으로 DECLARES·CREATES + CALLS(main 트리만, `calls.extract_calls`). COVERS는 `JacocoCoverageCollector.collect_edges` |
+| `extract_calls` (adapters/java/calls) | `(list[ClassSource]) -> list[GraphEdge]` | CALLS 추정 규칙: 같은 클래스 `이름(`→high · 선언 타입이 프로젝트 클래스인 `x.이름(`→high · 타입 미상+이름 유일→medium · 그 밖은 엣지 없음. 생성자·재귀·주석·문자열 제외 |
 | `parse_covered_methods` | `(jacoco_xml: str) -> set[str]` | 라인 커버>0 메서드 key. 생성자 제외. 커버리지 게이트가 재사용 |
 
 쿼리 6종 중 실응답: `verifying_tests`(COVERS 실측) · `how_to_create`(CREATES, 테스트 우선) ·
-`similar_tests`(모양 거리). 후순위(안내 문장): `callers`(CALLS 추정 필요) · `implementations` · `touches_outside`.
+`similar_tests`(모양 거리) · `callers`(CALLS 정적 추정 — 답에 "정적 추정"과 확신도를 반드시 붙인다, ADR-0026).
+후순위(안내 문장): `implementations` · `touches_outside`.
 
 ## 도구 공통 규약
 

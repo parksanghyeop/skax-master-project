@@ -5,16 +5,25 @@
 길이 상한은 도구 층(core/tools)이 걸므로 여기서는 내용만 만든다.
 """
 
-from cta.graph.model import EDGE_COVERS, EDGE_CREATES, GraphNode
+from cta.graph.model import (
+    CALLS_HIGH,
+    CALLS_MEDIUM,
+    EDGE_CALLS,
+    EDGE_COVERS,
+    EDGE_CREATES,
+    GraphNode,
+)
 from cta.graph.store import GraphStore
 
 # 답에 담을 최대 항목 수. 많을수록 토큰만 늘고 행동 유도 효과는 줄어든다(경험칙).
 MAX_ITEMS = 5
 MAX_SIMILAR = 2  # 본보기는 2개 — 1단계 파싱 기반 구현과 같은 기준
+# 호출자 정렬 — 확신 높은 것부터(ADR-0026 D1). 모르는 값은 뒤로
+_CONFIDENCE_RANK = {CALLS_HIGH: 0, CALLS_MEDIUM: 1}
 
 
 class GraphCodeGraph:
-    """확정 엣지 3종으로 답하는 CodeGraph 구현 (쿼리 이름은 core/tools의 목록)."""
+    """확정 엣지 3종 + 추정 CALLS로 답하는 CodeGraph 구현 (쿼리 이름은 core/tools의 목록)."""
 
     def __init__(self, store: GraphStore, project: str) -> None:
         self._store = store
@@ -25,14 +34,10 @@ class GraphCodeGraph:
             "verifying_tests": self._verifying_tests,
             "how_to_create": self._how_to_create,
             "similar_tests": self._similar_tests,
+            "callers": self._callers,
         }
         if query in handlers:
             return handlers[query](target)
-        if query == "callers":
-            return (
-                "호출 관계(CALLS)는 정적으로 100% 확정이 안 돼 후순위다 — "
-                "inspect_target으로 확인하라"
-            )
         return f"쿼리 {query!r}는 아직 그래프가 답하지 못한다 — inspect_target을 쓰라"
 
     def _verifying_tests(self, target: str) -> str:
@@ -45,6 +50,22 @@ class GraphCodeGraph:
             )
         names = ", ".join(sorted(t.key for t in tests)[:MAX_ITEMS])
         return f"{target}를 실제로 실행하는 테스트(커버리지 실측): {names}"
+
+    def _callers(self, target: str) -> str:
+        """이 메서드를 호출하는 곳 — CALLS(정적 추정)에서. 답에 반드시 "추정"을 붙인다(v4 4.1 ①)."""
+        edges = self._store.edges_in(self._project, target, EDGE_CALLS)
+        if not edges:
+            return (
+                f"{target}를 호출하는 곳 없음 (정적 추정 — main 소스에서 호출을 찾지 못했다. "
+                "리플렉션·DI 경유 호출은 잡지 못하니 필요하면 inspect_target으로 확인하라)"
+            )
+        ranked = sorted(edges, key=lambda e: (_CONFIDENCE_RANK.get(e.confidence, 9), e.src))
+        items = ", ".join(f"{e.src} [{e.confidence}]" for e in ranked[:MAX_ITEMS])
+        more = f" 외 {len(ranked) - MAX_ITEMS}곳" if len(ranked) > MAX_ITEMS else ""
+        return (
+            f"{target}를 호출하는 곳 (정적 추정, 확신도 high/medium): {items}{more} — "
+            "추정이므로 필요하면 inspect_target으로 확인하라"
+        )
 
     def _how_to_create(self, target: str) -> str:
         """이 클래스를 생성하는 기존 코드 — CREATES 엣지에서, 테스트 코드 우선."""

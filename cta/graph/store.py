@@ -17,6 +17,8 @@ class GraphStore(Protocol):
       (변경 파일만 갱신하는 증분 방식은 M5의 변경 추출과 함께 도입 예정)
     neighbors: node_key에 연결된 이웃을 엣지 종류·방향으로 찾는다.
     methods_by_kind: kind·is_test로 메서드 노드를 모아 온다(모양 비교는 호출부가).
+    edges_in: node_key로 들어오는 엣지 자체를 돌려준다 — 확신도·발췌가 엣지에 있는
+      CALLS(ADR-0026)처럼 이웃 노드만으로는 부족할 때 쓴다.
     """
 
     def replace_project(
@@ -28,6 +30,8 @@ class GraphStore(Protocol):
     ) -> list[GraphNode]: ...
 
     def methods_by_kind(self, project: str, is_test: bool) -> list[GraphNode]: ...
+
+    def edges_in(self, project: str, node_key: str, edge_kind: str) -> list[GraphEdge]: ...
 
 
 class InMemoryGraphStore:
@@ -61,4 +65,13 @@ class InMemoryGraphStore:
             n
             for n in self._nodes.get(project, {}).values()
             if n.kind == "Method" and bool(n.props.get("is_test")) == is_test
+        ]
+
+    def edges_in(self, project: str, node_key: str, edge_kind: str) -> list[GraphEdge]:
+        """node_key로 들어오는 edge_kind 엣지들 (출발 노드가 그래프에 있는 것만)."""
+        nodes = self._nodes.get(project, {})
+        return [
+            e
+            for e in self._edges.get(project, [])
+            if e.kind == edge_kind and e.dst == node_key and e.src in nodes
         ]

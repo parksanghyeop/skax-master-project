@@ -31,5 +31,5 @@ def choose_code_graph(project: MavenProject) -> tuple[CodeGraph, str, Neo4jGraph
     key = str(project.root)
     store = try_open_store(key)
     if store is None:
-        return ParsingCodeGraph(JavaSimilarTestFinder(project)), FALLBACK_NOTE, None
+        return ParsingCodeGraph(JavaSimilarTestFinder(project), project), FALLBACK_NOTE, None
     return GraphCodeGraph(store, key), GRAPH_NOTE, store

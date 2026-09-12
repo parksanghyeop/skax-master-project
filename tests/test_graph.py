@@ -126,8 +126,13 @@ class TestGraphAnswers:
         assert "본보기" in answer and "add_twoPositives_returnsSum" in answer
 
     def test_후순위_쿼리는_안내_문장이다(self, tmp_path):
-        answer = self._graph(tmp_path).answer("callers", "Calc#add")
+        answer = self._graph(tmp_path).answer("implementations", "Calc")
         assert "inspect_target" in answer
+
+    def test_callers는_CALLS_추정_엣지로_답한다(self, tmp_path):
+        # CalcFactory.standard는 Calc를 생성만 하고 add를 부르지 않는다 → 없음(추정 표기 포함)
+        answer = self._graph(tmp_path).answer("callers", "Calc#add")
+        assert "없음" in answer and "정적 추정" in answer
 
 
 class TestJacocoParser:

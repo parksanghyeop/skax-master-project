@@ -37,7 +37,7 @@ cta apply                                         # 반영
 | 명령 | 역할 | 종료 코드 |
 |---|---|---|
 | `cta generate <파일명> \| --class C [--max-methods N]` | 테스트 없는 메서드에 생성 → 제안 | 0/2/3/1 |
-| `cta maintain [--diff REF] [--plan-only] [--intent 의도] [--message "..."]` | git 변경 → 건별 판단 → 규칙표 → 생성 또는 사람 확인. 작성자가 의도를 알면 `--intent`로 확정 | 0/2/3/1 |
+| `cta maintain [--diff REF] [--plan-only] [--intent 의도] [--message "..."] [--impact]` | git 변경 → 건별 판단 → 규칙표 → 생성 또는 사람 확인. 작성자가 의도를 알면 `--intent`로 확정. `--impact`는 변경 메서드를 호출하는 곳(정적 추정, 확신 high)에도 테스트 생성 | 0/2/3/1 |
 | `cta resolve [id] --intended\|--test-issue\|--proceed\|--as 의도\|--skip` | 사람 확인 항목에 답해 재개. `--as`는 "의도 모름" 항목에 의도를 지정 | 0/2/3/1 |
 | `cta diff [이름]` / `cta apply [이름\|--all]` / `cta discard` | 제안 확인 / 반영 / 폐기 | 0 |
 | `cta graph [--coverage]` | Neo4j에 코드 그래프 빌드 (선택) | 0/1 |
@@ -68,6 +68,7 @@ cta apply                                         # 반영
 ## 알려진 한계
 
 Maven 단일 모듈만(멀티모듈·Gradle 미지원). 소스 파서는 정규식 기반이라 제네릭·중첩 클래스가 많은 코드에서 빗나갈 수 있다.
+영향 범위(호출하는 곳)는 정적 추정이라 상속·리플렉션·DI 경유 호출은 잡지 못하며, 조치 결정에는 쓰지 않는다.
 화면의 확신도는 모델이 매긴 값이며 코드는 이 값으로 분기하지 않는다. 전체 목록은 사용가이드 §14.
 
 ## 개발

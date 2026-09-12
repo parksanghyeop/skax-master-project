@@ -8,6 +8,7 @@ v4 4.1 쿼리 "비슷한 모양의 테스트는?"의 PoC 구현. 좋은 본보�
 
 from cta.adapters.java.maven import MavenProject
 from cta.adapters.java.parsing import extract_methods, find_class_file, parse_methods, parse_target
+from cta.core.ports import CodeGraph
 
 # 프롬프트에 붙일 본보기 수. 많을수록 토큰만 늘고 효과가 줄어 2개로 제한(경험칙, 조정 가능).
 MAX_EXAMPLES = 2
@@ -16,22 +17,46 @@ MAX_EXAMPLES = 2
 class ParsingCodeGraph:
     """그래프 DB 없이 동작하는 CodeGraph 구현 — 파싱 기반 폴백.
 
-    similar_tests만 실응답(JavaSimilarTestFinder 위임)하고 나머지는 안내 문장.
+    similar_tests는 JavaSimilarTestFinder에 위임하고, callers는 그 자리에서 정적 그래프를
+    만들어 답한다(ADR-0026 — 그래프 DB가 필수가 되지 않게). 나머지는 안내 문장.
     왜 남겨 두나: 그래프를 아직 빌드하지 않은 프로젝트·1회성 실행에서도
     파이프라인이 돌아야 하고, 저장된 LLM 호출 기록(대표 시나리오)의 재생
-    호환도 이 구현이 보장한다.
+    호환도 이 구현이 보장한다. project를 안 주면(구 호출부) callers도 안내 문장이다.
     """
 
-    def __init__(self, finder: "JavaSimilarTestFinder") -> None:
+    def __init__(
+        self, finder: "JavaSimilarTestFinder", project: MavenProject | None = None
+    ) -> None:
         self._finder = finder
+        self._project = project
+        self._static: CodeGraph | None = None  # 첫 callers 질의 때 한 번만 파싱한다
 
     def answer(self, query: str, target: str) -> str:
         if query == "similar_tests":
             return self._finder.find(target)
+        if query == "callers" and self._project is not None:
+            if self._static is None:
+                self._static = static_code_graph(self._project)
+            return self._static.answer(query, target)
         return (
             f"그래프 미구축: 쿼리 {query!r}는 build_graph 실행 후 답할 수 있다 — "
             "지금은 inspect_target을 쓰라"
         )
+
+
+def static_code_graph(project: MavenProject) -> CodeGraph:
+    """프로젝트를 그 자리에서 파싱해 인메모리 그래프로 답하는 CodeGraph.
+
+    저장소(Neo4j) 없이 CALLS 질의(callers)에 답하기 위한 것이다(ADR-0026).
+    """
+    from cta.adapters.java.graph_builder import build_graph
+    from cta.graph.answers import GraphCodeGraph
+    from cta.graph.store import InMemoryGraphStore
+
+    nodes, edges = build_graph(project)
+    store = InMemoryGraphStore()
+    store.replace_project(str(project.root), nodes, edges)
+    return GraphCodeGraph(store, str(project.root))
 
 
 class JavaSimilarTestFinder:
