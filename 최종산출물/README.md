@@ -11,7 +11,7 @@
 | `3-user-command-flows.png` | 사용자 관점 명령어별 흐름 — generate / maintain(--impact) / resolve / diff·apply·discard / graph·eval·demo 레인 |
 | `4-graphdb-architecture.png` | 인포그래픽 — 코드 그래프(Neo4j) 구성: 채우기(정적 파싱·CALLS 추정·JaCoCo 실측) → 저장(GraphStore, 단일 라벨·관계) → 읽기(사전 정의 질의 4종, 도구·TestLocator·ImpactFinder), 폴백 |
 | `5-cli-flows-infographic.png` | 인포그래픽 간소화 — 명령어별 흐름(명령 한 줄 = 카드 몇 장, LLM 호출 단계 표시, 종료 코드) — 3번의 발표용 축약판 |
-| `6-project-structure.png` | 간소화 — 프로젝트 파일 구조: 층별 구역(core·graph·sandbox·adapters/java·llm·cli)과 핵심 파일마다 한 줄 설명, 그 밖(tests·evals·examples·scripts·docs·설정) |
+| `6-project-structure.png` | 간소화 — 프로젝트 파일 구조 트리(파일 탐색기 모양): 루트 → 층 폴더 → 핵심 파일, 노드마다 한 줄 설명, 색 = 층 |
 
 재생성: `python scripts/render_final_diagrams.py 최종산출물/cta-diagrams.drawio`
 PNG: draw.io 데스크톱 `-x -f png --width 2400 -p <1|2|3|4|5|6>`

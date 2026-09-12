@@ -439,226 +439,166 @@ def page_cli_infographic() -> Page:
 
 
 def page_structure() -> Page:
-    """6. 프로젝트 파일 구조 — 층별 구역 + '파일 — 한 줄 설명' 칩. 간소화(핵심 파일만)."""
+    """6. 프로젝트 파일 구조 — 트리(파일 탐색기) 형태. 폴더 → 파일로 연결선, 노드마다 한 줄 설명. 핵심 파일만."""
     p = Page("6. Project Structure")
     p.text("Code Test Agent — Project Structure", 40, 20, 900, 34, font=26, color=INK, bold=True)
     p.text(
-        "cta/ 아래 층 6개 + 테스트·스크립트·문서·예제. 의존 방향은 cli → core ← adapters · graph · llm · sandbox (core는 java·maven 같은 이름을 모른다, R1)",
+        "트리는 핵심 파일만 담았다(테스트·캐시·__init__ 생략). 색 = 층(core 초록 · adapters 노랑 · graph 보라 · llm 빨강 · sandbox 주황 · cli 파랑 · 그 밖 회색)",
         40,
         58,
         1500,
         24,
         font=14,
     )
+    STEP, IND, H = 33, 34, 27
+    EDGE = "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9ca3af;strokeWidth=1.5;endArrow=none;exitX=0.02;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
 
-    def block(x, y, w, title, color, items, icon="code"):
-        h = 48 + len(items) * 34
-        zone = p.zone(x, y, w, h, title, color)
-        for i, (name, desc, ic) in enumerate(items):
-            p.chip(
-                16,
-                40 + i * 34,
-                w - 32,
-                ic or icon,
-                f"<b>{name}</b> — {desc}",
-                color,
-                parent=zone,
-                h=28,
-                font=11,
-            )
-        return h
+    def tree(x0, y0, w, nodes):
+        """nodes: (depth, icon, name, desc, color). 같은 깊이의 직전 노드가 아니라 얕은 직전 노드가 부모다."""
+        stack: dict[int, str] = {}
+        y = y0
+        for depth, icon, name, desc, color in nodes:
+            label = f"<b>{name}</b>" + (f"  <font color='#6b7280'>— {desc}</font>" if desc else "")
+            cid = p.chip(x0 + depth * IND, y, w - depth * IND, icon, label, color, h=H, font=11)
+            parent = stack.get(depth - 1)
+            if parent is not None:
+                p.edge(parent, cid, "", EDGE)
+            stack[depth] = cid
+            for d in [k for k in stack if k > depth]:
+                del stack[d]
+            y += STEP
+        return y
 
-    # 열 1
-    y = 110
-    y += (
-        block(
-            40,
-            y,
-            560,
-            "cta/core — 핵심 로직 (언어를 모른다)",
-            GREEN,
-            [
-                ("ports.py", "포트(인터페이스) 9종 — 바깥 세계와 만나는 경계", None),
-                (
-                    "pipeline/ decide.py · maintain.py",
-                    "규칙표(의도 × 테스트 상태)와 변경 대응 분석",
-                    "table",
-                ),
-                (
-                    "tools/ 6개",
-                    "inspect · query_code_graph · write · run · check_quality · report_finding",
-                    "gear",
-                ),
-                ("writer_graph.py", "legacy 작성 루프 (LangGraph 서브그래프, ≤8회)", "loop"),
-                (
-                    "agent/ build.py · subagents.py · limits.py",
-                    "Deep Agent 메인 + 서브 3, 반복 상한 원장",
-                    "robot",
-                ),
-                ("gates.py · submit.py", "게이트 계약과 생성→게이트 재시도 루프(≤3회)", "shield"),
-                ("config.py", "cta.toml 읽기 — 기준치·상한·모델·예산·[impact]", "list"),
-            ],
-        )
-        + 20
-    )
-    y += (
-        block(
-            40,
-            y,
-            560,
-            "cta/graph — 코드 그래프 (Neo4j 선택)",
-            PURPLE,
-            [
-                ("model.py", "노드 2종 · 엣지 4종(DECLARES·CREATES·COVERS + CALLS 확신도)", "db"),
-                ("store.py · neo4j_store.py", "GraphStore 포트 — 인메모리 / Neo4j 실물", "db"),
-                (
-                    "answers.py · impact.py",
-                    "질의 → 답 문장 · CALLS → 호출자 목록(ImpactFinder)",
-                    "search",
-                ),
-            ],
-        )
-        + 20
-    )
-    block(
+    D, F = "folder", "code"
+    # ── 열 1: 루트와 층 폴더, cta/core·graph·sandbox ──
+    tree(
         40,
-        y,
-        560,
-        "cta/sandbox — 실행 장치 (R6)",
-        AMBER,
+        110,
+        540,
         [
-            ("local_sandbox.py", "이 PC의 Maven·JDK (기본)", "gear"),
-            (
-                "docker_sandbox.py · factory.py",
-                "네트워크 차단 컨테이너 (--runner docker) · 선택기",
-                "box",
-            ),
+            (0, D, "skax-master-project/", "리포지토리 루트", GRAY),
+            (1, D, "cta/", "제품 코드 — 층 6개", GREEN),
+            (2, D, "core/", "핵심 로직 · 언어를 모른다(R1)", GREEN),
+            (3, F, "ports.py", "포트(인터페이스) 9종", GREEN),
+            (3, D, "pipeline/", "decide(규칙표) · maintain(변경 대응) · models", GREEN),
+            (3, D, "tools/", "고유 도구 6개, 1도구 1파일", GREEN),
+            (3, F, "writer_graph.py", "legacy 작성 루프(LangGraph, ≤8회)", GREEN),
+            (3, D, "agent/", "Deep Agent 메인+서브 3 · limits 원장 · prompts/", GREEN),
+            (3, F, "gates.py · submit.py", "게이트 계약 · 생성→게이트 재시도(≤3회)", GREEN),
+            (3, F, "config.py", "cta.toml — 기준치·상한·모델·예산·[impact]", GREEN),
+            (2, D, "graph/", "코드 그래프 (Neo4j 선택)", PURPLE),
+            (3, F, "model.py", "노드 2종 · 엣지 4종(+CALLS 확신도)", PURPLE),
+            (3, F, "store.py · neo4j_store.py", "GraphStore — 인메모리 / Neo4j", PURPLE),
+            (3, F, "answers.py · impact.py", "질의 → 답 · CALLS → 호출자(ImpactFinder)", PURPLE),
+            (2, D, "sandbox/", "실행 장치 (R6)", AMBER),
+            (3, F, "local_sandbox.py", "이 PC의 Maven·JDK (기본)", AMBER),
+            (3, F, "docker_sandbox.py · factory.py", "격리 컨테이너 · 선택기", AMBER),
+            (2, D, "adapters/java/", "열 2에 펼침", AMBER),
+            (2, D, "llm/", "열 2에 펼침", RED),
+            (2, D, "cli/", "열 3에 펼침", BLUE),
+            (2, D, "evals/", "열 3에 펼침", GRAY),
         ],
     )
-
-    # 열 2
-    y = 110
-    y += (
-        block(
-            640,
-            y,
-            560,
-            "cta/adapters/java — 포트의 Java·Maven 구현",
-            AMBER,
-            [
-                (
-                    "parsing.py · materials.py",
-                    "정규식 파서 · 재료 수집(메서드 선정·확인 항목·생성법)",
-                    None,
-                ),
-                ("changes.py", "git diff → 변경 심볼 + 단서, 참조 파싱 TestLocator", "git"),
-                ("graph_builder.py · calls.py", "소스 → 노드·엣지, 호출 관계 추정(확신도)", "link"),
-                (
-                    "coverage.py · mutation.py · regression.py",
-                    "JaCoCo 실측 · PIT 뮤테이션 · 수정 전 코드 회귀",
-                    "pulse",
-                ),
-                ("gates.py", "게이트 구현 — assert·스킵·범위·커버리지(줄 원문 첨부)", "shield"),
-                (
-                    "writer.py · merge.py",
-                    "테스트 쓰기·컴파일 검사 · 조각 병합(같은 이름은 제자리 교체)",
-                    "pen",
-                ),
-                (
-                    "runner.py · inspector.py · similar.py",
-                    "선택 실행(R5) · 대상 조사 · 유사 테스트(폴백)",
-                    "play",
-                ),
-                ("skills/ SKILL.md", "작성 지식 규칙(junit5-mockito · regression-test)", "list"),
-            ],
-        )
-        + 20
-    )
-    block(
-        640,
-        y,
+    # ── 열 2: adapters/java · llm ──
+    tree(
+        620,
+        110,
         560,
-        "cta/llm — LLM 호출의 유일한 통로 (R7)",
-        RED,
         [
+            (0, D, "cta/adapters/java/", "포트의 Java·Maven 구현", AMBER),
+            (1, F, "parsing.py", "정규식 파서(메서드·assert·패키지)", AMBER),
+            (1, F, "materials.py", "재료 수집 — 메서드 선정·확인 항목·생성법", AMBER),
+            (1, F, "changes.py", "git diff → 변경 심볼+단서 · 참조 파싱 TestLocator", AMBER),
             (
-                "config.py · gateway.py · chat_model.py",
-                "클라이언트 생성 입구 · HTTP · LangChain 모델",
-                "chip",
+                1,
+                F,
+                "graph_builder.py · calls.py",
+                "소스 → 노드·엣지 · 호출 관계 추정(확신도)",
+                AMBER,
             ),
-            ("generation.py · intent.py", "테스트 작성 · 의도 분류 (LLM이 있는 두 자리)", "chip"),
-            ("embeddings.py", "판단 메모 상황 임베딩 — 자연어만, 기록·재생 포함", "vector"),
+            (1, F, "coverage.py", "JaCoCo 실측 → COVERS · 커버리지 게이트 재료", AMBER),
+            (1, F, "gates.py", "assert·스킵·범위·커버리지 게이트(줄 원문 첨부)", AMBER),
+            (1, F, "mutation.py · regression.py", "PIT 뮤테이션 · 수정 전 코드 회귀 게이트", AMBER),
             (
-                "replay.py · model_cassette.py",
-                "호출 기록·재생 — 어긋나면 실패, 실호출 폴백 없음",
-                "record",
+                1,
+                F,
+                "writer.py · merge.py",
+                "쓰기·컴파일 검사 · 조각 병합(같은 이름 제자리 교체)",
+                AMBER,
             ),
             (
-                "metering.py · masking.py · prompts/",
-                "토큰 합산·예산 · 시크릿 가림 · 프롬프트 파일",
-                "list",
+                1,
+                F,
+                "runner.py · inspector.py · similar.py",
+                "선택 실행(R5) · 대상 조사 · 유사 테스트 폴백",
+                AMBER,
             ),
+            (1, D, "skills/", "작성 지식 규칙 SKILL.md (junit5-mockito · regression-test)", AMBER),
+            (0, D, "cta/llm/", "LLM 호출의 유일한 통로 (R7)", RED),
+            (1, F, "config.py · gateway.py", "클라이언트 생성 입구 · 게이트웨이 HTTP", RED),
+            (
+                1,
+                F,
+                "chat_model.py · model_cassette.py",
+                "LangChain 모델 · 카세트 v2 미들웨어(deep)",
+                RED,
+            ),
+            (
+                1,
+                F,
+                "generation.py · intent.py",
+                "테스트 작성 · 의도 분류 — LLM이 있는 두 자리",
+                RED,
+            ),
+            (1, F, "embeddings.py", "판단 메모 상황 임베딩 — 자연어만, 기록·재생", RED),
+            (1, F, "replay.py", "호출 기록·재생 v1 — 어긋나면 실패, 폴백 없음", RED),
+            (1, F, "metering.py · masking.py", "토큰 합산·예산 · 시크릿 가림", RED),
+            (1, D, "prompts/", "system · write_test(_append) · classify_intent", RED),
         ],
     )
-
-    # 열 3
-    y = 110
-    y += (
-        block(
-            1240,
-            y,
-            520,
-            "cta/cli — 명령 조립·입출력 (판단 로직 없음)",
-            BLUE,
-            [
-                ("main.py", "진입점 cta <명령>, UTF-8 콘솔, 오류 안내", "terminal"),
-                ("generate.py", "재료 → 엔진 → 게이트 → 제안 (모든 생성의 공용 진입)", "robot"),
-                (
-                    "maintain_cmd.py · resolve_cmd.py",
-                    "변경 대응(--impact) · 사람 판단 재개",
-                    "table",
-                ),
-                (
-                    "proposals.py · escalations.py · memos.py",
-                    ".cta/ 제안 · 사람 확인 항목 · 판단 메모(임베딩)",
-                    "folder",
-                ),
-                (
-                    "render.py · hints.py · locate.py",
-                    "화면 형식 · 오류 3줄 안내 · 프로젝트 탐색",
-                    "eye",
-                ),
-                ("graph_cmd.py · eval_cmd.py · demo_cmd.py", "cta graph · eval · demo", "db"),
-            ],
-        )
-        + 20
-    )
-    block(
-        1240,
-        y,
-        520,
-        "그 밖",
-        GRAY,
+    # ── 열 3: cli · evals · 그 밖 ──
+    tree(
+        1220,
+        110,
+        540,
         [
+            (0, D, "cta/cli/", "명령 조립·입출력 (판단 로직 없음)", BLUE),
+            (1, F, "main.py", "진입점 cta <명령> · UTF-8 콘솔 · 오류 안내", BLUE),
+            (1, F, "generate.py", "재료 → 엔진 → 게이트 → 제안 (공용 진입)", BLUE),
             (
-                "tests/ (39 파일, 314건)",
-                "Fake 어댑터·기록 재생으로 도는 단위 테스트 + 층 규칙 검사",
-                "check",
+                1,
+                F,
+                "maintain_cmd.py · resolve_cmd.py",
+                "변경 대응(--impact) · 사람 판단 재개",
+                BLUE,
             ),
             (
-                "cta/evals/",
-                "결함 세트 12건 · 의도 세트 10건 · 대표 시나리오 기록 · 결과 JSON",
-                "pulse",
+                1,
+                F,
+                "proposals.py · escalations.py · memos.py",
+                ".cta/ 제안 · 사람 확인 항목 · 판단 메모",
+                BLUE,
             ),
-            ("examples/ demo · evalbench", "대상 Maven 프로젝트 예제", "code"),
-            ("scripts/", "그림 생성 · 기록 재생성 · 결함 점검", "pen"),
-            ("docs/ · docs/adr/", "설계(v4)·계약·ADR-0010~0026 — 과거 문서는 동결", "list"),
-            ("최종산출물/", "이 그림들 (cta-diagrams.drawio + PNG)", "folder"),
             (
-                "pyproject.toml · CLAUDE.md · .env.example",
-                "의존성·진입점 · 절대 규칙 · 설정 키",
-                "list",
+                1,
+                F,
+                "render.py · hints.py · locate.py",
+                "화면 형식 · 오류 3줄 안내 · 프로젝트 탐색",
+                BLUE,
             ),
+            (1, F, "graph_cmd.py · eval_cmd.py · demo_cmd.py", "cta graph · eval · demo", BLUE),
+            (0, D, "cta/evals/", "평가 재료", GRAY),
+            (1, D, "defects/ · intents/", "결함 세트 12건 · 의도 세트 10건", GRAY),
+            (1, D, "golden/ · results/", "대표 시나리오 기록 · 실측 결과 JSON", GRAY),
+            (0, D, "skax-master-project/ (계속)", "루트의 나머지", GRAY),
+            (1, D, "tests/", "단위 테스트 39 파일 · 314건 (Fake·기록 재생, 층 규칙 검사)", GRAY),
+            (1, D, "scripts/", "그림 생성 · 기록 재생성 · 결함 점검", GRAY),
+            (1, D, "examples/", "demo · evalbench — 대상 Maven 프로젝트 예제", GRAY),
+            (1, D, "docs/ · docs/adr/", "설계(v4)·계약·ADR-0010~0026 — 과거 문서는 동결", GRAY),
+            (1, D, "최종산출물/", "이 그림들 (cta-diagrams.drawio + PNG)", GRAY),
+            (1, F, "pyproject.toml", "의존성 · cta 진입점 · ruff·pytest 설정", GRAY),
+            (1, F, "CLAUDE.md · README.md", "절대 규칙 R1~R7 · 사용법", GRAY),
+            (1, F, ".env.example · cta.toml", "설정 키 이름(값 없음) · 프로젝트 설정", GRAY),
         ],
     )
     return p
