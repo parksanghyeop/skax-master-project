@@ -616,6 +616,44 @@ def main() -> None:
         page_cli_infographic(),
         page_structure(),
     ]
+    # 용어 통일 — 최종보고서와 같은 말을 쓴다: 안전장치→가드레일, 규칙표→규칙 테이블, 카세트→호출 기록, 도구→툴
+    for pg in pages:
+        _replace(
+            pg,
+            [
+                ("안전장치 (LLM 없음)", "가드레일 (LLM 없음)"),
+                ("안전장치는 전부 일반 코드.", "가드레일은 전부 일반 코드."),
+                (
+                    "안전장치(게이트·규칙표·반복 상한·사람 개입)",
+                    "가드레일(게이트·규칙 테이블·반복 상한·사람 개입)",
+                ),
+                (
+                    "안전장치 — 결정적, LLM 호출 없음 (R2).",
+                    "가드레일 — 결정적, LLM 호출 없음 (R2).",
+                ),
+                (".cta 상태/안전장치 틀", ".cta 상태/가드레일 틀"),
+                ("규칙표", "규칙 테이블"),
+                ("카세트 (CI는 재생만)", "호출 기록 저장·재생 (CI는 재생 전용)"),
+                ("기록 · 재생&#xa;", "record / replay&#xa;"),
+                ("CI는 재생 모드, 카세트 없으면 실패", "CI는 replay 모드, 호출 기록 없으면 실패"),
+                (
+                    "replay.py 카세트 v1 · model_cassette.py 카세트 v2(미들웨어)",
+                    "replay.py 호출 기록 v1 · model_cassette.py 호출 기록 v2(미들웨어)",
+                ),
+                ("저장된 LLM 호출 기록(카세트)으로", "저장된 LLM 호출 기록으로"),
+                (
+                    "LangChain 모델 · 카세트 v2 미들웨어(deep)",
+                    "LangChain 모델 · 호출 기록 v2 미들웨어(deep)",
+                ),
+                (
+                    "AGENT  (LangGraph · Deep Agents)",
+                    "AGENT  (Deep Agent · LangGraph) — 하네스 미들웨어로 통제",
+                ),
+                ("확정 3종 + 호출 관계(추정)", "GraphRAG · 확정 3종 + 호출(추정)"),
+                ("테스트 쓰기 · 실행&lt;", "SKILL.md · 쓰기 · 실행&lt;"),
+                ("도구", "툴"),
+            ],
+        )
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n<mxfile host="drawio" version="26.0.0" type="device">'
         + "".join(pg.xml() for pg in pages)
