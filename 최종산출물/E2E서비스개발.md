@@ -11,7 +11,7 @@
 
 Java 코드 변경에 맞춰 JUnit 테스트를 생성·수정하는 CLI 에이전트. LLM은 변경 의도 판단과 테스트 코드 작성 두 곳에만 사용하고, 가드레일(규칙 테이블·게이트 6종·반복 상한·사람 개입)은 전부 일반 코드. 생성물은 제안으로 보관되며 「cta apply」로만 소스에 반영.
 
-![Agent Architecture](1-agent-architecture.png)
+▶ 그림 삽입: 1-agent-architecture.png (Agent Architecture)
 
 ### 1-1. 구성 요소
 
@@ -25,20 +25,20 @@ Java 코드 변경에 맞춰 JUnit 테스트를 생성·수정하는 CLI 에이�
 
 ### 1-2. 명령 흐름
 
-![CLI Flows](5-cli-flows-infographic.png)
+▶ 그림 삽입: 5-cli-flows-infographic.png (CLI Flows)
 
 | 명령                                    | 흐름                                                                                             | exit code |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------ | --------- |
 | 「cta generate --class C」                | 재료 수집 → 작성(LLM) → 게이트 6종 → 제안                                                        | 0 / 2 / 3 |
 | 「cta maintain --diff HEAD~1 [--impact]」 | git diff → 의도 판단(LLM) → 기존 테스트 실행 + 영향 범위 → 규칙 테이블 → 생성 / 없음 / 사람 확인 | 0 / 2 / 3 |
-| 「cta resolve <id> --intended …」         | 저장 항목 → 재개(실패 테스트만 제자리 교체) → 게이트 → 제안 + 판단 메모(임베딩)                  | 0 / 2 / 3 |
+| 「cta resolve ID --intended …」         | 저장 항목 → 재개(실패 테스트만 제자리 교체) → 게이트 → 제안 + 판단 메모(임베딩)                  | 0 / 2 / 3 |
 | 「cta diff」 → 「cta apply」                | 검토 후 「src/test」 반영                                                                          | 0         |
 
 exit code 3은 "사람 확인 필요". CI는 이 값으로 분기.
 
 ### 1-3. 코드 그래프 (GraphRAG)
 
-![Graph DB Architecture](4-graphdb-architecture.png)
+▶ 그림 삽입: 4-graphdb-architecture.png (Graph DB Architecture)
 
 - 채우기: 정규식 파싱(DECLARES·CREATES) + JaCoCo 실측(COVERS) + 호출 관계 추정(CALLS, confidence high/medium)
 - 저장: 「GraphStore」 포트. Neo4j(단일 라벨 「CodeNode」·관계 「REL」 + 「kind」 프로퍼티) 또는 인메모리 폴백
@@ -46,7 +46,7 @@ exit code 3은 "사람 확인 필요". CI는 이 값으로 분기.
 
 ### 1-4. 패키지 구조
 
-![Project Structure](6-project-structure.png)
+▶ 그림 삽입: 6-project-structure.png (Project Structure)
 
 의존 방향 「cli → core ← adapters/java · graph · llm · sandbox」. 「core」는 언어를 모름(R1, 「test_layering.py」로 강제).
 
@@ -111,5 +111,5 @@ exit code 3은 "사람 확인 필요". CI는 이 값으로 분기.
 
 ---
 
-**산출물**: 「최종산출물/cta-diagrams.drawio」 + PNG 6장 · 「최종산출물/최종보고.md」 · 「docs/adr/ADR-0017·0022~0026」 · 「cta/evals/results/*20260913*.json」
+**산출물**: 「최종산출물/cta-diagrams.drawio」 + PNG 6장 · 「최종산출물/최종보고.md」 · 「cta/evals/results/*20260913*.json」
 **재현**: 「pytest -q」 · 「python scripts/check_defects.py」 · 「cta eval --intents --variant with」 · 「cta eval --fast」 · 「cta maintain --diff HEAD~1 --impact」
