@@ -24,6 +24,7 @@ public class PricingCalculator {
             }
             subtotal = subtotal.add(item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())));
         }
-        return subtotal.multiply(rate).setScale(10, RoundingMode.HALF_DOWN);
+        BigDecimal total = subtotal.multiply(rate);
+        return total.setScale(2, RoundingMode.HALF_DOWN);
     }
 }

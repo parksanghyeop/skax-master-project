@@ -21,7 +21,7 @@ class PricingCalculatorTest {
     void calculate_singleItem_appliesRate() {
         List<LineItem> items = List.of(new LineItem("pen", 1, new BigDecimal("1000")));
 
-        assertEquals(new BigDecimal("1500"), calculator.calculate(items, new BigDecimal("1.5")));
+        assertEquals(new BigDecimal("1500.00"), calculator.calculate(items, new BigDecimal("1.5")));
     }
 
     @Test
@@ -30,12 +30,24 @@ class PricingCalculatorTest {
                 new LineItem("pen", 2, new BigDecimal("1000")),
                 new LineItem("note", 1, new BigDecimal("500")));
 
-        assertEquals(new BigDecimal("2500"), calculator.calculate(items, BigDecimal.ONE));
+        assertEquals(new BigDecimal("2500.00"), calculator.calculate(items, BigDecimal.ONE));
     }
 
     @Test
     void calculate_zeroQuantity_throws() {
         List<LineItem> items = List.of(new LineItem("pen", 0, new BigDecimal("1000")));
+
+        assertThrows(IllegalArgumentException.class, () -> calculator.calculate(items, BigDecimal.ONE));
+    }
+
+    @Test
+    void calculate_nullItems_returnsZero() {
+        assertEquals(BigDecimal.ZERO, calculator.calculate(null, new BigDecimal("1.5")));
+    }
+
+    @Test
+    void calculate_negativeQuantity_throws() {
+        List<LineItem> items = List.of(new LineItem("pen", -1, new BigDecimal("1000")));
 
         assertThrows(IllegalArgumentException.class, () -> calculator.calculate(items, BigDecimal.ONE));
     }

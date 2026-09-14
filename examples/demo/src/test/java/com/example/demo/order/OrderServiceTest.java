@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.never;
 
 /**
  * 기존 테스트 — 이 팀의 테스트 작성 방식 본보기.
@@ -249,5 +250,75 @@ class OrderServiceTest {
         BigDecimal result = service.applyDiscount(order, customer, false);
 
         assertEquals(new BigDecimal("7000"), result);
+    }
+
+    @Test
+    void delete_nonExistingId_throwsNotFound() {
+        when(repository.existsById(100L)).thenReturn(false);
+
+        assertThrows(OrderNotFoundException.class, () -> service.delete(100L));
+    }
+
+    @Test
+    void delete_existsCheck_falseBranch_throwsOrderNotFoundException() {
+        when(repository.existsById(101L)).thenReturn(false);
+
+        assertThrows(OrderNotFoundException.class, () -> service.delete(101L));
+    }
+
+    @Test
+    void delete_existingId_callsRepositoryDeleteById() {
+        when(repository.existsById(200L)).thenReturn(true);
+
+        service.delete(200L);
+
+        verify(repository).deleteById(200L);
+    }
+
+    @Test
+    void findById_nullId_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () -> service.findById(null));
+    }
+
+    @Test
+    void findById_existingId_returnsOrder() {
+        Order order = Order.builder().id(2L).customerName("kim").amount(new BigDecimal("500")).build();
+        when(repository.findById(2L)).thenReturn(Optional.of(order));
+
+        Order found = service.findById(2L);
+
+        assertEquals(2L, found.getId());
+        assertEquals("kim", found.getCustomerName());
+    }
+
+    @Test
+    void pay_nullId_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () -> service.pay(null));
+    }
+
+    @Test
+    void cancel_alreadyCancelled_throwsIllegalState() {
+        Order existing = Order.builder()
+                .id(15L)
+                .customerName("kim")
+                .amount(new BigDecimal("3000"))
+                .status(OrderStatus.CANCELLED)
+                .build();
+        when(repository.findById(15L)).thenReturn(Optional.of(existing));
+
+        assertThrows(IllegalStateException.class, () -> service.cancel(15L));
+    }
+
+    @Test
+    void cancel_nullId_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () -> service.cancel(null));
+    }
+
+    @Test
+    void pay_nullId_throwsIllegalArgument_withoutRepositoryInteraction() {
+        assertThrows(IllegalArgumentException.class, () -> service.pay(null));
+
+        verify(repository, never()).findById(any());
+        verify(repository, never()).save(any(Order.class));
     }
 }
