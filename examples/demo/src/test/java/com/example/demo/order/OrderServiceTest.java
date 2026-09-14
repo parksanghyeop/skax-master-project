@@ -321,4 +321,27 @@ class OrderServiceTest {
         verify(repository, never()).findById(any());
         verify(repository, never()).save(any(Order.class));
     }
+
+    @Test
+    void total_mixedStatuses_sumsOnlyNonCancelled() {
+        Order o1 = Order.builder().id(101L).customerName("kim").amount(new BigDecimal("1000")).status(OrderStatus.NEW).build();
+        Order o2 = Order.builder().id(102L).customerName("kim").amount(new BigDecimal("2000")).status(OrderStatus.CANCELLED).build();
+        Order o3 = Order.builder().id(103L).customerName("kim").amount(new BigDecimal("3000")).status(OrderStatus.PAID).build();
+        List<Order> orders = Arrays.asList(o1, o2, o3);
+
+        BigDecimal total = service.total(orders);
+
+        assertEquals(new BigDecimal("4000"), total);
+    }
+
+    @Test
+    void total_allCancelled_returnsZero() {
+        Order c1 = Order.builder().id(201L).customerName("lee").amount(new BigDecimal("100")).status(OrderStatus.CANCELLED).build();
+        Order c2 = Order.builder().id(202L).customerName("lee").amount(new BigDecimal("200")).status(OrderStatus.CANCELLED).build();
+        List<Order> orders = Arrays.asList(c1, c2);
+
+        BigDecimal total = service.total(orders);
+
+        assertEquals(BigDecimal.ZERO, total);
+    }
 }

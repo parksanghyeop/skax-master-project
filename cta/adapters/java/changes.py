@@ -27,7 +27,10 @@ _ISSUE_REF = re.compile(r"(?:#\d+|\b[A-Z][A-Z0-9]+-\d+\b)")
 # 주석 줄 판정 — 줄 전체가 // 또는 /* ... */ 블록의 일부인 경우만. 코드 뒤 주석은 코드로 본다
 _COMMENT_LINE = re.compile(r"^\s*(//|/\*|\*|\*/)")
 
-# 수정 전 소스가 필요한 대상 — 재발 방지 검증(SC-002 7단계)은 main 소스만 바꿔 끼운다
+# 변경 대상은 main 소스뿐이다 — 테스트 트리(src/test/java)의 변경은 대응할 "동작 변경"이 아니라
+# 이 도구의 산출물(apply한 제안)이다. 넣으면 테스트 메서드가 변경 대상이 되어 의도 분류·생성 경로로
+# 들어간다(2026-09-14 실측: 시연 장면 2에서 미커밋 테스트가 ask 항목·잘못된 생성으로 번졌다).
+# 재발 방지 검증(SC-002 7단계)도 같은 이유로 main 소스만 바꿔 끼운다
 _MAIN_PREFIX = "src/main/java/"
 
 
@@ -79,6 +82,9 @@ class GitChangeExtractor:
             file_match = _FILE_HEADER.match(line)
             if file_match:
                 current_rel = file_match.group("path")
+                if not current_rel.startswith(_MAIN_PREFIX):
+                    current_class, current_spans = None, []  # 테스트·리소스 변경은 건너뛴다
+                    continue
                 current_class, current_spans = self._load_file(current_rel)
                 continue
             hunk = _HUNK_HEADER.match(line)

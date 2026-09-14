@@ -113,6 +113,10 @@ class TestAppendMode:
         assert (
             "add_two" not in second_prompt.split("[직전 시도에 추가했던 코드")[1]
         )  # 전체 파일 아님
+        # 직전 조각은 파일에 반영되지 않았음을 알린다 — 모델이 "이미 들어갔다"고 보고 새 메서드만
+        # 내면 합치기가 원본 위에 하므로 직전 테스트가 사라진다(2026-09-14 시연 실측: 게이트
+        # 재시도마다 예외 테스트와 정상 경로 테스트가 번갈아 사라져 커버리지 게이트를 3번 탈락)
+        assert "통째로 대체" in second_prompt
 
     def test_기존_파일이_없으면_전체_출력_프롬프트_그대로다(self):
         client = _ScriptedClient(["```java\nclass T {}\n```"])

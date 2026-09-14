@@ -10,4 +10,7 @@ when: 변경 의도가 버그 수정이고 조치가 테스트 추가일 때 (�
 - 테스트 이름에 버그 맥락을 남긴다: `applyDiscount_amountEqualsThreshold_appliesDiscount`. 이슈 번호가
   있으면 `@DisplayName("#4821 …")`으로 붙인다.
 - 예외가 수정 대상이면 `assertThrows(IllegalArgumentException.class, () -> …)`로 예외 타입까지 고정한다.
+- 수정된 클래스는 mock하지 않는다. 호출자를 거쳐 시험하는 파생 건이면 수정된 클래스(예: 컨트롤러가 부르는
+  서비스)는 실제 객체로 만들고 **그 클래스의 의존 객체만** mock한다 — 수정된 클래스를 mock하면 수정 전
+  코드에서도 통과해 regression 게이트에 탈락한다.
 - 기존 테스트 메서드와 assert는 한 글자도 바꾸지 않는다. 새 메서드만 추가한다.

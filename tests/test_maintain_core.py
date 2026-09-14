@@ -294,6 +294,8 @@ class TestImpactRange:
         assert derived.decision.kind == ACTION_CREATE_TEST
         assert derived.decision.reason.startswith("영향 범위(OrderService#applyDiscount")
         assert derived.decision.briefing.startswith("파생 건:")
+        # 변경된 클래스를 mock하면 수정 전 코드에서도 통과한다 — 지침서가 실제 객체 사용을 명시한다
+        assert "mock하지 말고 실제 객체로" in derived.decision.briefing
         assert derived.tests == ["OrderControllerTest"] and derived.tests_status == "pass"
         assert "↳ 영향 범위 (OrderService.applyDiscount 변경의 호출자)" in render_analysis(
             3, derived

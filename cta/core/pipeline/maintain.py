@@ -179,7 +179,12 @@ def analyze_changes(
                         briefing=(
                             f"파생 건: {change.target}의 변경이 호출자 {caller.target}를 "
                             f"거쳐 드러나는지 시험한다. "
-                            f"호출 줄: {caller.excerpt or '(발췌 없음)'}\n" + base.briefing
+                            f"호출 줄: {caller.excerpt or '(발췌 없음)'}\n"
+                            # 왜 명시하나(2026-09-14 시연 실측): 변경된 클래스를 mock하면 호출자
+                            # 테스트가 수정 전 코드에서도 통과해 regression 게이트에 8회 연속 탈락
+                            f"{change.target.partition('#')[0]}는 mock하지 말고 실제 객체로 두어 "
+                            f"(그 의존 객체만 대체) 변경이 호출자를 거쳐 드러나게 한다.\n"
+                            + base.briefing
                         ),
                     ),
                     memos=lookup(caller.target),

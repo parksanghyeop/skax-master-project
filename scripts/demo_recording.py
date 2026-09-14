@@ -15,6 +15,7 @@ main은 건드리지 않는다 — 녹화용 브랜치(demo-recording)를 만들
 
 # ruff: noqa: E501 — 안내 문구·자바 코드 조각 줄은 100자 규칙을 적용하지 않는다
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -83,6 +84,10 @@ def clean_demo() -> None:
     """examples/demo를 커밋 상태로 되돌리고 .cta(제안·항목·메모·캐시)를 지운다."""
     git("checkout", "--", "examples/demo")
     git("clean", "-fdq", "--", "examples/demo")
+    # .cta는 gitignore 대상이라 git clean(-x 없음)이 남긴다. 남은 제안·확인 항목이 다음 녹화의
+    # generate에 "대기 중인 제안"으로 이어 붙고 resolve가 옛 항목을 집는다(2026-09-14 실측).
+    # -x로 지우지 않는 이유: examples/demo/.env(게이트웨이 키)까지 지워진다
+    shutil.rmtree(DEMO / ".cta", ignore_errors=True)
 
 
 def prepare() -> None:

@@ -158,6 +158,28 @@ class TestGitChangeExtractor:
         changes = GitChangeExtractor(detect_maven_project(project_dir)).extract().symbols
         assert [c.target for c in changes] == ["Calc#divide"]
 
+    def test_테스트_트리의_변경은_대상으로_잡지_않는다(self, tmp_path):
+        # apply한 제안이 미커밋 상태로 남은 채 maintain을 돌리면(시연 장면 1 → 2) 테스트 메서드가
+        # 변경 대상이 되어 의도 분류·생성 경로로 들어갔다 — main 소스 변경만 대상이다
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        src = tmp_path / "src" / "main" / "java" / "com" / "example"
+        test = tmp_path / "src" / "test" / "java" / "com" / "example"
+        src.mkdir(parents=True)
+        test.mkdir(parents=True)
+        java = src / "Calc.java"
+        java.write_text(JAVA_V1, encoding="utf-8")
+        test_java = test / "CalcTest.java"
+        test_java.write_text("class CalcTest {\n}\n", encoding="utf-8")
+        _git(tmp_path, "init", "-q")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "v1")
+        java.write_text(JAVA_V2, encoding="utf-8")
+        test_java.write_text("class CalcTest {\n    void divide_ok() {}\n}\n", encoding="utf-8")
+
+        changes = GitChangeExtractor(detect_maven_project(tmp_path)).extract().symbols
+
+        assert [c.target for c in changes] == ["Calc#divide"]
+
     def test_변경이_없으면_빈_목록이다(self, tmp_path):
         (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
         _git(tmp_path, "init", "-q")
