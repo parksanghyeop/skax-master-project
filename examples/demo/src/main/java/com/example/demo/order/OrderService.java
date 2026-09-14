@@ -37,6 +37,9 @@ public class OrderService {
     }
 
     public Order findById(Long id) {
+        if (id == null) {
+            throw new IllegalArgumentException("id required");
+        }
         return repository.findById(id).orElseThrow(() -> new OrderNotFoundException(id));
     }
 
