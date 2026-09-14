@@ -8,6 +8,7 @@
 | 「최종보고.md」 | 최종 보고서 — 프로젝트 개요 · 서비스 아키텍처(핵심 기능 및 Agent 구현: Deep Agent·하네스·가드레일·Skill·GraphRAG) · KPI 달성도 · 기술 문제 해결 과정 · 향후 개선(단기)·확장(장기) |
 | 「E2E서비스개발.md」 | 3단계(E2E 서비스 개발) 최종 보고 — 1 아키텍처 요약(그림 4장) · 2 KPI 달성도(Plan vs Actual) · 3 핵심 가치 · 4 운영·보안 · 5 회고·향후 확장 |
 | 「AI_Master_Project_최종발표_초고.pptx」 | 회사 발표 템플릿(docs/ppt)에 가이드대로 채운 최종 발표 초고 — 표지 + 프로젝트 개요 · 기술 아키텍처 · 핵심 기술 과제. 멘티·멘토 이름은 자리표시. 재생성: python scripts/render_final_ppt.py 최종산출물/AI_Master_Project_최종발표_초고.pptx |
+| 「시연영상_시나리오.md」 | 5분 시연 영상 시나리오 — 준비 체크리스트, 타임라인(인트로 + 장면 4 + 마무리), 장면별 명령·화면 포인트·나레이션, 대체 계획, 녹화 후 정리 |
 | 「cta-diagrams.drawio」 | 그림 6장(6페이지). draw.io로 열어 편집 |
 | 「1-agent-architecture.png」 | 인포그래픽 — Agent 구조 아키텍처(사용자 → CLI → 에이전트(메인+서브 3, 도구 6, 안전장치) ↔ LLM, 실행 장치·코드 그래프·판단 메모, 게이트 → 제안 → 반영) |
 | 「2-detailed-architecture.png」 | 상세 아키텍처 — 층별 모듈(cli·core·adapters·graph·llm·sandbox), 작성 엔진 둘, 포트→어댑터, 안전장치, 상태 저장소 |
